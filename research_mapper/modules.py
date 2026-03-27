@@ -1,8 +1,9 @@
 import logging
+from typing import Annotated
 
 import dspy
 
-from .models import UserQuery
+from .models import UserQuery, LuceneQuery
 from .signatures import UserQueryToLuceneSearchQueries, GatherEvidenceFromSearchQuery
 from .human_in_loop import validate_search_queries
 from .tools import search_references, lookup_references
@@ -11,14 +12,34 @@ from .ui import Spinner
 logger = logging.getLogger(__name__)
 
 
+# easy partial application approaches like functools' partial function don't
+# work well/cleanly here because DSPy wraps functions that are meant to be
+# used as tools in their dspy.Tool object that relies on function metadata
+# (i.e. __name__, __doc__, etc) to let the LLM know how to call the function
+def fixed_search_references_builder(query: LuceneQuery):
+    def _search_references(
+        start_year: Annotated[
+            int | None, "The start year for filtering results."
+        ] = None,
+        end_year: Annotated[int | None, "The end year for filtering results."] = None,
+        sort: Annotated[
+            str | None,
+            "The field to sort the results by. Prefix a field with '-' to sort in descending order. If omitted, will sort by relevance score descending.",
+        ] = None,
+        page: Annotated[int, "The page number of the results to retrieve."] = 1,
+    ):
+        """Search the DESTINY evidence repository for references.
+        Returns a page of matching references with metadata."""
+        return search_references(
+            query=query, start_year=start_year, end_year=end_year, sort=sort, page=page
+        )
+
+    return _search_references
+
+
 class SearchAgent(dspy.Module):
     def __init__(self):
         self.query_generator = dspy.ChainOfThought(UserQueryToLuceneSearchQueries)
-        self.agent = dspy.ReAct(
-            signature=GatherEvidenceFromSearchQuery,
-            tools=[search_references, lookup_references],
-            max_iters=5,
-        )
 
     def forward(self, user_query: UserQuery):
         logger.info("Generating Lucene queries for: %s", user_query.query)
@@ -39,11 +60,15 @@ class SearchAgent(dspy.Module):
         for query in search_queries:
             logger.debug("Running ReAct agent for query: %s", query)
             with Spinner("Searching"):
-                new_evidence = self.agent(
-                    original_query=user_query, search_query=query
-                ).evidence
-                evidence.update(new_evidence)
-            logger.info("Found %d new items for: %s", len(new_evidence), query)
+                _search_references = fixed_search_references_builder(query)
+                agent = dspy.ReAct(
+                    signature=GatherEvidenceFromSearchQuery,
+                    tools=[_search_references, lookup_references],
+                    max_iters=5,
+                )
+                new_evidence = agent(original_query=user_query, search_query=query)
+                evidence.update(new_evidence.evidence)
+            logger.info("Found %d new items for: %s", len(new_evidence.evidence), query)
 
         logger.info("SearchAgent complete — %d evidence items returned", len(evidence))
         return dspy.Prediction(evidence=list(evidence))

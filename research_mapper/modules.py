@@ -69,6 +69,9 @@ class SearchAgent(dspy.Module):
                 new_evidence = agent(original_query=user_query, search_query=query)
                 evidence.update(new_evidence.evidence)
             logger.info("Found %d new items for: %s", len(new_evidence.evidence), query)
+            logger.info(
+                'Agent stopped searching because: "%s"', new_evidence.stopping_reason
+            )
 
         logger.info("SearchAgent complete — %d evidence items returned", len(evidence))
         return dspy.Prediction(evidence=list(evidence))

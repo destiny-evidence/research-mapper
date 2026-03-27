@@ -28,3 +28,6 @@ class GatherEvidenceFromSearchQuery(dspy.Signature):
     evidence: list[Evidence] = dspy.OutputField(
         desc="A list of relevant Evidence born from the search."
     )
+    stopping_reason: str = dspy.OutputField(
+        desc="The reason for stopping the search, i.e. not including more results."
+    )

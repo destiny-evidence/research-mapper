@@ -16,13 +16,18 @@ class UserQueryToLuceneSearchQueries(dspy.Signature):
 
 class GatherEvidenceFromSearchQuery(dspy.Signature):
     """
-    Retrieve sources from the DESTINY climate and health academic repository using a search query.
+    Retrieve sources from the DESTINY climate and health academic repository with a preset search query.
     """
 
     original_query: UserQuery = dspy.InputField(
         desc="The original user query for context."
     )
-    search_query: LuceneQuery = dspy.InputField(desc="The search query to use.")
+    search_query: LuceneQuery = dspy.InputField(
+        desc="The search query that has been fixed for use."
+    )
     evidence: list[Evidence] = dspy.OutputField(
         desc="A list of relevant Evidence born from the search."
+    )
+    stopping_reason: str = dspy.OutputField(
+        desc="The reason for stopping the search, i.e. not including more results."
     )

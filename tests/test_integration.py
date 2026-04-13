@@ -8,9 +8,11 @@ Skip in CI with:
     pytest -m "not integration"
 """
 
+import uuid
 from unittest.mock import patch
 
 import pytest
+from destiny_sdk.identifiers import OpenAlexIdentifier
 from dotenv import load_dotenv
 
 from research_mapper.models import Evidence, LuceneQuery, UserQuery
@@ -60,7 +62,7 @@ def test_search_references_tool_live():
     assert len(results) > 0, "Expected at least one result for a broad query"
     for item in results:
         assert isinstance(item, Evidence)
-        assert item.id, "Evidence item should have a non-empty id"
+        assert item.destiny_id, "Evidence item should have a non-empty id"
 
 
 @pytest.mark.integration
@@ -86,23 +88,39 @@ def test_search_references_tool_live_pagination():
     page1 = search_references(query=query, page=1)
     page2 = search_references(query=query, page=2)
 
-    ids_page1 = {item.id for item in page1}
-    ids_page2 = {item.id for item in page2}
-    assert ids_page1.isdisjoint(ids_page2), "Pages should not overlap"
+    ids_page1 = {item.destiny_id for item in page1}
+    ids_page2 = {item.destiny_id for item in page2}
+    assert ids_page1 - ids_page2, "Pages should not overlap"
 
 
 @pytest.mark.integration
-def test_lookup_references_tool_live():
+def test_lookup_references_tool_with_destiny_id_live():
     """Look up a reference by DOI and verify it returns an Evidence object."""
     from research_mapper.tools import lookup_references
 
-    test_doi = "3087468654"
-    results = lookup_references(identifiers=[test_doi])
+    test_destiny_id = uuid.UUID("ce0d0782-59b7-4e3f-8719-293a748681a9")
+    results = lookup_references(identifiers=[test_destiny_id])
 
     assert isinstance(results, list)
-    assert len(results) >= 1, f"Expected to find reference for DOI {test_doi}"
+    assert len(results) >= 1, f"Expected to find reference for DOI {test_destiny_id}"
     assert isinstance(results[0], Evidence)
-    assert results[0].id
+    assert results[0].destiny_id
+
+
+@pytest.mark.integration
+def test_lookup_references_tool_with_external_id_live():
+    """Look up a reference by DOI and verify it returns an Evidence object."""
+    from research_mapper.tools import lookup_references
+
+    test_open_alex_id = OpenAlexIdentifier(
+        identifier="W3087468654", identifier_type="open_alex"
+    )
+    results = lookup_references(identifiers=[test_open_alex_id])
+
+    assert isinstance(results, list)
+    assert len(results) >= 1, f"Expected to find reference for DOI {test_open_alex_id}"
+    assert isinstance(results[0], Evidence)
+    assert results[0].destiny_id
 
 
 # ---------------------------------------------------------------------------
@@ -125,4 +143,4 @@ def test_search_agent_end_to_end_live():
     assert result.evidence, "Expected at least one evidence item"
     for item in result.evidence:
         assert isinstance(item, Evidence)
-        assert item.id, "Evidence should have a non-empty id"
+        assert item.destiny_id, "Evidence should have a non-empty id"

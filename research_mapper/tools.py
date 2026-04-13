@@ -1,7 +1,8 @@
 import logging
+import uuid
 from typing import Annotated
 
-from destiny_sdk.identifiers import IdentifierLookup
+from destiny_sdk.identifiers import IdentifierLookup, Identifier
 
 from .models import LuceneQuery, Evidence
 from .utils import get_destiny_client
@@ -46,17 +47,26 @@ def search_references(
 
 
 def lookup_references(
-    identifiers: Annotated[list[str], "The identifiers to look up."],
+    identifiers: Annotated[list[Identifier], "The identifiers to look up."],
 ) -> list[Evidence]:
     """Look up specific references by their identifiers (DOI, PubMed ID, etc.).
     Pass identifiers as strings; the SDK will auto-detect the type."""
     logger.debug("lookup_references(identifiers=%s)", identifiers)
     client = get_destiny_client()
 
-    lookups = [
-        IdentifierLookup(identifier=ident, identifier_type=None)
-        for ident in identifiers
-    ]
+    lookups = []
+    for identifier in identifiers:
+        if isinstance(identifier, uuid.UUID):
+            lookup_identifier = IdentifierLookup(
+                identifier=str(identifier), identifier_type=None
+            )
+        else:
+            lookup_identifier = IdentifierLookup(
+                identifier=identifier.identifier,
+                identifier_type=identifier.identifier_type,
+            )
+        lookups.append(lookup_identifier)
+
     results = client.lookup(lookups)
 
     evidence = [Evidence.from_destiny_reference(ref) for ref in results]

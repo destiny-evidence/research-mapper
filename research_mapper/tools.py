@@ -62,7 +62,7 @@ def lookup_references(
             )
         else:
             lookup_identifier = IdentifierLookup(
-                identifier=identifier.identifier,
+                identifier=str(identifier.identifier),
                 identifier_type=identifier.identifier_type,
             )
         lookups.append(lookup_identifier)

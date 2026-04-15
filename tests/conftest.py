@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from destiny_sdk.enhancements import EnhancementType
+from destiny_sdk.identifiers import DOIIdentifier
 
 
 def pytest_configure(config):
@@ -24,8 +25,7 @@ def _make_mock_reference(
     ref_id = ref_id or uuid.uuid4()
 
     # identifier
-    mock_identifier = MagicMock()
-    mock_identifier.identifier = doi
+    mock_identifier = DOIIdentifier(identifier=doi)
 
     # BIBLIOGRAPHIC enhancement
     mock_author_1 = MagicMock()

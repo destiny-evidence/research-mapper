@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from destiny_sdk.identifiers import IdentifierLookup
+from destiny_sdk.identifiers import DOIIdentifier, IdentifierLookup, PubMedIdentifier
 
 from research_mapper.models import Evidence, LuceneQuery
 from research_mapper.tools import lookup_references, search_references
@@ -77,7 +77,9 @@ def test_lookup_references_returns_evidence(mock_destiny_client, mock_reference)
     with patch(
         "research_mapper.tools.get_destiny_client", return_value=mock_destiny_client
     ):
-        result = lookup_references(identifiers=["10.1000/test.doi"])
+        result = lookup_references(
+            identifiers=[DOIIdentifier(identifier="10.1000/test.doi")]
+        )
 
     assert len(result) == 1
     assert isinstance(result[0], Evidence)
@@ -87,14 +89,20 @@ def test_lookup_references_builds_identifier_lookup_objects(mock_destiny_client)
     with patch(
         "research_mapper.tools.get_destiny_client", return_value=mock_destiny_client
     ):
-        lookup_references(identifiers=["10.1000/doi1", "pmid:12345"])
+        lookup_references(
+            identifiers=[
+                DOIIdentifier(identifier="10.1000/doi1"),
+                PubMedIdentifier(identifier="12345"),
+            ]
+        )
 
     call_args = mock_destiny_client.lookup.call_args[0][0]
     assert len(call_args) == 2
     assert all(isinstance(item, IdentifierLookup) for item in call_args)
     assert call_args[0].identifier == "10.1000/doi1"
-    assert call_args[0].identifier_type is None
-    assert call_args[1].identifier == "pmid:12345"
+    assert call_args[0].identifier_type == "doi"
+    assert call_args[1].identifier == "12345"
+    assert call_args[1].identifier_type == "pm_id"
 
 
 def test_lookup_references_empty_input(mock_destiny_client):

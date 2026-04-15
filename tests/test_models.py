@@ -58,8 +58,8 @@ def test_lucene_query_invalid_syntax_raises(bad_query):
 def test_evidence_from_reference_full(mock_reference):
     evidence = Evidence.from_destiny_reference(mock_reference)
 
-    assert evidence.id == str(mock_reference.id)
-    assert evidence.identifiers == ["10.1000/test.doi"]
+    assert evidence.destiny_id == mock_reference.id
+    assert evidence.external_identifiers[0].identifier == "10.1000/test.doi"
     assert evidence.title == "Test Paper Title"
     assert evidence.authors == ["Author One", "Author Two"]
     assert evidence.year == 2023
@@ -77,8 +77,8 @@ def test_evidence_from_reference_no_enhancements():
 
     evidence = Evidence.from_destiny_reference(ref)
 
-    assert evidence.id == str(ref.id)
-    assert evidence.identifiers == []
+    assert evidence.destiny_id == ref.id
+    assert evidence.external_identifiers == []
     assert evidence.title is None
     assert evidence.authors == []
     assert evidence.year is None

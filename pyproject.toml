@@ -20,6 +20,10 @@ dev = [
     "ruff>=0.15.7",
 ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [tool.pytest.ini_options]
 markers = [
     "integration: end-to-end tests requiring live .env credentials",

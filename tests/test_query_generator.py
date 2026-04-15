@@ -94,8 +94,8 @@ def test_forward_deduplicates_evidence(patched_agent_forward):
     agent, expected_queries = patched_agent_forward
 
     # Two queries returning the same evidence item
-    shared_id = str(uuid.uuid4())
-    shared_evidence = Evidence(id=shared_id, identifiers=["10.1/dup"])
+    shared_id = uuid.uuid4()
+    shared_evidence = Evidence(destiny_id=shared_id)
 
     mock_react_result = MagicMock()
     mock_react_result.evidence = [shared_evidence]

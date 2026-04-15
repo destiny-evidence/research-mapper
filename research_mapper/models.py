@@ -1,4 +1,7 @@
+import uuid
+
 from destiny_sdk.enhancements import EnhancementType
+from destiny_sdk.identifiers import ExternalIdentifier
 from destiny_sdk.references import Reference
 from luqum import parser
 from luqum.exceptions import ParseSyntaxError
@@ -26,8 +29,8 @@ class LuceneQuery(BaseModel):
 
 
 class Evidence(BaseModel):
-    id: str
-    identifiers: list[str] = []
+    destiny_id: uuid.UUID
+    external_identifiers: list[ExternalIdentifier] = []
     title: str | None = None
     abstract: str | None = None
     authors: list[str] = []
@@ -35,16 +38,16 @@ class Evidence(BaseModel):
     pdf_urls: list[str] = []
 
     def __hash__(self) -> int:
-        return hash((self.id, str(self.identifiers)))
+        return hash(
+            (self.destiny_id, str([id.identifier for id in self.external_identifiers]))
+        )
 
     @classmethod
     def from_destiny_reference(cls, ref: Reference):
         metadata = {
-            "id": str(ref.id),
+            "destiny_id": ref.id,
             # extract identifiers
-            "identifiers": [
-                str(identifier.identifier) for identifier in ref.identifiers
-            ],
+            "external_identifiers": ref.identifiers,
         }
 
         # extract enhancements

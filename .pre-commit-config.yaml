@@ -4,3 +4,12 @@ repos:
     hooks:
       - id: ruff          # linter — catches style/logic issues
       - id: ruff-format   # formatter — like black, enforces consistent style
+  - repo: local
+    hooks:
+      - id: pytest-unit
+        name: unit-tests
+        entry: scripts/run-unit-tests.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+        verbose: true

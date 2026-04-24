@@ -40,7 +40,7 @@ def live_setup():
         pytest.skip(f"Missing env vars: {missing}")
 
     from research_mapper.config import configure_dspy
-    from research_mapper.utils import get_destiny_client
+    from research_mapper.config import get_destiny_client
 
     configure_dspy()
     get_destiny_client.cache_clear()

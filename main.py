@@ -20,13 +20,16 @@ def main():
     parser.add_argument(
         "--debug", "-d", action="store_true", help="Enable debug logging"
     )
+    parser.add_argument("--info", "-i", action="store_true", help="Enable info logging")
     args = parser.parse_args()
 
     handler = logging.StreamHandler()
     handler.setFormatter(
         ColourFormatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s")
     )
-    logging.getLogger().setLevel(logging.DEBUG if args.debug else logging.INFO)
+    logging.getLogger().setLevel(
+        logging.DEBUG if args.debug else logging.INFO if args.info else logging.WARNING
+    )
     logging.getLogger().addHandler(handler)
     logging.getLogger("dspy").setLevel(logging.WARNING)
 

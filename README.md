@@ -48,9 +48,9 @@ You'll be prompted to authenticate, then asked for your research question. The a
 
 ## TODO
 
-- [ ] **More Transparent Logging** — present arg choices of the evidence retrieval agents (i.e. start & end year, sort, and page) alongside LLM reasoning for which Evidence to return.
-- [ ] **Async evidence gathering** — run ReAct agents concurrently across search queries using DSPy's native async support and async tool implementations
 
 ## DONE
 - [X] **Unit tests** — test core components (query generator, tools, validation logic) with mocked SDK responses, suitable for CI/CD
 - [X] **Live functional tests** — integration tests against a real DESTINY instance and LLM providers for local pre-release verification
+- [X] **Async evidence gathering** — run ReAcT agents concurrently across search queries ~~using DSPy's native async support and async tool implementations~~
+- [X] **More Transparent Logging** — present arg choices of the evidence retrieval agents (i.e. start & end year, sort, and page) alongside LLM reasoning for which Evidence to return.

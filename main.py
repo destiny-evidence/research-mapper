@@ -1,17 +1,21 @@
 import argparse
 import logging
 
-from research_mapper.config import configure_dspy
+from research_mapper.config import configure_dspy, get_destiny_client
 from research_mapper.logs import ColourFormatter
 from research_mapper.models import UserQuery
 from research_mapper.modules import SearchAgent
-from research_mapper.ui import print_evidence
-from research_mapper.utils import get_destiny_client
+from research_mapper.ui import TerminalUI
 
 logger = logging.getLogger(__name__)
 
 
-# TODO add unit tests of core parts, e.g. the query generator, tools, etc
+def initialise():
+    get_destiny_client()
+    logger.info("Destiny client ready")
+    configure_dspy()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Research Mapper CLI")
     parser.add_argument(
@@ -33,19 +37,21 @@ def main():
     logging.getLogger().addHandler(handler)
     logging.getLogger("dspy").setLevel(logging.WARNING)
 
+    tui = TerminalUI()
     logger.info("Starting research-mapper")
-    get_destiny_client()
-    logger.info("Destiny client ready")
-    configure_dspy()
+    tui.print_welcome()
+    tui.print_process_status(
+        initialise,
+        "Initialising...\n\nPlease authenticate your DESTINY credentials in your browser.\nA page should have opened automatically.",
+        complete_message="[green]✓[/green] Initialisation Successful!",
+    )
 
-    print()
-    query = args.query or input("❯ ")
-    print()
+    query = args.query or tui.prompt_user("How can I help?")
     logger.info("Running SearchAgent for query: %s", query)
-    search_agent = SearchAgent()
+    search_agent = SearchAgent(tui=tui)
     evidence = search_agent(UserQuery(query=query)).evidence
     logger.info("SearchAgent complete — %d sources found", len(evidence))
-    print_evidence(evidence)
+    tui.print_evidence(evidence)
 
 
 if __name__ == "__main__":

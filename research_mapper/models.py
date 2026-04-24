@@ -27,6 +27,9 @@ class LuceneQuery(BaseModel):
         except ParseSyntaxError as e:
             raise ValueError(f"Invalid Lucene syntax: {e}") from e
 
+    def __hash__(self) -> int:
+        return hash(self.query)
+
 
 class Evidence(BaseModel):
     destiny_id: uuid.UUID

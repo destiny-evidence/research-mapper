@@ -104,12 +104,7 @@ def test_forward_deduplicates_evidence(patched_agent_forward):
     two_queries = [LuceneQuery(query="q1"), LuceneQuery(query="q2")]
     agent.query_generator.return_value.search_queries = two_queries
 
-    with (
-        patch(
-            "research_mapper.modules.validate_search_queries", return_value=two_queries
-        ),
-        patch("dspy.ReAct") as mock_react_cls,
-    ):
+    with patch("dspy.ReAct") as mock_react_cls:
         mock_react_instance = MagicMock()
         mock_react_instance.return_value = mock_react_result
         mock_react_cls.return_value = mock_react_instance

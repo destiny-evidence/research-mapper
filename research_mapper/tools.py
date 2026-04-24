@@ -5,7 +5,7 @@ from typing import Annotated
 from destiny_sdk.identifiers import IdentifierLookup, Identifier
 
 from .models import LuceneQuery, Evidence
-from .utils import get_destiny_client
+from .config import get_destiny_client
 
 logger = logging.getLogger(__name__)
 

@@ -1,14 +1,14 @@
 import asyncio
 import logging
-from typing import Annotated
+from itertools import chain
+from typing import Annotated, Callable, Any
 
 import dspy
 
 from .models import UserQuery, LuceneQuery, Evidence
 from .signatures import UserQueryToLuceneSearchQueries, GatherEvidenceFromSearchQuery
-from .human_in_loop import validate_search_queries
 from .tools import search_references, lookup_references
-from .ui import Spinner
+from .ui import LiveAgentPanels, TerminalUI, LiveAgentPanel
 
 logger = logging.getLogger(__name__)
 
@@ -38,39 +38,98 @@ def fixed_search_references_builder(query: LuceneQuery):
     return _search_references
 
 
+# TODO maybe add some validation that the module has a reasoning field and its signature inputs are valid
+def read_reasoning_stream(
+    program: dspy.Module, on_chunk: Callable[[str, bool], Any], **program_inputs
+) -> dspy.Prediction:
+    reasoning_listener = dspy.streaming.StreamListener(signature_field_name="reasoning")
+    stream_predict = dspy.streamify(
+        program, stream_listeners=[reasoning_listener], async_streaming=False
+    )
+    output_stream = stream_predict(**program_inputs)
+
+    return_value = None
+    for chunk in output_stream:
+        if isinstance(chunk, dspy.streaming.StreamResponse):
+            on_chunk(chunk.chunk)
+        elif isinstance(chunk, dspy.Prediction):
+            # signals to callback that stream processing has completed (i.e. there are no more chunks)
+            on_chunk("", True)
+            return_value = chunk
+    if return_value is None:
+        raise ValueError("No Prediction chunk reached")
+    return return_value
+
+
 class SearchAgent(dspy.Module):
-    def __init__(self):
+    def __init__(self, tui: TerminalUI | None = None):
         self.query_generator = dspy.ChainOfThought(UserQueryToLuceneSearchQueries)
+        self.tui = tui
 
     def forward(self, user_query: UserQuery):
         return asyncio.run(self.aforward(user_query))
 
     async def aforward(self, user_query: UserQuery):
+        search_queries = self._generate_search_queries(user_query)
+        search_queries = self._filter_search_queries_by_user(search_queries)
+        evidence = await self._retrieve_evidence(user_query, search_queries)
+        logger.info("SearchAgent complete — %d evidence items returned", len(evidence))
+        return dspy.Prediction(evidence=list(evidence))
+
+    def _filter_search_queries_by_user(
+        self, search_queries: list[LuceneQuery]
+    ) -> list[LuceneQuery]:
+        if self.tui:
+            return self.tui.select_from_list(
+                search_queries, title="Suggested search queries"
+            )
+        else:
+            return search_queries
+
+    def _generate_search_queries(self, user_query: UserQuery) -> list[LuceneQuery]:
         logger.info("Generating Lucene queries for: %s", user_query.query)
-        search_queries = self.query_generator(original_query=user_query).search_queries
+        if self.tui is not None:
+            with LiveAgentPanel(user_query.query, self.tui) as panel_ui:
+                search_queries = read_reasoning_stream(
+                    program=self.query_generator,
+                    original_query=user_query,
+                    on_chunk=panel_ui.get_callback_for_buffer(user_query.query),
+                ).search_queries
+            self.tui.print_info("[green]✓[/green] Queries generated successfully!")
+        else:
+            search_queries = self.query_generator(
+                original_query=user_query
+            ).search_queries
         logger.debug("Generated queries: %s", search_queries)
+        return search_queries
 
-        while True:
-            try:
-                search_queries = validate_search_queries(search_queries)
-                break
-            except ValueError as e:
-                print(f"Invalid input: {e}. Try again.")
-
+    async def _retrieve_evidence(
+        self, user_query: UserQuery, search_queries: list[LuceneQuery]
+    ) -> set[Evidence]:
         logger.info(
-            "Starting agentic search loop — %d queries to process", len(search_queries)
+            "Starting subagent retrieval loop — %d queries to process",
+            len(search_queries),
         )
 
-        async def run_retrieval_subagent(query: LuceneQuery) -> list[Evidence]:
+        def run_retrieval_subagent(
+            query: LuceneQuery, on_chunk: Callable[[str, bool], Any] | None = None
+        ) -> list[Evidence]:
             _search_references = fixed_search_references_builder(query)
             subagent = dspy.ReAct(
                 signature=GatherEvidenceFromSearchQuery,
                 tools=[_search_references, lookup_references],
                 max_iters=5,
             )
-            new_evidence = await asyncio.to_thread(
-                subagent, original_query=user_query, search_query=query
-            )
+            if on_chunk is not None:
+                new_evidence = read_reasoning_stream(
+                    subagent,
+                    on_chunk=on_chunk,
+                    original_query=user_query,
+                    search_query=query,
+                )
+            else:
+                new_evidence = subagent(original_query=user_query, search_query=query)
+
             logger.info("Found %d new items for: %s", len(new_evidence.evidence), query)
             logger.info(
                 'Agent stopped searching for %s because: "%s"',
@@ -79,14 +138,25 @@ class SearchAgent(dspy.Module):
             )
             return new_evidence.evidence
 
-        with Spinner("Searching"):
+        if self.tui is not None:
+            with LiveAgentPanels(search_queries, self.tui) as subagent_ui:
+                results = await asyncio.gather(
+                    *[
+                        asyncio.to_thread(
+                            run_retrieval_subagent,
+                            query,
+                            subagent_ui.get_callback_for_buffer(query),
+                        )
+                        for query in search_queries
+                    ]
+                )
+            self.tui.print_info("[green]✓[/green] Evidence retrieved successfully!")
+        else:
             results = await asyncio.gather(
-                *[run_retrieval_subagent(query) for query in search_queries]
+                *[
+                    asyncio.to_thread(run_retrieval_subagent, query)
+                    for query in search_queries
+                ]
             )
 
-        evidence = set()
-        for result in results:
-            evidence.update(result)
-
-        logger.info("SearchAgent complete — %d evidence items returned", len(evidence))
-        return dspy.Prediction(evidence=list(evidence))
+        return set(chain.from_iterable(results))

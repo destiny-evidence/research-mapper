@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from research_mapper.models import Evidence, UserQuery
-from research_mapper.modules import SearchAgent
+from research_mapper.modules.search_agent import SearchAgent
 
 
 @pytest.mark.integration

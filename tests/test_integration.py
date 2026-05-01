@@ -130,7 +130,7 @@ def test_lookup_references_tool_with_external_id_live():
 
 @pytest.mark.integration
 def test_search_agent_end_to_end_live():
-    from research_mapper.modules import SearchAgent
+    from research_mapper.modules.search_agent import SearchAgent
 
     agent = SearchAgent()
     query = UserQuery(

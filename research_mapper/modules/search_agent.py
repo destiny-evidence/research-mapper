@@ -5,10 +5,14 @@ from typing import Annotated, Callable, Any
 
 import dspy
 
-from .models import UserQuery, LuceneQuery, Evidence
-from .signatures import UserQueryToLuceneSearchQueries, GatherEvidenceFromSearchQuery
-from .tools import search_references, lookup_references
-from .ui import LiveAgentPanels, TerminalUI, LiveAgentPanel
+from research_mapper.models import UserQuery, LuceneQuery, Evidence
+from research_mapper.modules.utils import read_reasoning_stream
+from research_mapper.signatures import (
+    UserQueryToLuceneSearchQueries,
+    GatherEvidenceFromSearchQuery,
+)
+from research_mapper.tools import search_references, lookup_references
+from research_mapper.ui import LiveAgentPanels, TerminalUI, LiveAgentPanel
 
 logger = logging.getLogger(__name__)
 
@@ -36,29 +40,6 @@ def fixed_search_references_builder(query: LuceneQuery):
         )
 
     return _search_references
-
-
-# TODO maybe add some validation that the module has a reasoning field and its signature inputs are valid
-def read_reasoning_stream(
-    program: dspy.Module, on_chunk: Callable[[str, bool], Any], **program_inputs
-) -> dspy.Prediction:
-    reasoning_listener = dspy.streaming.StreamListener(signature_field_name="reasoning")
-    stream_predict = dspy.streamify(
-        program, stream_listeners=[reasoning_listener], async_streaming=False
-    )
-    output_stream = stream_predict(**program_inputs)
-
-    return_value = None
-    for chunk in output_stream:
-        if isinstance(chunk, dspy.streaming.StreamResponse):
-            on_chunk(chunk.chunk)
-        elif isinstance(chunk, dspy.Prediction):
-            # signals to callback that stream processing has completed (i.e. there are no more chunks)
-            on_chunk("", True)
-            return_value = chunk
-    if return_value is None:
-        raise ValueError("No Prediction chunk reached")
-    return return_value
 
 
 class SearchAgent(dspy.Module):

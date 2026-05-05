@@ -11,7 +11,7 @@ from research_mapper.signatures import (
 from research_mapper.ui import TerminalUI, LiveAgentPanel
 
 
-class ScreeningAgent:
+class ScreeningAgent(dspy.Module):
     def __init__(self, tui: TerminalUI | None = None):
         self.screening_criteria_generator = dspy.ChainOfThought(
             UserQueryToScreeningCriteria

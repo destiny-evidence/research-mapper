@@ -1,4 +1,5 @@
 import uuid
+from enum import StrEnum, auto
 
 from destiny_sdk.enhancements import EnhancementType
 from destiny_sdk.identifiers import ExternalIdentifier
@@ -88,3 +89,13 @@ class Evidence(BaseModel):
         metadata["pdf_urls"] = pdf_urls
 
         return cls(**metadata)
+
+
+class ScreeningCriterionType(StrEnum):
+    INCLUSION = auto()
+    EXCLUSION = auto()
+
+
+class ScreeningCriterion(BaseModel):
+    criterion_type: ScreeningCriterionType
+    description: str

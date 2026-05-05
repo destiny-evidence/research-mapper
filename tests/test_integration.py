@@ -13,37 +13,13 @@ from unittest.mock import patch
 
 import pytest
 from destiny_sdk.identifiers import OpenAlexIdentifier
-from dotenv import load_dotenv
 
 from research_mapper.models import Evidence, LuceneQuery, UserQuery
 
 
 @pytest.fixture(scope="module", autouse=True)
-def live_setup():
-    """Load .env and configure DSPy + DESTINY client once per module."""
-    import os
-
-    load_dotenv()
-
-    required = [
-        "DESTINY_BASE_URL",
-        "DESTINY_AZURE_CLIENT_ID",
-        "DESTINY_AZURE_LOGIN_URL",
-        "DESTINY_AZURE_APPLICATION_ID",
-        "DESTINY_SEARCH_ENDPOINT",
-        "LLM_MODEL",
-        "OPENAI_API_KEY",
-        "OPENAI_API_BASE",
-    ]
-    missing = [k for k in required if not os.environ.get(k)]
-    if missing:
-        pytest.skip(f"Missing env vars: {missing}")
-
-    from research_mapper.config import configure_dspy
-    from research_mapper.config import get_destiny_client
-
-    configure_dspy()
-    get_destiny_client.cache_clear()
+def _live(live_setup):
+    pass
 
 
 # ---------------------------------------------------------------------------

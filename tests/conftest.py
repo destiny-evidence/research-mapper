@@ -4,12 +4,40 @@ from unittest.mock import MagicMock
 import pytest
 from destiny_sdk.enhancements import EnhancementType
 from destiny_sdk.identifiers import DOIIdentifier
+from dotenv import load_dotenv
 
 
 def pytest_configure(config):
     config.addinivalue_line(
         "markers", "integration: end-to-end tests requiring live .env credentials"
     )
+
+
+@pytest.fixture(scope="module")
+def live_setup():
+    """Load .env and configure DSPy + DESTINY client once per module."""
+    import os
+
+    load_dotenv()
+
+    required = [
+        "DESTINY_BASE_URL",
+        "DESTINY_AZURE_CLIENT_ID",
+        "DESTINY_AZURE_LOGIN_URL",
+        "DESTINY_AZURE_APPLICATION_ID",
+        "DESTINY_SEARCH_ENDPOINT",
+        "LLM_MODEL",
+        "OPENAI_API_KEY",
+        "OPENAI_API_BASE",
+    ]
+    missing = [k for k in required if not os.environ.get(k)]
+    if missing:
+        pytest.skip(f"Missing env vars: {missing}")
+
+    from research_mapper.config import configure_dspy, get_destiny_client
+
+    configure_dspy()
+    get_destiny_client.cache_clear()
 
 
 def _make_mock_reference(

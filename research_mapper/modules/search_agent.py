@@ -47,10 +47,10 @@ class SearchAgent(dspy.Module):
         self.query_generator = dspy.ChainOfThought(UserQueryToLuceneSearchQueries)
         self.tui = tui
 
-    def forward(self, user_query: UserQuery):
+    def forward(self, user_query: UserQuery) -> dspy.Prediction:
         return asyncio.run(self.aforward(user_query))
 
-    async def aforward(self, user_query: UserQuery):
+    async def aforward(self, user_query: UserQuery) -> dspy.Prediction:
         search_queries = self._generate_search_queries(user_query)
         search_queries = self._filter_search_queries_by_user(search_queries)
         evidence = await self._retrieve_evidence(user_query, search_queries)

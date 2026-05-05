@@ -45,6 +45,18 @@ class Evidence(BaseModel):
             (self.destiny_id, str([id.identifier for id in self.external_identifiers]))
         )
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Evidence):
+            return NotImplemented
+        return hash(self) == hash(other)
+
+    def __str__(self) -> str:
+        title = self.title or ""
+        abstract = self.abstract or ""
+        if title or abstract:
+            return f"{title} - {abstract}"
+        return str(self.destiny_id)
+
     @classmethod
     def from_destiny_reference(cls, ref: Reference):
         metadata = {

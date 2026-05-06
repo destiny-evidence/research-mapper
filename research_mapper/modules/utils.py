@@ -1,3 +1,5 @@
+import asyncio
+from asyncio import Semaphore
 from typing import Callable, Any
 
 import dspy
@@ -24,3 +26,14 @@ def read_reasoning_stream(
     if return_value is None:
         raise ValueError("No Prediction chunk reached")
     return return_value
+
+
+# TODO probably make this configurable
+SEMAPHORE = Semaphore(8)  # max 8 concurrent threads
+
+
+async def run_with_semaphore(
+    fn, semaphore: Semaphore = SEMAPHORE, *args, **kwargs
+) -> Any:
+    async with semaphore:
+        return await asyncio.to_thread(fn, *args, **kwargs)

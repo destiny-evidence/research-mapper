@@ -3,12 +3,12 @@ import asyncio
 import dspy
 
 from research_mapper.models import Evidence, UserQuery, ScreeningCriterion
-from research_mapper.modules.utils import read_reasoning_stream
+from research_mapper.modules.utils import read_reasoning_stream, run_with_semaphore
 from research_mapper.signatures import (
     UserQueryToScreeningCriteria,
     ScreenEvidenceUsingCriteria,
 )
-from research_mapper.ui import TerminalUI, LiveAgentPanel
+from research_mapper.ui import TerminalUI, LiveAgentPanel, LiveAgentPanels
 
 
 class ScreeningAgent(dspy.Module):
@@ -66,10 +66,10 @@ class ScreeningAgent(dspy.Module):
         self, screening_criteria: list[ScreeningCriterion], evidence: list[Evidence]
     ) -> list[Evidence]:
         if self.tui is not None:
-            with LiveAgentPanel(evidence, self.tui) as panel_ui:
+            with LiveAgentPanels(evidence, self.tui) as panel_ui:
                 results = await asyncio.gather(
                     *[
-                        asyncio.to_thread(
+                        run_with_semaphore(
                             read_reasoning_stream,
                             program=self.evidence_screener,
                             evidence=piece_of_evidence,
@@ -85,7 +85,7 @@ class ScreeningAgent(dspy.Module):
         else:
             results = await asyncio.gather(
                 *[
-                    asyncio.to_thread(
+                    run_with_semaphore(
                         self.evidence_screener,
                         evidence=piece_of_evidence,
                         screening_criteria=screening_criteria,

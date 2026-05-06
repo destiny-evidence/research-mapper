@@ -6,7 +6,7 @@ from typing import Annotated, Callable, Any
 import dspy
 
 from research_mapper.models import UserQuery, LuceneQuery, Evidence
-from research_mapper.modules.utils import read_reasoning_stream
+from research_mapper.modules.utils import read_reasoning_stream, run_with_semaphore
 from research_mapper.signatures import (
     UserQueryToLuceneSearchQueries,
     GatherEvidenceFromSearchQuery,
@@ -101,6 +101,7 @@ class SearchAgent(dspy.Module):
                 tools=[_search_references, lookup_references],
                 max_iters=5,
             )
+            # equivalent to checking if we're in "UI-mode" i.e. we have a UI
             if on_chunk is not None:
                 new_evidence = read_reasoning_stream(
                     subagent,
@@ -123,10 +124,10 @@ class SearchAgent(dspy.Module):
             with LiveAgentPanels(search_queries, self.tui) as subagent_ui:
                 results = await asyncio.gather(
                     *[
-                        asyncio.to_thread(
+                        run_with_semaphore(
                             run_retrieval_subagent,
-                            query,
-                            subagent_ui.get_callback_for_buffer(query),
+                            query=query,
+                            on_chunk=subagent_ui.get_callback_for_buffer(query),
                         )
                         for query in search_queries
                     ]
@@ -135,7 +136,7 @@ class SearchAgent(dspy.Module):
         else:
             results = await asyncio.gather(
                 *[
-                    asyncio.to_thread(run_retrieval_subagent, query)
+                    run_with_semaphore(run_retrieval_subagent, query=query)
                     for query in search_queries
                 ]
             )

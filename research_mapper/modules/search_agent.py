@@ -5,10 +5,14 @@ from typing import Annotated, Callable, Any
 
 import dspy
 
-from .models import UserQuery, LuceneQuery, Evidence
-from .signatures import UserQueryToLuceneSearchQueries, GatherEvidenceFromSearchQuery
-from .tools import search_references, lookup_references
-from .ui import LiveAgentPanels, TerminalUI, LiveAgentPanel
+from research_mapper.models import UserQuery, LuceneQuery, Evidence
+from research_mapper.modules.utils import read_reasoning_stream, run_with_semaphore
+from research_mapper.signatures import (
+    UserQueryToLuceneSearchQueries,
+    GatherEvidenceFromSearchQuery,
+)
+from research_mapper.tools import search_references, lookup_references
+from research_mapper.ui import LiveAgentPanels, TerminalUI, LiveAgentPanel
 
 logger = logging.getLogger(__name__)
 
@@ -38,38 +42,15 @@ def fixed_search_references_builder(query: LuceneQuery):
     return _search_references
 
 
-# TODO maybe add some validation that the module has a reasoning field and its signature inputs are valid
-def read_reasoning_stream(
-    program: dspy.Module, on_chunk: Callable[[str, bool], Any], **program_inputs
-) -> dspy.Prediction:
-    reasoning_listener = dspy.streaming.StreamListener(signature_field_name="reasoning")
-    stream_predict = dspy.streamify(
-        program, stream_listeners=[reasoning_listener], async_streaming=False
-    )
-    output_stream = stream_predict(**program_inputs)
-
-    return_value = None
-    for chunk in output_stream:
-        if isinstance(chunk, dspy.streaming.StreamResponse):
-            on_chunk(chunk.chunk)
-        elif isinstance(chunk, dspy.Prediction):
-            # signals to callback that stream processing has completed (i.e. there are no more chunks)
-            on_chunk("", True)
-            return_value = chunk
-    if return_value is None:
-        raise ValueError("No Prediction chunk reached")
-    return return_value
-
-
 class SearchAgent(dspy.Module):
     def __init__(self, tui: TerminalUI | None = None):
         self.query_generator = dspy.ChainOfThought(UserQueryToLuceneSearchQueries)
         self.tui = tui
 
-    def forward(self, user_query: UserQuery):
+    def forward(self, user_query: UserQuery) -> dspy.Prediction:
         return asyncio.run(self.aforward(user_query))
 
-    async def aforward(self, user_query: UserQuery):
+    async def aforward(self, user_query: UserQuery) -> dspy.Prediction:
         search_queries = self._generate_search_queries(user_query)
         search_queries = self._filter_search_queries_by_user(search_queries)
         evidence = await self._retrieve_evidence(user_query, search_queries)
@@ -120,6 +101,7 @@ class SearchAgent(dspy.Module):
                 tools=[_search_references, lookup_references],
                 max_iters=5,
             )
+            # equivalent to checking if we're in "UI-mode" i.e. we have a UI
             if on_chunk is not None:
                 new_evidence = read_reasoning_stream(
                     subagent,
@@ -142,10 +124,10 @@ class SearchAgent(dspy.Module):
             with LiveAgentPanels(search_queries, self.tui) as subagent_ui:
                 results = await asyncio.gather(
                     *[
-                        asyncio.to_thread(
+                        run_with_semaphore(
                             run_retrieval_subagent,
-                            query,
-                            subagent_ui.get_callback_for_buffer(query),
+                            query=query,
+                            on_chunk=subagent_ui.get_callback_for_buffer(query),
                         )
                         for query in search_queries
                     ]
@@ -154,7 +136,7 @@ class SearchAgent(dspy.Module):
         else:
             results = await asyncio.gather(
                 *[
-                    asyncio.to_thread(run_retrieval_subagent, query)
+                    run_with_semaphore(run_retrieval_subagent, query=query)
                     for query in search_queries
                 ]
             )

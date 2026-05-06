@@ -1,4 +1,5 @@
 import uuid
+from enum import StrEnum, auto
 
 from destiny_sdk.enhancements import EnhancementType
 from destiny_sdk.identifiers import ExternalIdentifier
@@ -45,6 +46,18 @@ class Evidence(BaseModel):
             (self.destiny_id, str([id.identifier for id in self.external_identifiers]))
         )
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Evidence):
+            return NotImplemented
+        return hash(self) == hash(other)
+
+    def __str__(self) -> str:
+        title = self.title or ""
+        abstract = self.abstract or ""
+        if title or abstract:
+            return f"{title} - {abstract}"
+        return str(self.destiny_id)
+
     @classmethod
     def from_destiny_reference(cls, ref: Reference):
         metadata = {
@@ -76,3 +89,13 @@ class Evidence(BaseModel):
         metadata["pdf_urls"] = pdf_urls
 
         return cls(**metadata)
+
+
+class ScreeningCriterionType(StrEnum):
+    INCLUSION = auto()
+    EXCLUSION = auto()
+
+
+class ScreeningCriterion(BaseModel):
+    criterion_type: ScreeningCriterionType
+    description: str

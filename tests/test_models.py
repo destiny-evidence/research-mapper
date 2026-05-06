@@ -133,3 +133,60 @@ def test_evidence_hash_different_ids():
 
     result = {ev_a, ev_b}
     assert len(result) == 2
+
+
+def test_evidences_with_same_hash_are_equal():
+    ref_id = uuid.uuid4()
+    ref_a = _make_mock_reference(ref_id=ref_id, doi="10.1000/same")
+    ref_b = _make_mock_reference(ref_id=ref_id, doi="10.1000/same")
+
+    ev_a = Evidence.from_destiny_reference(ref_a)
+    ev_b = Evidence.from_destiny_reference(ref_b)
+
+    assert hash(ev_a) == hash(ev_b)
+    assert ev_a == ev_b
+
+
+def test_evidences_with_different_hash_are_not_equal():
+    ev_a = Evidence.from_destiny_reference(_make_mock_reference(ref_id=uuid.uuid4()))
+    ev_b = Evidence.from_destiny_reference(_make_mock_reference(ref_id=uuid.uuid4()))
+
+    assert hash(ev_a) != hash(ev_b)
+    assert ev_a != ev_b
+
+
+def test_evidence_to_str_uses_destiny_id_when_no_title_or_abstract_available():
+    destiny_id = uuid.uuid4()
+    ev_a = Evidence(
+        destiny_id=destiny_id,
+    )
+
+    assert str(ev_a) == str(destiny_id)
+
+
+def test_evidence_to_str_uses_title_when_only_title_available():
+    title = "This is a paper!"
+    ev_a = Evidence(
+        destiny_id=uuid.uuid4(),
+        title=title,
+    )
+
+    assert str(ev_a) == f"{title} - "
+
+
+def test_evidence_to_str_uses_abstract_when_only_abstract_available():
+    abstract = "This is an important abstract!"
+    ev_a = Evidence(
+        destiny_id=uuid.uuid4(),
+        abstract=abstract,
+    )
+
+    assert str(ev_a) == f" - {abstract}"
+
+
+def test_evidence_to_str_uses_title_andabstract_when_both_available():
+    title = "This is a paper!"
+    abstract = "This is an important abstract!"
+    ev_a = Evidence(destiny_id=uuid.uuid4(), title=title, abstract=abstract)
+
+    assert str(ev_a) == f"{title} - {abstract}"

@@ -130,7 +130,8 @@ class LivePanelGroup:
         self._label = label
         self._max_lines = max_lines
         self._content_width = content_width
-        self._spinner = Spinner("dots", text=f" {status_text}", style="cyan")
+        self._status_text = status_text
+        self._spinner = Spinner("dots", style="cyan")
 
     def __rich__(self):
         panels = []
@@ -151,6 +152,10 @@ class LivePanelGroup:
                 )
             )
         spaced = list(chain.from_iterable((p, Text("")) for p in panels))
+        n_active = sum(1 for value in self._active.values() if value)
+        self._spinner.text = (
+            f"{self._status_text} {n_active} subagent(s) still working."
+        )
         if any(self._active.values()):
             return Group(
                 self._spinner, Text(""), *spaced

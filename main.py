@@ -4,7 +4,7 @@ import logging
 from research_mapper.config import configure_dspy, get_destiny_client
 from research_mapper.logs import ColourFormatter
 from research_mapper.models import UserQuery
-from research_mapper.modules import SearchAgent
+from research_mapper.modules.research_mapping_agent import ResearchMappingAgent
 from research_mapper.ui import TerminalUI
 
 logger = logging.getLogger(__name__)
@@ -47,10 +47,10 @@ def main():
     )
 
     query = args.query or tui.prompt_user("How can I help?")
-    logger.info("Running SearchAgent for query: %s", query)
-    search_agent = SearchAgent(tui=tui)
-    evidence = search_agent(UserQuery(query=query)).evidence
-    logger.info("SearchAgent complete — %d sources found", len(evidence))
+    logger.info("Running Research Mapping Agent for query: %s", query)
+    mapping_agent = ResearchMappingAgent(tui=tui)
+    evidence = mapping_agent(UserQuery(query=query)).evidence
+    logger.info("Research Mapping complete — %d screened sources found:", len(evidence))
     tui.print_evidence(evidence)
 
 

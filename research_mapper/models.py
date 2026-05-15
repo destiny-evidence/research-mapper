@@ -1,5 +1,6 @@
 import uuid
 from enum import StrEnum, auto
+from typing import Self
 
 from destiny_sdk.enhancements import EnhancementType
 from destiny_sdk.identifiers import ExternalIdentifier
@@ -59,7 +60,12 @@ class Evidence(BaseModel):
         return str(self.destiny_id)
 
     @classmethod
-    def from_destiny_reference(cls, ref: Reference):
+    def from_destiny_reference(cls, ref: Reference) -> Self:
+        """
+        Parses a DESTINY SDK reference object into the 'Evidence' Domain Object.
+        :param ref: the DESTINY SDK reference object
+        :return: the Evidence object variant
+        """
         metadata = {
             "destiny_id": ref.id,
             # extract identifiers

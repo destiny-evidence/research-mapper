@@ -12,7 +12,11 @@ from research_mapper.ui import TerminalUI, LiveAgentPanel, LiveAgentPanels
 
 
 class ScreeningAgent(dspy.Module):
-    def __init__(self, tui: TerminalUI | None = None):
+    """
+    An agent to screen a collection of Evidence objects for relevance.
+    """
+
+    def __init__(self, tui: TerminalUI | None = None) -> None:
         self.screening_criteria_generator = dspy.ChainOfThought(
             UserQueryToScreeningCriteria
         )
@@ -22,11 +26,23 @@ class ScreeningAgent(dspy.Module):
     def forward(
         self, user_query: UserQuery, evidence: list[Evidence]
     ) -> dspy.Prediction:
+        """
+        Implements DSPy Module's forward method by wrapping the aforward one.
+        :param user_query: the user's original query to screen for
+        :param evidence: the collection of Evidence objects to screen
+        :return: a Prediction object wrapping a filtered collection of Evidence objects
+        """
         return asyncio.run(self.aforward(user_query, evidence))
 
     async def aforward(
         self, user_query: UserQuery, evidence: list[Evidence]
     ) -> dspy.Prediction:
+        """
+        Generates screening criteria, validates them by the user, and asynchronously screens the Evidence objects.
+        :param user_query: the user's original query to screen for
+        :param evidence: the collection of Evidence objects to screen
+        :return: a Prediction object wrapping a filtered collection of Evidence objects
+        """
         screening_criteria = self._generate_screening_criteria(user_query)
         screening_criteria = self._filter_screening_criteria(screening_criteria)
         screened_evidence = await self._screen_evidence(screening_criteria, evidence)
@@ -35,6 +51,11 @@ class ScreeningAgent(dspy.Module):
     def _generate_screening_criteria(
         self, user_query: UserQuery
     ) -> list[ScreeningCriterion]:
+        """
+        Generates a set of inlcusion and exclusion screening criteria.
+        :param user_query: the original user's query to generate screening criteria for
+        :return: a list of ScreeningCriterion objects to consider
+        """
         if self.tui is not None:
             with LiveAgentPanel(user_query.query, self.tui) as panel_ui:
                 screening_criteria = read_reasoning_stream(
@@ -55,6 +76,11 @@ class ScreeningAgent(dspy.Module):
     def _filter_screening_criteria(
         self, screening_criteria: list[ScreeningCriterion]
     ) -> list[ScreeningCriterion]:
+        """
+        Filters potential screening criteria via the user when UI available. Accepts all criteria if not.
+        :param screening_criteria: a list of screening criteria to be filtered
+        :return: a list of filtered screening criteria
+        """
         if self.tui is not None:
             return self.tui.select_from_list(
                 screening_criteria, title="Suggested screening criteria"
@@ -65,6 +91,12 @@ class ScreeningAgent(dspy.Module):
     async def _screen_evidence(
         self, screening_criteria: list[ScreeningCriterion], evidence: list[Evidence]
     ) -> list[Evidence]:
+        """
+        Asynchronously screens Evidence objects using screening criteria.
+        :param screening_criteria: the screening criteria to be used
+        :param evidence: the Evidence objects to be screened
+        :return: the collection of screened Evidence objects
+        """
         if self.tui is not None:
             with LiveAgentPanels(evidence, self.tui) as panel_ui:
                 results = await asyncio.gather(

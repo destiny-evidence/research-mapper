@@ -11,6 +11,15 @@ _RESET = "\033[0m"
 
 
 class ColourFormatter(logging.Formatter):
+    """
+    Custom log formatting & styling.
+    """
+
     def format(self, record: logging.LogRecord) -> str:
+        """
+        Format the log record and style it.
+        :param record:
+        :return: String formatted log record.
+        """
         colour = _ANSI.get(record.levelno, "")
         return f"{colour}{super().format(record)}{_RESET}"

@@ -8,7 +8,11 @@ from destiny_sdk.client import OAuthClient, OAuthMiddleware
 logger = logging.getLogger(__name__)
 
 
-def configure_dspy():
+def configure_dspy() -> None:
+    """
+    Configures the LLM provider for DSPy from environment variables.
+    :return: Nothing.
+    """
     model = os.environ["LLM_MODEL"]
     api_base = os.environ["OPENAI_API_BASE"]
     logger.info("Configuring LLM: model=%s, api_base=%s", model, api_base)

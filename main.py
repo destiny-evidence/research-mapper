@@ -10,13 +10,21 @@ from research_mapper.ui import TerminalUI
 logger = logging.getLogger(__name__)
 
 
-def initialise():
+def initialise() -> None:
+    """
+    Initialises the destiny_sdk client and DSPy's LLM.
+    :return: Nothing.
+    """
     get_destiny_client()
     logger.info("Destiny client ready")
     configure_dspy()
 
 
-def main():
+def main() -> None:
+    """
+    Main function for running the research-mapper CLI.
+    :return: Nothing.
+    """
     parser = argparse.ArgumentParser(description="Research Mapper CLI")
     parser.add_argument(
         "query", nargs="?", help="Research question (prompted if omitted)"

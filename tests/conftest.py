@@ -66,6 +66,9 @@ def _make_mock_reference(
     biblio_content.title = title
     biblio_content.publication_year = year
     biblio_content.authorship = [mock_author_1, mock_author_2]
+    biblio_content.publisher = None
+    biblio_content.publication_venue = None
+    biblio_content.pagination = None
 
     biblio_enhancement = MagicMock()
     biblio_enhancement.content = biblio_content
@@ -81,6 +84,7 @@ def _make_mock_reference(
     # LOCATION enhancement
     mock_location = MagicMock()
     mock_location.pdf_url = pdf_url
+    mock_location.landing_page_url = None
 
     location_content = MagicMock()
     location_content.enhancement_type = EnhancementType.LOCATION

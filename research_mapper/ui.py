@@ -1,7 +1,7 @@
 import shutil
 import textwrap
 from itertools import chain
-from typing import Sequence, Callable, T, Any, Self
+from typing import IO, Sequence, Callable, T, Any, Self
 
 from rich.align import Align
 from rich.console import Console, Group
@@ -11,7 +11,7 @@ from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
-from research_mapper.human_in_loop import parse_selection
+from research_mapper.human_in_loop import parse_file_path, parse_selection, parse_yes_no
 from research_mapper.models import Evidence
 
 
@@ -139,6 +139,43 @@ class TerminalUI:
             self.print_info(message)
         prompt = self.input("[dim]❯[/dim] ")
         return prompt
+
+    def prompt_file_export(
+        self,
+        writer: Callable[[IO[str]], None],
+        default_filename: str = "results.ris",
+        label: str = "Export results to a file?",
+    ) -> None:
+        """
+        Prompts the user to optionally export results to a file using the provided writer.
+        :param writer: a callable that writes content to an open file handle
+        :param default_filename: the filename to use when the user provides no path
+        :param label: the prompt shown when asking whether to export
+        :return: Nothing.
+        """
+        self.console.rule()
+        while True:
+            raw = self.input(f"[dim]{label} [y/N]:[/dim] ", spacing=False)
+            try:
+                confirmed = parse_yes_no(raw, default=False)
+                break
+            except ValueError as e:
+                self.print_info(f"[red]{e}[/red]")
+
+        if not confirmed:
+            return
+
+        raw_path = self.input(
+            f"[dim]Output path [{default_filename}]:[/dim] ", spacing=False
+        )
+        path = parse_file_path(raw_path, default=default_filename)
+
+        try:
+            with path.open("w", encoding="utf-8") as f:
+                writer(f)
+            self.print(f"[green]✓[/green] Exported to {path}")
+        except OSError as e:
+            self.print_info(f"[red]Failed to write {path}: {e}[/red]")
 
     def select_from_list(
         self,

@@ -1,7 +1,7 @@
-import uuid
 from enum import StrEnum, auto
 from typing import Self
 
+from destiny_sdk.core import UUID
 from destiny_sdk.enhancements import EnhancementType, Pagination, PublicationVenue, PublicationVenueType
 from destiny_sdk.identifiers import ExternalIdentifier, ExternalIdentifierType
 from destiny_sdk.references import Reference
@@ -47,7 +47,7 @@ _DESTINY_VENUE_TYPE_TO_RIS: dict[PublicationVenueType, str] = {
 
 
 class Evidence(BaseModel):
-    destiny_id: uuid.UUID
+    destiny_id: UUID
     external_identifiers: list[ExternalIdentifier] = []
     title: str | None = None
     abstract: str | None = None

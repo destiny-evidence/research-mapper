@@ -25,8 +25,8 @@ class GatherEvidenceFromSearchQuery(dspy.Signature):
     search_query: LuceneQuery = dspy.InputField(
         desc="The search query that has been fixed for use."
     )
-    evidence: list[Evidence] = dspy.OutputField(
-        desc="A list of relevant Evidence born from the search."
+    search_summary: str = dspy.OutputField(
+        desc="Brief summary of what was retrieved and how it relates to the query."
     )
     stopping_reason: str = dspy.OutputField(
         desc="The reason for stopping the search, i.e. not including more results."

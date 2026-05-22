@@ -23,10 +23,14 @@ logger = logging.getLogger(__name__)
 # (i.e. __name__, __doc__, etc) to let the LLM know how to call the function
 def fixed_search_references_builder(
     query: LuceneQuery,
+    retrieved: dict,
 ) -> Callable[[Optional[int], Optional[int], Optional[str], int], list[Evidence]]:
     """
     Creates a version of the search_references tool with a fixed search query.
+    Results are accumulated into retrieved keyed by destiny_id so the caller
+    can access all fetched Evidence regardless of what the LLM puts in its output field.
     :param query: the query to fix the tool with
+    :param retrieved: shared dict to accumulate fetched Evidence objects into
     :return: a fixed version of the search_references tool
     """
 
@@ -45,11 +49,32 @@ def fixed_search_references_builder(
         Query-fixed version of the DESTINY search_references tool.
         :return: list of references retrieved from DESTINY as evidence objects
         """
-        return search_references(
+        results = search_references(
             query=query, start_year=start_year, end_year=end_year, sort=sort, page=page
         )
+        retrieved.update({ev.destiny_id: ev for ev in results})
+        return results
 
     return _search_references
+
+
+def lookup_references_builder(retrieved: dict) -> Callable:
+    """
+    Creates a version of the lookup_references tool that accumulates results into retrieved.
+    :param retrieved: shared dict to accumulate fetched Evidence objects into
+    :return: a tracking version of the lookup_references tool
+    """
+
+    def _lookup_references(
+        identifiers: Annotated[list, "The identifiers to look up."],
+    ) -> list[Evidence]:
+        """Look up specific references by their identifiers (DOI, PubMed ID, etc.).
+        Pass identifiers as strings; the SDK will auto-detect the type."""
+        results = lookup_references(identifiers)
+        retrieved.update({ev.destiny_id: ev for ev in results})
+        return results
+
+    return _lookup_references
 
 
 class SearchAgent(dspy.Module):
@@ -123,7 +148,7 @@ class SearchAgent(dspy.Module):
 
     async def _retrieve_evidence(
         self, user_query: UserQuery, search_queries: list[LuceneQuery]
-    ) -> set[Evidence]:
+    ) -> list[Evidence]:
         """
         Dispatches DSPy subagents for each search query to retrieve references from the DESTINY repository.
         :param user_query: the original user's query for context
@@ -144,10 +169,12 @@ class SearchAgent(dspy.Module):
             :param on_chunk: the callback to be used if and when chunks are streamed from the subagent's underlying LLM
             :return: a list of retrieved Evidence objects
             """
-            _search_references = fixed_search_references_builder(query)
+            retrieved: dict = {}
+            _search_references = fixed_search_references_builder(query, retrieved)
+            _lookup_references = lookup_references_builder(retrieved)
             subagent = dspy.ReAct(
                 signature=GatherEvidenceFromSearchQuery,
-                tools=[_search_references, lookup_references],
+                tools=[_search_references, _lookup_references],
                 max_iters=5,
             )
             # equivalent to checking if we're in "UI-mode" i.e. we have a UI
@@ -161,13 +188,14 @@ class SearchAgent(dspy.Module):
             else:
                 new_evidence = subagent(original_query=user_query, search_query=query)
 
-            logger.info("Found %d new items for: %s", len(new_evidence.evidence), query)
+            logger.info("Found %d new items for: %s", len(retrieved), query)
+            logger.debug("Search summary for %s: %s", query, new_evidence.search_summary)
             logger.info(
                 'Agent stopped searching for %s because: "%s"',
                 query,
                 new_evidence.stopping_reason,
             )
-            return new_evidence.evidence
+            return list(retrieved.values())
 
         if self.tui is not None:
             with LiveAgentPanels(search_queries, self.tui) as subagent_ui:
@@ -190,4 +218,4 @@ class SearchAgent(dspy.Module):
                 ]
             )
 
-        return set(chain.from_iterable(results))
+        return list(set(chain.from_iterable(results)))

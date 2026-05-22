@@ -32,6 +32,9 @@ class LuceneQuery(BaseModel):
     def __hash__(self) -> int:
         return hash(self.query)
 
+    def __str__(self) -> str:
+        return self.query
+
 
 _DESTINY_VENUE_TYPE_TO_RIS: dict[PublicationVenueType, str] = {
     PublicationVenueType.JOURNAL: "JOUR",
@@ -180,3 +183,6 @@ class ScreeningCriterionType(StrEnum):
 class ScreeningCriterion(BaseModel):
     criterion_type: ScreeningCriterionType
     description: str
+
+    def __str__(self) -> str:
+        return f"{self.criterion_type.value.capitalize()} - {self.description}"

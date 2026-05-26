@@ -105,7 +105,10 @@ def test_forward_deduplicates_evidence(patched_agent_forward):
     async def mock_semaphore(fn, *args, **kwargs):
         return [shared_evidence]
 
-    with patch("research_mapper.modules.search_agent.run_with_semaphore", side_effect=mock_semaphore):
+    with patch(
+        "research_mapper.modules.search_agent.run_with_semaphore",
+        side_effect=mock_semaphore,
+    ):
         result = agent.forward(UserQuery(query="test"))
 
     assert len(result.evidence) == 1

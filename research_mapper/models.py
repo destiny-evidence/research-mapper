@@ -2,7 +2,12 @@ from enum import StrEnum, auto
 from typing import Self
 
 from destiny_sdk.core import UUID
-from destiny_sdk.enhancements import EnhancementType, Pagination, PublicationVenue, PublicationVenueType
+from destiny_sdk.enhancements import (
+    EnhancementType,
+    Pagination,
+    PublicationVenue,
+    PublicationVenueType,
+)
 from destiny_sdk.identifiers import ExternalIdentifier, ExternalIdentifierType
 from destiny_sdk.references import Reference
 from luqum import parser
@@ -78,9 +83,13 @@ class Evidence(BaseModel):
 
     def as_ris_entry(self) -> dict:
         """Serialise this Evidence instance to a rispy-compatible RIS entry dict."""
-        venue_type = self.publication_venue.venue_type if self.publication_venue else None
+        venue_type = (
+            self.publication_venue.venue_type if self.publication_venue else None
+        )
         entry: dict = {
-            "type_of_reference": _DESTINY_VENUE_TYPE_TO_RIS.get(venue_type, "GEN") if venue_type else "GEN",
+            "type_of_reference": _DESTINY_VENUE_TYPE_TO_RIS.get(venue_type, "GEN")
+            if venue_type
+            else "GEN",
             "id": str(self.destiny_id),
         }
 

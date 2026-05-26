@@ -189,7 +189,9 @@ class SearchAgent(dspy.Module):
                 new_evidence = subagent(original_query=user_query, search_query=query)
 
             logger.info("Found %d new items for: %s", len(retrieved), query)
-            logger.debug("Search summary for %s: %s", query, new_evidence.search_summary)
+            logger.debug(
+                "Search summary for %s: %s", query, new_evidence.search_summary
+            )
             logger.info(
                 'Agent stopped searching for %s because: "%s"',
                 query,

@@ -4,7 +4,6 @@ import io
 import uuid
 
 import rispy
-import pytest
 
 from destiny_sdk.enhancements import Pagination, PublicationVenue, PublicationVenueType
 from destiny_sdk.identifiers import DOIIdentifier, PubMedIdentifier
@@ -89,9 +88,7 @@ def test_doi_extracted_from_external_identifiers():
 
 
 def test_pubmed_id_extracted_as_accession_number():
-    ev = _make_evidence(
-        external_identifiers=[PubMedIdentifier(identifier=12345678)]
-    )
+    ev = _make_evidence(external_identifiers=[PubMedIdentifier(identifier=12345678)])
     (entry,) = _export_and_parse([ev])
     assert entry["accession_number"] == "12345678"
 

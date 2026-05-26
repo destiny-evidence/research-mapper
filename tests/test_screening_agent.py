@@ -36,7 +36,7 @@ def test_screening_agent_with_constructed_evidence():
     ]
 
     with patch("research_mapper.human_in_loop.input", return_value=""):
-        result = agent.forward(query, evidence)
+        result = agent(query, evidence)
 
     assert hasattr(result, "screened_evidence")
     assert isinstance(result.screened_evidence, list)
@@ -58,7 +58,7 @@ def test_screening_agent_end_to_end_live():
     )
 
     with patch("research_mapper.human_in_loop.input", return_value=""):
-        result = agent.forward(query, evidence)
+        result = agent(query, evidence)
 
     assert hasattr(result, "screened_evidence")
     assert isinstance(result.screened_evidence, list)

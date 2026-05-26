@@ -7,30 +7,50 @@ from research_mapper.ui import TerminalUI
 
 
 class ResearchMappingAgent(dspy.Module):
-    def __init__(self, tui: TerminalUI | None = None):
+    """
+    A DSPy program/module for searching, screening, and mapping evidence/research for a user's query.
+    """
+
+    def __init__(self, tui: TerminalUI | None = None) -> None:
         self.tui = tui
-        self.search_argent = SearchAgent(tui=tui)
+        self.search_agent = SearchAgent(tui=tui)
         self.screening_agent = ScreeningAgent(tui=tui)
 
     def forward(self, user_query: UserQuery) -> dspy.Prediction:
+        """
+        Gathers and screens evidence for relevance to the user's query.
+        :param user_query: the user query to map research for
+        :return: a DSPy Prediction wrapping a collection of screened evidence
+        """
         evidence = self._gather_evidence(user_query)
         filtered_evidence = self._screen_evidence(user_query, evidence)
         return dspy.Prediction(evidence=filtered_evidence)
 
     def _gather_evidence(self, user_query: UserQuery) -> list[Evidence]:
+        """
+        Gathers evidence for a user's query using a SearchAgent.
+        :param user_query: the user query to gather evidence for
+        :return: a collection of potentially relevant evidence
+        """
         if self.tui:
             self.tui.print_info("Generating suggested search queries:")
-            evidence = self.search_argent(user_query=user_query).evidence
+            evidence = self.search_agent(user_query=user_query).evidence
             self.tui.print_info(
                 f"{len(evidence)} pieces of evidence retrieved. Moving onto screening."
             )
         else:
-            evidence = self.search_argent(user_query=user_query).evidence
+            evidence = self.search_agent(user_query=user_query).evidence
         return evidence
 
     def _screen_evidence(
         self, user_query: UserQuery, evidence: list[Evidence]
     ) -> list[Evidence]:
+        """
+        Screens evidence for relevance to the user's query using a ScreeningAgent.
+        :param user_query: the user query to screen evidence for
+        :param evidence: evidence to screen for relevance
+        :return: a collection of screened evidence
+        """
         filtered_evidence = self.screening_agent(
             user_query=user_query, evidence=evidence
         ).screened_evidence

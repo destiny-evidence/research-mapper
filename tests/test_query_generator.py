@@ -15,7 +15,7 @@ from research_mapper.modules.search_agent import (
 
 def test_fixed_search_references_preserves_metadata():
     query = LuceneQuery(query="climate AND health")
-    fn = fixed_search_references_builder(query)
+    fn = fixed_search_references_builder(query, {})
 
     assert fn.__name__ == "_search_references"
     assert fn.__doc__ is not None
@@ -23,7 +23,7 @@ def test_fixed_search_references_preserves_metadata():
 
 def test_fixed_search_references_binds_query():
     query = LuceneQuery(query="climate AND health")
-    fn = fixed_search_references_builder(query)
+    fn = fixed_search_references_builder(query, {})
 
     with patch("research_mapper.modules.search_agent.search_references") as mock_search:
         mock_search.return_value = []
@@ -40,7 +40,7 @@ def test_fixed_search_references_binds_query():
 
 def test_fixed_search_references_default_args():
     query = LuceneQuery(query="flood")
-    fn = fixed_search_references_builder(query)
+    fn = fixed_search_references_builder(query, {})
 
     with patch("research_mapper.modules.search_agent.search_references") as mock_search:
         mock_search.return_value = []
@@ -60,7 +60,7 @@ def test_fixed_search_references_query_cannot_be_overridden():
     import inspect
 
     query = LuceneQuery(query="heat AND mortality")
-    fn = fixed_search_references_builder(query)
+    fn = fixed_search_references_builder(query, {})
     params = inspect.signature(fn).parameters
 
     assert "query" not in params
@@ -96,22 +96,19 @@ def test_forward_deduplicates_evidence(patched_agent_forward):
 
     agent, expected_queries = patched_agent_forward
 
-    # Two queries returning the same evidence item
     shared_id = uuid.uuid4()
     shared_evidence = Evidence(destiny_id=shared_id)
-
-    mock_react_result = MagicMock()
-    mock_react_result.evidence = [shared_evidence]
-    mock_react_result.stopping_reason = "done"
 
     two_queries = [LuceneQuery(query="q1"), LuceneQuery(query="q2")]
     agent.query_generator.return_value.search_queries = two_queries
 
-    with patch("dspy.ReAct") as mock_react_cls:
-        mock_react_instance = MagicMock()
-        mock_react_instance.return_value = mock_react_result
-        mock_react_cls.return_value = mock_react_instance
+    async def mock_semaphore(fn, *args, **kwargs):
+        return [shared_evidence]
 
+    with patch(
+        "research_mapper.modules.search_agent.run_with_semaphore",
+        side_effect=mock_semaphore,
+    ):
         result = agent.forward(UserQuery(query="test"))
 
     assert len(result.evidence) == 1

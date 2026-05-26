@@ -10,6 +10,7 @@ dependencies = [
     "luqum>=1.0.0",
     "pydantic>=2.12.5",
     "rich>=14.3.3",
+    "rispy>=0.10.0",
     "uuid>=1.30",
 ]
 

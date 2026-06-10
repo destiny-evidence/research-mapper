@@ -2,8 +2,10 @@ import asyncio
 
 import dspy
 
+from research_mapper.factory import mapping_along_dimensions_signature_builder
 from research_mapper.models import (
     Evidence,
+    MappedEvidence,
     UserQuery,
     MappingDimension,
     MappingDimensionWithSubTopics,
@@ -37,10 +39,12 @@ class MappingAgent(dspy.Module):
         suggested_dimensions = self._generate_suggested_dimensions(user_query)
         finalised_dimensions = self._validate_dimensions(suggested_dimensions)
         suggested_subtopics = await self._generate_dimension_subtopics(
-            finalised_dimensions
+            user_query, finalised_dimensions
         )
         finalised_subtopics = self._validate_dimension_subtopics(suggested_subtopics)
-        mapping = self._generate_evidence_map(finalised_dimensions, finalised_subtopics)
+        mapping = await self._generate_evidence_map(
+            user_query, finalised_subtopics, evidence
+        )
         return mapping
 
     def _generate_suggested_dimensions(
@@ -155,5 +159,60 @@ class MappingAgent(dspy.Module):
             )
         return finalised_dimensions
 
-    def _generate_evidence_map(self):
-        pass
+    async def _generate_evidence_map(
+        self,
+        user_query: UserQuery,
+        dimensions: tuple[
+            MappingDimensionWithSubTopics,
+            MappingDimensionWithSubTopics,
+            MappingDimensionWithSubTopics,
+        ],
+        evidence: list[Evidence],
+    ):
+        try:
+            MapEvidenceAlongDimensions = mapping_along_dimensions_signature_builder(
+                *dimensions
+            )
+        except ValueError as exc:
+            raise RuntimeError(
+                f"A mapping dimension happened to have no subtopics somehow: {exc}. Please restart and try again."
+            ) from exc
+        map_evidence_along_dimensions = dspy.ChainOfThought(MapEvidenceAlongDimensions)
+        if self.tui is not None:
+            with LiveAgentPanels(evidence, self.tui) as panel_ui:
+                results = await asyncio.gather(
+                    *[
+                        run_with_semaphore(
+                            read_reasoning_stream,
+                            program=map_evidence_along_dimensions,
+                            original_query=user_query,
+                            evidence=piece_of_evidence,
+                            dimensions=dimensions,
+                            on_chunk=panel_ui.get_callback_for_buffer(
+                                piece_of_evidence
+                            ),
+                        )
+                        for piece_of_evidence in evidence
+                    ]
+                )
+            self.tui.print_info("[green]✓[/green] Evidence mapped successfully!")
+        else:
+            results = await asyncio.gather(
+                *[
+                    run_with_semaphore(
+                        map_evidence_along_dimensions,
+                        original_query=user_query,
+                        evidence=piece_of_evidence,
+                        dimensions=dimensions,
+                    )
+                    for piece_of_evidence in evidence
+                ]
+            )
+        dimension_names = [dim.name for dim in dimensions]
+        return [
+            MappedEvidence(
+                evidence=e,
+                coordinate=dict(zip(dimension_names, pred.mapping_coordinate)),
+            )
+            for e, pred in zip(evidence, results)
+        ]

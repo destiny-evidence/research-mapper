@@ -215,3 +215,8 @@ class MappingDimension(BaseModel):
 
 class MappingDimensionWithSubTopics(MappingDimension):
     subtopics: list[DimensionSubTopic]
+
+
+class MappedEvidence(BaseModel):
+    evidence: Evidence
+    coordinate: dict[str, str]

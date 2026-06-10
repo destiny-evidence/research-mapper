@@ -206,6 +206,12 @@ class MappingDimension(BaseModel):
     name: str
     description: str
 
+    def __str__(self) -> str:
+        return f"{self.name} - {self.description}"
+
+    def __hash__(self) -> int:
+        return hash(str(self))
+
 
 class MappingDimensionWithSubTopics(MappingDimension):
     subtopics: list[DimensionSubTopic]

@@ -1,16 +1,19 @@
+import asyncio
+
 import dspy
 
 from research_mapper.models import (
     Evidence,
     UserQuery,
     MappingDimension,
+    MappingDimensionWithSubTopics,
 )
-from research_mapper.modules.utils import read_reasoning_stream
+from research_mapper.modules.utils import read_reasoning_stream, run_with_semaphore
 from research_mapper.signatures import (
     EvidenceMappingDimensionsFromQuery,
     SubtopicFromEvidenceMappingDimension,
 )
-from research_mapper.ui import TerminalUI, LiveAgentPanel
+from research_mapper.ui import TerminalUI, LiveAgentPanel, LiveAgentPanels
 
 
 class MappingAgent(dspy.Module):
@@ -30,10 +33,12 @@ class MappingAgent(dspy.Module):
     def forward(self):
         pass
 
-    def aforward(self, user_query: UserQuery, evidence: list[Evidence]):
+    async def aforward(self, user_query: UserQuery, evidence: list[Evidence]):
         suggested_dimensions = self._generate_suggested_dimensions(user_query)
         finalised_dimensions = self._validate_dimensions(suggested_dimensions)
-        suggested_subtopics = self._generate_dimension_subtopics(finalised_dimensions)
+        suggested_subtopics = await self._generate_dimension_subtopics(
+            finalised_dimensions
+        )
         finalised_subtopics = self._validate_dimension_subtopics(suggested_subtopics)
         mapping = self._generate_evidence_map(finalised_dimensions, finalised_subtopics)
         return mapping
@@ -68,12 +73,87 @@ class MappingAgent(dspy.Module):
         )
         return tuple(finalised)
 
-    def _generate_dimension_subtopics(self):
-        pass
+    async def _generate_dimension_subtopics(
+        self,
+        user_query: UserQuery,
+        dimensions: tuple[MappingDimension, MappingDimension, MappingDimension],
+    ) -> tuple[
+        MappingDimensionWithSubTopics,
+        MappingDimensionWithSubTopics,
+        MappingDimensionWithSubTopics,
+    ]:
+        if self.tui is not None:
+            with LiveAgentPanels(dimensions, self.tui) as panel_ui:
+                results = await asyncio.gather(
+                    *[
+                        run_with_semaphore(
+                            read_reasoning_stream,
+                            program=self.dimension_subtopics_generator,
+                            original_query=user_query,
+                            other_dimensions=list(dimensions[:i] + dimensions[i + 1 :]),
+                            dimension=dim,
+                            on_chunk=panel_ui.get_callback_for_buffer(dim),
+                        )
+                        for i, dim in enumerate(dimensions)
+                    ]
+                )
 
-    def _validate_dimension_subtopics(self):
-        pass
+            self.tui.print_info(
+                "[green]✓[/green] Subtopics for each dimension generated successfully!"
+            )
+        else:
+            results = await asyncio.gather(
+                *[
+                    run_with_semaphore(
+                        self.dimension_subtopics_generator,
+                        original_query=user_query,
+                        other_dimensions=list(dimensions[:i] + dimensions[i + 1 :]),
+                        dimension=dim,
+                    )
+                    for i, dim in enumerate(dimensions)
+                ]
+            )
+        return tuple(
+            MappingDimensionWithSubTopics(
+                **mapping_dim.model_dump(), subtopics=pred.subtopics
+            )
+            for mapping_dim, pred in zip(dimensions, results)
+        )
+
+    def _validate_dimension_subtopics(
+        self,
+        dimensions: tuple[
+            MappingDimensionWithSubTopics,
+            MappingDimensionWithSubTopics,
+            MappingDimensionWithSubTopics,
+        ],
+    ) -> tuple[
+        MappingDimensionWithSubTopics,
+        MappingDimensionWithSubTopics,
+        MappingDimensionWithSubTopics,
+    ]:
+        if self.tui is None:
+            return dimensions
+        finalised_dimensions = tuple()
+        for dim in dimensions:
+            while True:
+                finalised_subtopics = self.tui.confirm_or_replace(
+                    dim.subtopics,
+                    title=f"Suggested subtopics for '{dim.name}' dimension",
+                    noun="subtopics",
+                    allow_drop=True,
+                )
+                if finalised_subtopics:
+                    break
+                self.tui.print_info(
+                    f"[red]'{dim.name}' must have at least one subtopic — try again.[/red]"
+                )
+            finalised_dimensions += (
+                MappingDimensionWithSubTopics(
+                    **dim.model_dump(), subtopics=finalised_subtopics
+                ),
+            )
+        return finalised_dimensions
 
     def _generate_evidence_map(self):
-        self.mapping_coordinate_predictor = dspy.ChainOfThought()
         pass

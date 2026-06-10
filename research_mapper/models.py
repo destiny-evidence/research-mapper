@@ -195,3 +195,17 @@ class ScreeningCriterion(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.criterion_type.value.capitalize()} - {self.description}"
+
+
+class DimensionSubTopic(BaseModel):
+    name: str
+    description: str
+
+
+class MappingDimension(BaseModel):
+    name: str
+    description: str
+
+
+class MappingDimensionWithSubTopics(MappingDimension):
+    subtopics: list[DimensionSubTopic]

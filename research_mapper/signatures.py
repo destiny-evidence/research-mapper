@@ -1,4 +1,11 @@
-from .models import LuceneQuery, UserQuery, Evidence, ScreeningCriterion
+from .models import (
+    LuceneQuery,
+    UserQuery,
+    Evidence,
+    ScreeningCriterion,
+    MappingDimension,
+    DimensionSubTopic,
+)
 
 import dspy
 
@@ -59,4 +66,36 @@ class ScreenEvidenceUsingCriteria(dspy.Signature):
     )
     include: bool = dspy.OutputField(
         desc="Whether the piece of evidence should be included or not."
+    )
+
+
+class EvidenceMappingDimensionsFromQuery(dspy.Signature):
+    """
+    Suggest 3 dimensions, e.g. 2 dimensions and 1 facet, to map academic evidence across.
+    """
+
+    original_query: UserQuery = dspy.InputField(
+        desc="The user's original query that initiated the evidence map."
+    )
+    dimensions: tuple[MappingDimension, MappingDimension, MappingDimension] = (
+        dspy.OutputField(desc="The dimensions to map the evidence data against.")
+    )
+
+
+class SubtopicFromEvidenceMappingDimension(dspy.Signature):
+    """
+    Suggest a collection of sub-topics/dimensions for a given evidence mapping dimension.
+    """
+
+    original_query: UserQuery = dspy.InputField(
+        desc="The user's original query that initiated the evidence map."
+    )
+    other_dimensions: list[MappingDimension] = dspy.InputField(
+        desc="The other top-level evidence mapping dimensions that will be used, for context."
+    )
+    dimension: MappingDimension = dspy.InputField(
+        desc="The evidence mapping dimension to generate sub-topics/dimensions for."
+    )
+    subtopics: list[DimensionSubTopic] = dspy.OutputField(
+        desc="The collection of sub-topics/dimensions for the given evidence mapping dimension."
     )

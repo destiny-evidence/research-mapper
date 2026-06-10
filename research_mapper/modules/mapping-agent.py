@@ -58,8 +58,15 @@ class MappingAgent(dspy.Module):
             ).dimensions
         return dimensions
 
-    def _validate_dimensions(self):
-        pass
+    def _validate_dimensions(
+        self, dimensions: tuple[MappingDimension, MappingDimension, MappingDimension]
+    ) -> tuple[MappingDimension, MappingDimension, MappingDimension]:
+        if self.tui is None:
+            return dimensions
+        finalised = self.tui.confirm_or_replace(
+            dimensions, title="Suggested mapping dimensions", noun="dimensions"
+        )
+        return tuple(finalised)
 
     def _generate_dimension_subtopics(self):
         pass

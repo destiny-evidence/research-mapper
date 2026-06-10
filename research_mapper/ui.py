@@ -177,6 +177,55 @@ class TerminalUI:
         except OSError as e:
             self.print_info(f"[red]Failed to write {path}: {e}[/red]")
 
+    def confirm_or_replace(
+        self,
+        items: Sequence[T],
+        title: str | None = None,
+        noun: str = "items",
+        allow_drop: bool = False,
+    ) -> list[T]:
+        """
+        Lets the user accept a collection of suggested items (each with `name` and
+        `description` attributes) outright, or replace/drop each individually by name.
+        :param items: the suggested items
+        :param title: the title for the table used to display the items
+        :param noun: a plural noun describing the items, used in prompts
+        :param allow_drop: whether the user may remove items entirely rather than
+            keeping or replacing them
+        :return: the finalised items, in the same order (minus any dropped items)
+        """
+        table = Table(title=title, show_header=False, box=None, padding=(0, 1))
+        table.add_column(style="bold dim", width=3)
+        table.add_column(style="cyan")
+        for i, item in enumerate(items, start=1):
+            table.add_row(str(i), f"{item.name}\n[dim]{item.description}[/dim]")
+        self.print(table)
+
+        while True:
+            raw = self.input(f"[dim]Accept these {noun}? [Y/n]:[/dim] ", spacing=False)
+            try:
+                accepted = parse_yes_no(raw, default=True)
+                break
+            except ValueError as e:
+                self.print_info(f"[red]{e}[/red]")
+
+        if accepted:
+            return list(items)
+
+        instructions = "Press Enter to keep, type a new name to replace"
+        if allow_drop:
+            instructions += ', or "-" to drop'
+
+        finalised = []
+        for item in items:
+            raw = self.prompt_user(
+                f"[dim]Replace '{item.name}'? {instructions}:[/dim]"
+            ).strip()
+            if allow_drop and raw == "-":
+                continue
+            finalised.append(type(item)(name=raw, description="") if raw else item)
+        return finalised
+
     def select_from_list(
         self,
         items: Sequence[T],

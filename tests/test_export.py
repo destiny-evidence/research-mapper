@@ -8,7 +8,7 @@ import rispy
 from destiny_sdk.enhancements import Pagination, PublicationVenue, PublicationVenueType
 from destiny_sdk.identifiers import DOIIdentifier, PubMedIdentifier
 
-from research_mapper.export import export_to_ris
+from research_mapper.export import export_evidence_to_ris
 from research_mapper.models import Evidence
 
 
@@ -25,7 +25,7 @@ def _make_evidence(**kwargs) -> Evidence:
 
 def _export_and_parse(evidences: list[Evidence]) -> list[dict]:
     buf = io.StringIO()
-    export_to_ris(evidences, buf)
+    export_evidence_to_ris(evidences, buf)
     buf.seek(0)
     return rispy.load(buf)
 
@@ -119,7 +119,7 @@ def test_export_to_ris_writes_valid_file(tmp_path):
     evs = [_make_evidence(title="Paper A"), _make_evidence(title="Paper B")]
     out = tmp_path / "results.ris"
     with out.open("w", encoding="utf-8") as f:
-        export_to_ris(evs, f)
+        export_evidence_to_ris(evs, f)
     with out.open(encoding="utf-8") as f:
         entries = rispy.load(f)
     assert len(entries) == 2

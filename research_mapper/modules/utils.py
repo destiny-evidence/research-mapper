@@ -36,16 +36,19 @@ def read_reasoning_stream(
 
 
 # TODO probably make this configurable
-SEMAPHORE: Semaphore = Semaphore(8)  # max 8 concurrent threads
+MAX_CONCURRENCY = 8
 
 
 async def run_with_semaphore(
-    fn: Callable[..., Any], semaphore: Semaphore = SEMAPHORE, *args, **kwargs
+    fn: Callable[..., Any], semaphore: Semaphore, *args, **kwargs
 ) -> Any:
     """
     Runs a process in a thread inside a semaphore.
     :param fn: the function/process to run
-    :param semaphore: the semaphore to manage the execution of the function in a thread
+    :param semaphore: the semaphore to manage the execution of the function in a thread.
+        Must be created within the event loop it will be used in (e.g. at the start of an
+        `aforward` method) — a `Semaphore` reused across separate `asyncio.run()` calls
+        will raise `RuntimeError: ... is bound to a different event loop`.
     :param args: the arguments to be forwarded to the function to run
     :param kwargs: the keyword arguments to be forwarded to the function to run
     :return: whatever the function to run returns

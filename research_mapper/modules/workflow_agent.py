@@ -1,12 +1,13 @@
 import dspy
 
-from research_mapper.models import UserQuery, Evidence
+from research_mapper.models import UserQuery, Evidence, EvidenceMap
 from research_mapper.modules.screening_agent import ScreeningAgent
 from research_mapper.modules.search_agent import SearchAgent
+from research_mapper.modules.mapping_agent import MappingAgent
 from research_mapper.ui import TerminalUI
 
 
-class ResearchMappingAgent(dspy.Module):
+class WorkflowAgent(dspy.Module):
     """
     A DSPy program/module for searching, screening, and mapping evidence/research for a user's query.
     """
@@ -15,16 +16,18 @@ class ResearchMappingAgent(dspy.Module):
         self.tui = tui
         self.search_agent = SearchAgent(tui=tui)
         self.screening_agent = ScreeningAgent(tui=tui)
+        self.mapping_agent = MappingAgent(tui=tui)
 
     def forward(self, user_query: UserQuery) -> dspy.Prediction:
         """
-        Gathers and screens evidence for relevance to the user's query.
+        Gathers, screens, and maps evidence for relevance to the user's query.
         :param user_query: the user query to map research for
-        :return: a DSPy Prediction wrapping a collection of screened evidence
+        :return: a DSPy Prediction wrapping an EvidenceMap
         """
         evidence = self._gather_evidence(user_query)
         filtered_evidence = self._screen_evidence(user_query, evidence)
-        return dspy.Prediction(evidence=filtered_evidence)
+        evidence_map = self._map_evidence(user_query, filtered_evidence)
+        return dspy.Prediction(evidence_map=evidence_map)
 
     def _gather_evidence(self, user_query: UserQuery) -> list[Evidence]:
         """
@@ -59,3 +62,17 @@ class ResearchMappingAgent(dspy.Module):
                 f"{len(evidence) - len(filtered_evidence)} piece(s) of evidence removed during screening. {len(filtered_evidence)} piece(s) of evidence remaining."
             )
         return filtered_evidence
+
+    def _map_evidence(
+        self, user_query: UserQuery, filtered_evidence: list[Evidence]
+    ) -> EvidenceMap:
+        """
+        Maps screened evidence across mapping dimensions and their subtopics using a MappingAgent.
+        :param user_query: the user query the evidence is being mapped for
+        :param filtered_evidence: the screened evidence to map
+        :return: an EvidenceMap of the screened evidence
+        """
+        if self.tui:
+            self.tui.print_info("Generating suggested dimensions to map across:")
+
+        return self.mapping_agent(user_query, filtered_evidence).evidence_map

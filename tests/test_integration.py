@@ -14,7 +14,7 @@ from unittest.mock import patch
 import pytest
 from destiny_sdk.identifiers import OpenAlexIdentifier
 
-from research_mapper.models import Evidence, LuceneQuery, UserQuery
+from research_mapper.models import Evidence, LuceneQuery, UserQuery, MappedEvidence
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -106,9 +106,9 @@ def test_lookup_references_tool_with_external_id_live():
 
 @pytest.mark.integration
 def test_research_mapping_agent_end_to_end_live():
-    from research_mapper.modules.research_mapping_agent import ResearchMappingAgent
+    from research_mapper.modules.workflow_agent import WorkflowAgent
 
-    agent = ResearchMappingAgent()
+    agent = WorkflowAgent()
     query = UserQuery(
         query="what are the best interventions to mitigate the health risks of climate change"
     )
@@ -116,7 +116,8 @@ def test_research_mapping_agent_end_to_end_live():
     with patch("research_mapper.human_in_loop.input", return_value=""):
         result = agent(query)
 
-    assert result.evidence, "Expected at least one evidence item"
-    for item in result.evidence:
-        assert isinstance(item, Evidence)
-        assert item.destiny_id, "Evidence should have a non-empty id"
+    evidence_map = result.evidence_map
+    assert evidence_map.mapped_evidence, "Expected at least one evidence item"
+    for item in evidence_map.mapped_evidence:
+        assert isinstance(item, MappedEvidence)
+        assert item.evidence.destiny_id, "Evidence should have a non-empty id"

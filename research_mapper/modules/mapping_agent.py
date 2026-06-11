@@ -32,10 +32,14 @@ class MappingAgent(dspy.Module):
         )
         self.tui = tui
 
-    def forward(self):
-        pass
+    def forward(
+        self, user_query: UserQuery, evidence: list[Evidence]
+    ) -> dspy.Prediction:
+        return asyncio.run(self.aforward(user_query, evidence))
 
-    async def aforward(self, user_query: UserQuery, evidence: list[Evidence]):
+    async def aforward(
+        self, user_query: UserQuery, evidence: list[Evidence]
+    ) -> dspy.Prediction:
         suggested_dimensions = self._generate_suggested_dimensions(user_query)
         finalised_dimensions = self._validate_dimensions(suggested_dimensions)
         suggested_subtopics = await self._generate_dimension_subtopics(

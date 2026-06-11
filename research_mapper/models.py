@@ -225,3 +225,17 @@ class MappedEvidence(BaseModel):
 
     evidence: Evidence
     coordinate: dict[str, str]
+
+
+class EvidenceMap(BaseModel):
+    """
+    A collection of MappedEvidence objects together with the mapping dimensions (and their
+    subtopics) they were mapped across.
+    """
+
+    mapped_evidence: list[MappedEvidence]
+    dimensions: tuple[
+        MappingDimensionWithSubTopics,
+        MappingDimensionWithSubTopics,
+        MappingDimensionWithSubTopics,
+    ]

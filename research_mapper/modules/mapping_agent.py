@@ -5,6 +5,7 @@ import dspy
 from research_mapper.factory import mapping_along_dimensions_signature_builder
 from research_mapper.models import (
     Evidence,
+    EvidenceMap,
     MappedEvidence,
     UserQuery,
     MappingDimension,
@@ -43,7 +44,7 @@ class MappingAgent(dspy.Module):
         Implements DSPy Module's forward method by wrapping the aforward one.
         :param user_query: the user query the evidence is being mapped for
         :param evidence: the collection of Evidence objects to map
-        :return: a DSPy Prediction wrapping a collection of MappedEvidence objects
+        :return: a DSPy Prediction wrapping an EvidenceMap
         """
         return asyncio.run(self.aforward(user_query, evidence))
 
@@ -55,18 +56,23 @@ class MappingAgent(dspy.Module):
         piece of evidence to a coordinate across those dimensions.
         :param user_query: the user query the evidence is being mapped for
         :param evidence: the collection of Evidence objects to map
-        :return: a DSPy Prediction wrapping a collection of MappedEvidence objects
+        :return: a DSPy Prediction wrapping an EvidenceMap
         """
         suggested_dimensions = self._generate_suggested_dimensions(user_query)
         finalised_dimensions = self._validate_dimensions(suggested_dimensions)
         suggested_subtopics = await self._generate_dimension_subtopics(
             user_query, finalised_dimensions
         )
-        finalised_subtopics = self._validate_dimension_subtopics(suggested_subtopics)
-        mapping = await self._generate_evidence_map(
-            user_query, finalised_subtopics, evidence
+        final_dims_with_subtopics = self._validate_dimension_subtopics(
+            suggested_subtopics
         )
-        return dspy.Prediction(mapped_evidence=mapping)
+        mapping = await self._generate_evidence_map(
+            user_query, final_dims_with_subtopics, evidence
+        )
+        evidence_map = EvidenceMap(
+            mapped_evidence=mapping, dimensions=final_dims_with_subtopics
+        )
+        return dspy.Prediction(evidence_map=evidence_map)
 
     def _generate_suggested_dimensions(
         self, user_query: UserQuery

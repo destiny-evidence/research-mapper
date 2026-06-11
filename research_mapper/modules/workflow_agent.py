@@ -1,6 +1,6 @@
 import dspy
 
-from research_mapper.models import UserQuery, Evidence, MappedEvidence
+from research_mapper.models import UserQuery, Evidence, EvidenceMap
 from research_mapper.modules.screening_agent import ScreeningAgent
 from research_mapper.modules.search_agent import SearchAgent
 from research_mapper.modules.mapping_agent import MappingAgent
@@ -22,12 +22,12 @@ class WorkflowAgent(dspy.Module):
         """
         Gathers, screens, and maps evidence for relevance to the user's query.
         :param user_query: the user query to map research for
-        :return: a DSPy Prediction wrapping a collection of MappedEvidence objects
+        :return: a DSPy Prediction wrapping an EvidenceMap
         """
         evidence = self._gather_evidence(user_query)
         filtered_evidence = self._screen_evidence(user_query, evidence)
-        mapped_evidence = self._map_evidence(user_query, filtered_evidence)
-        return dspy.Prediction(evidence_map=mapped_evidence)
+        evidence_map = self._map_evidence(user_query, filtered_evidence)
+        return dspy.Prediction(evidence_map=evidence_map)
 
     def _gather_evidence(self, user_query: UserQuery) -> list[Evidence]:
         """
@@ -65,17 +65,14 @@ class WorkflowAgent(dspy.Module):
 
     def _map_evidence(
         self, user_query: UserQuery, filtered_evidence: list[Evidence]
-    ) -> list[MappedEvidence]:
+    ) -> EvidenceMap:
         """
         Maps screened evidence across mapping dimensions and their subtopics using a MappingAgent.
         :param user_query: the user query the evidence is being mapped for
         :param filtered_evidence: the screened evidence to map
-        :return: a collection of MappedEvidence objects
+        :return: an EvidenceMap of the screened evidence
         """
         if self.tui:
             self.tui.print_info("Generating suggested dimensions to map across:")
 
-        mapped_evidence = self.mapping_agent(
-            user_query, filtered_evidence
-        ).mapped_evidence
-        return mapped_evidence
+        return self.mapping_agent(user_query, filtered_evidence).evidence_map

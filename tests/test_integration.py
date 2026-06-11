@@ -116,7 +116,8 @@ def test_research_mapping_agent_end_to_end_live():
     with patch("research_mapper.human_in_loop.input", return_value=""):
         result = agent(query)
 
-    assert result.evidence_map, "Expected at least one evidence item"
-    for item in result.evidence_map:
+    evidence_map = result.evidence_map
+    assert evidence_map.mapped_evidence, "Expected at least one evidence item"
+    for item in evidence_map.mapped_evidence:
         assert isinstance(item, MappedEvidence)
         assert item.evidence.destiny_id, "Evidence should have a non-empty id"

@@ -218,5 +218,10 @@ class MappingDimensionWithSubTopics(MappingDimension):
 
 
 class MappedEvidence(BaseModel):
+    """
+    A piece of Evidence paired with its coordinate in a map, where `coordinate` maps each mapping
+    dimension's name to the name of the subtopic the evidence belongs to within that dimension.
+    """
+
     evidence: Evidence
     coordinate: dict[str, str]

@@ -14,6 +14,16 @@ def mapping_along_dimensions_signature_builder(
     mapping_dimension2: MappingDimensionWithSubTopics,
     mapping_dimension3: MappingDimensionWithSubTopics,
 ) -> type[dspy.Signature]:
+    """
+    Dynamically builds a dspy.Signature for mapping a piece of evidence to a subtopic of each of
+    the 3 provided dimensions, constraining each output field to that dimension's subtopic names
+    via a dynamically-built typing.Literal.
+    :param mapping_dimension1: the first mapping dimension, with its finalised subtopics
+    :param mapping_dimension2: the second mapping dimension, with its finalised subtopics
+    :param mapping_dimension3: the third mapping dimension, with its finalised subtopics
+    :return: a dynamically-built MapEvidenceAlongDimensions signature
+    :raises ValueError: if any of the provided dimensions has no subtopics
+    """
     for dimension in (mapping_dimension1, mapping_dimension2, mapping_dimension3):
         if not dimension.subtopics:
             raise ValueError(

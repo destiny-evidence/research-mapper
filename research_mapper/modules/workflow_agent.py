@@ -20,9 +20,9 @@ class WorkflowAgent(dspy.Module):
 
     def forward(self, user_query: UserQuery) -> dspy.Prediction:
         """
-        Gathers and screens evidence for relevance to the user's query.
+        Gathers, screens, and maps evidence for relevance to the user's query.
         :param user_query: the user query to map research for
-        :return: a DSPy Prediction wrapping a collection of screened evidence
+        :return: a DSPy Prediction wrapping a collection of MappedEvidence objects
         """
         evidence = self._gather_evidence(user_query)
         filtered_evidence = self._screen_evidence(user_query, evidence)
@@ -66,6 +66,12 @@ class WorkflowAgent(dspy.Module):
     def _map_evidence(
         self, user_query: UserQuery, filtered_evidence: list[Evidence]
     ) -> list[MappedEvidence]:
+        """
+        Maps screened evidence across mapping dimensions and their subtopics using a MappingAgent.
+        :param user_query: the user query the evidence is being mapped for
+        :param filtered_evidence: the screened evidence to map
+        :return: a collection of MappedEvidence objects
+        """
         if self.tui:
             self.tui.print_info("Generating suggested dimensions to map across:")
 

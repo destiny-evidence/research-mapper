@@ -39,11 +39,24 @@ class MappingAgent(dspy.Module):
     def forward(
         self, user_query: UserQuery, evidence: list[Evidence]
     ) -> dspy.Prediction:
+        """
+        Implements DSPy Module's forward method by wrapping the aforward one.
+        :param user_query: the user query the evidence is being mapped for
+        :param evidence: the collection of Evidence objects to map
+        :return: a DSPy Prediction wrapping a collection of MappedEvidence objects
+        """
         return asyncio.run(self.aforward(user_query, evidence))
 
     async def aforward(
         self, user_query: UserQuery, evidence: list[Evidence]
     ) -> dspy.Prediction:
+        """
+        Generates mapping dimensions and their subtopics, validates them by the user, and maps each
+        piece of evidence to a coordinate across those dimensions.
+        :param user_query: the user query the evidence is being mapped for
+        :param evidence: the collection of Evidence objects to map
+        :return: a DSPy Prediction wrapping a collection of MappedEvidence objects
+        """
         suggested_dimensions = self._generate_suggested_dimensions(user_query)
         finalised_dimensions = self._validate_dimensions(suggested_dimensions)
         suggested_subtopics = await self._generate_dimension_subtopics(
@@ -58,6 +71,11 @@ class MappingAgent(dspy.Module):
     def _generate_suggested_dimensions(
         self, user_query: UserQuery
     ) -> tuple[MappingDimension, MappingDimension, MappingDimension]:
+        """
+        Generates 3 suggested dimensions to map evidence across for a user's query.
+        :param user_query: the user's original query to generate mapping dimensions for
+        :return: the 3 suggested mapping dimensions
+        """
         if self.tui is not None:
             with LiveAgentPanel(user_query.query, self.tui) as panel_ui:
                 prediction = read_reasoning_stream(
@@ -76,6 +94,11 @@ class MappingAgent(dspy.Module):
     def _validate_dimensions(
         self, dimensions: tuple[MappingDimension, MappingDimension, MappingDimension]
     ) -> tuple[MappingDimension, MappingDimension, MappingDimension]:
+        """
+        Validates suggested mapping dimensions via the user when UI available. Accepts them all if not.
+        :param dimensions: the suggested mapping dimensions to be validated
+        :return: the finalised mapping dimensions
+        """
         if self.tui is None:
             return dimensions
         finalised = self.tui.confirm_or_replace(
@@ -92,6 +115,12 @@ class MappingAgent(dspy.Module):
         MappingDimensionWithSubTopics,
         MappingDimensionWithSubTopics,
     ]:
+        """
+        Asynchronously generates suggested subtopics for each mapping dimension.
+        :param user_query: the user's original query for context
+        :param dimensions: the mapping dimensions to generate subtopics for
+        :return: the mapping dimensions, each upgraded with their suggested subtopics
+        """
         semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
         if self.tui is not None:
             with LiveAgentPanels(dimensions, self.tui) as panel_ui:
@@ -145,6 +174,13 @@ class MappingAgent(dspy.Module):
         MappingDimensionWithSubTopics,
         MappingDimensionWithSubTopics,
     ]:
+        """
+        Validates suggested dimension subtopics via the user when UI available. Accepts them all if
+        not. Re-prompts for a dimension if the user drops all of its subtopics, since each dimension
+        must retain at least one.
+        :param dimensions: the mapping dimensions with suggested subtopics to be validated
+        :return: the mapping dimensions with finalised subtopics
+        """
         if self.tui is None:
             return dimensions
         finalised_dimensions = tuple()
@@ -178,7 +214,16 @@ class MappingAgent(dspy.Module):
             MappingDimensionWithSubTopics,
         ],
         evidence: list[Evidence],
-    ):
+    ) -> list[MappedEvidence]:
+        """
+        Asynchronously maps each piece of evidence to a coordinate across the provided dimensions
+        and their subtopics.
+        :param user_query: the user's original query for context
+        :param dimensions: the finalised mapping dimensions, each with their finalised subtopics
+        :param evidence: the Evidence objects to be mapped
+        :return: the collection of MappedEvidence objects
+        :raises RuntimeError: if a mapping dimension somehow has no subtopics to map evidence against
+        """
         try:
             MapEvidenceAlongDimensions = mapping_along_dimensions_signature_builder(
                 *dimensions

@@ -106,9 +106,9 @@ def test_lookup_references_tool_with_external_id_live():
 
 @pytest.mark.integration
 def test_research_mapping_agent_end_to_end_live():
-    from research_mapper.modules.research_mapping_agent import ResearchMappingAgent
+    from research_mapper.modules.workflow_agent import WorkflowAgent
 
-    agent = ResearchMappingAgent()
+    agent = WorkflowAgent()
     query = UserQuery(
         query="what are the best interventions to mitigate the health risks of climate change"
     )

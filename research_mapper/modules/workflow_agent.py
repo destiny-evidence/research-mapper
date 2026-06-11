@@ -3,10 +3,11 @@ import dspy
 from research_mapper.models import UserQuery, Evidence
 from research_mapper.modules.screening_agent import ScreeningAgent
 from research_mapper.modules.search_agent import SearchAgent
+from research_mapper.modules.mapping_agent import MappingAgent
 from research_mapper.ui import TerminalUI
 
 
-class ResearchMappingAgent(dspy.Module):
+class WorkflowAgent(dspy.Module):
     """
     A DSPy program/module for searching, screening, and mapping evidence/research for a user's query.
     """
@@ -15,6 +16,7 @@ class ResearchMappingAgent(dspy.Module):
         self.tui = tui
         self.search_agent = SearchAgent(tui=tui)
         self.screening_agent = ScreeningAgent(tui=tui)
+        self.mapping_agent = MappingAgent(tui=tui)
 
     def forward(self, user_query: UserQuery) -> dspy.Prediction:
         """
@@ -24,7 +26,8 @@ class ResearchMappingAgent(dspy.Module):
         """
         evidence = self._gather_evidence(user_query)
         filtered_evidence = self._screen_evidence(user_query, evidence)
-        return dspy.Prediction(evidence=filtered_evidence)
+        mapped_evidence = self.mapping_agent(user_query, filtered_evidence)
+        return dspy.Prediction(evidence_map=mapped_evidence)
 
     def _gather_evidence(self, user_query: UserQuery) -> list[Evidence]:
         """

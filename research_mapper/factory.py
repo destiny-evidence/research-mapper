@@ -42,8 +42,14 @@ def mapping_along_dimensions_signature_builder(
         "dimensions": dspy.InputField(
             desc="The dimensions and their subtopics the piece of evidence is to be mapped across."
         ),
-        "mapping_coordinate": dspy.OutputField(
-            desc="The coordinate, in terms of dimension subtopics, where the piece of evidence lies in the map."
+        "dimension1_subtopic": dspy.OutputField(
+            desc=f"The subtopic of '{mapping_dimension1.name}' the piece of evidence belongs to."
+        ),
+        "dimension2_subtopic": dspy.OutputField(
+            desc=f"The subtopic of '{mapping_dimension2.name}' the piece of evidence belongs to."
+        ),
+        "dimension3_subtopic": dspy.OutputField(
+            desc=f"The subtopic of '{mapping_dimension3.name}' the piece of evidence belongs to."
         ),
     }
     annotations = {
@@ -54,9 +60,9 @@ def mapping_along_dimensions_signature_builder(
             MappingDimensionWithSubTopics,
             MappingDimensionWithSubTopics,
         ],
-        "mapping_coordinate": tuple[
-            Dim1SubTopicsLiteral, Dim2SubTopicsLiteral, Dim3SubTopicsLiteral
-        ],
+        "dimension1_subtopic": Dim1SubTopicsLiteral,
+        "dimension2_subtopic": Dim2SubTopicsLiteral,
+        "dimension3_subtopic": Dim3SubTopicsLiteral,
     }
     return type(
         "MapEvidenceAlongDimensions",

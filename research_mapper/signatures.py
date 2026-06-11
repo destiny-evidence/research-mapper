@@ -77,8 +77,14 @@ class EvidenceMappingDimensionsFromQuery(dspy.Signature):
     original_query: UserQuery = dspy.InputField(
         desc="The user's original query that initiated the evidence map."
     )
-    dimensions: tuple[MappingDimension, MappingDimension, MappingDimension] = (
-        dspy.OutputField(desc="The dimensions to map the evidence data against.")
+    dimension1: MappingDimension = dspy.OutputField(
+        desc="The first dimension to map the evidence data against."
+    )
+    dimension2: MappingDimension = dspy.OutputField(
+        desc="The second dimension to map the evidence data against."
+    )
+    dimension3: MappingDimension = dspy.OutputField(
+        desc="The third dimension to map the evidence data against."
     )
 
 

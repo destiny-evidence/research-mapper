@@ -60,20 +60,18 @@ class MappingAgent(dspy.Module):
     ) -> tuple[MappingDimension, MappingDimension, MappingDimension]:
         if self.tui is not None:
             with LiveAgentPanel(user_query.query, self.tui) as panel_ui:
-                dimensions = read_reasoning_stream(
+                prediction = read_reasoning_stream(
                     program=self.mapping_dimension_generator,
                     original_query=user_query,
                     on_chunk=panel_ui.get_callback_for_buffer(user_query.query),
-                ).dimensions
+                )
 
             self.tui.print_info(
                 "[green]✓[/green] Mapping dimensions generated successfully!"
             )
         else:
-            dimensions = self.mapping_dimension_generator(
-                original_query=user_query
-            ).dimensions
-        return dimensions
+            prediction = self.mapping_dimension_generator(original_query=user_query)
+        return (prediction.dimension1, prediction.dimension2, prediction.dimension3)
 
     def _validate_dimensions(
         self, dimensions: tuple[MappingDimension, MappingDimension, MappingDimension]
@@ -224,10 +222,20 @@ class MappingAgent(dspy.Module):
                 ]
             )
         dimension_names = [dim.name for dim in dimensions]
+        subtopic_fields = (
+            "dimension1_subtopic",
+            "dimension2_subtopic",
+            "dimension3_subtopic",
+        )
         return [
             MappedEvidence(
                 evidence=e,
-                coordinate=dict(zip(dimension_names, pred.mapping_coordinate)),
+                coordinate=dict(
+                    zip(
+                        dimension_names,
+                        (getattr(pred, field) for field in subtopic_fields),
+                    )
+                ),
             )
             for e, pred in zip(evidence, results)
         ]

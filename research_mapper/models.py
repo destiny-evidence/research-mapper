@@ -81,8 +81,12 @@ class Evidence(BaseModel):
             return f"{title} - {abstract}"
         return str(self.destiny_id)
 
-    def as_ris_entry(self) -> dict:
-        """Serialise this Evidence instance to a rispy-compatible RIS entry dict."""
+    def as_ris_entry(self, keywords: list[str] | None = None) -> dict:
+        """
+        Serialise this Evidence instance to a rispy-compatible RIS entry dict.
+        :param keywords: optional collection of keywords to attach to the entry, so they
+            can be filtered/grouped on after import.
+        """
         venue_type = (
             self.publication_venue.venue_type if self.publication_venue else None
         )
@@ -92,6 +96,9 @@ class Evidence(BaseModel):
             else "GEN",
             "id": str(self.destiny_id),
         }
+
+        if keywords:
+            entry["keywords"] = keywords
 
         if self.title:
             entry["title"] = self.title
@@ -225,6 +232,15 @@ class MappedEvidence(BaseModel):
 
     evidence: Evidence
     coordinate: dict[str, str]
+
+    def as_ris_entry(self) -> dict:
+        """
+        Serialise this MappedEvidence's underlying Evidence to a rispy-compatible RIS entry
+        dict, attaching its evidence map coordinate as keywords (one per dimension/subtopic
+        pair) so it can be filtered/grouped on after import.
+        """
+        keywords = [f"{dim}: {subtopic}" for dim, subtopic in self.coordinate.items()]
+        return self.evidence.as_ris_entry(keywords=keywords)
 
 
 class EvidenceMap(BaseModel):

@@ -2,7 +2,7 @@ import argparse
 import logging
 
 from research_mapper.config import configure_dspy, get_destiny_client
-from research_mapper.export import export_to_ris
+from research_mapper.export import export_mapped_evidence_to_ris
 from research_mapper.logs import ColourFormatter
 from research_mapper.models import UserQuery
 from research_mapper.modules.workflow_agent import WorkflowAgent
@@ -65,9 +65,7 @@ def main() -> None:
     )
     tui.print_evidence_map(evidence_map)
     tui.prompt_file_export(
-        writer=lambda f: export_to_ris(
-            [item.evidence for item in evidence_map.mapped_evidence], f
-        ),
+        writer=lambda f: export_mapped_evidence_to_ris(evidence_map.mapped_evidence, f),
         default_filename="results.ris",
         label="Export results to a RIS file?",
     )

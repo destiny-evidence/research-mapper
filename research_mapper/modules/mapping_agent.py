@@ -129,6 +129,7 @@ class MappingAgent(dspy.Module):
         """
         semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
         if self.tui is not None:
+            self.tui.print_info("Generating suggested subtopics for each dimension:")
             with LiveAgentPanels(dimensions, self.tui) as panel_ui:
                 results = await asyncio.gather(
                     *[
@@ -241,6 +242,7 @@ class MappingAgent(dspy.Module):
         map_evidence_along_dimensions = dspy.ChainOfThought(MapEvidenceAlongDimensions)
         semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
         if self.tui is not None:
+            self.tui.print_info("Mapping evidence across dimensions:")
             with LiveAgentPanels(evidence, self.tui) as panel_ui:
                 results = await asyncio.gather(
                     *[

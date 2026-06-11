@@ -2,6 +2,7 @@ import argparse
 import logging
 
 from research_mapper.config import configure_dspy, get_destiny_client
+from research_mapper.export import export_to_ris
 from research_mapper.logs import ColourFormatter
 from research_mapper.models import UserQuery
 from research_mapper.modules.workflow_agent import WorkflowAgent
@@ -57,14 +58,19 @@ def main() -> None:
     query = args.query or tui.prompt_user("How can I help?")
     logger.info("Running Research Mapping Agent for query: %s", query)
     mapping_agent = WorkflowAgent(tui=tui)
-    mapping_agent(UserQuery(query=query))
-    # logger.info("Research Mapping complete — %d screened sources found:", len(evidence))
-    # tui.print_evidence(evidence_map)
-    # tui.prompt_file_export(
-    # writer=lambda f: export_to_ris(evidence, f),
-    # default_filename="results.ris",
-    # label="Export results to a RIS file?",
-    # )
+    evidence_map = mapping_agent(UserQuery(query=query)).evidence_map
+    logger.info(
+        "Research Mapping complete — %d piece(s) of evidence mapped:",
+        len(evidence_map.mapped_evidence),
+    )
+    tui.print_evidence_map(evidence_map)
+    tui.prompt_file_export(
+        writer=lambda f: export_to_ris(
+            [item.evidence for item in evidence_map.mapped_evidence], f
+        ),
+        default_filename="results.ris",
+        label="Export results to a RIS file?",
+    )
 
 
 if __name__ == "__main__":

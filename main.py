@@ -1,5 +1,6 @@
 import argparse
 import logging
+import sys
 
 from research_mapper.config import configure_dspy, get_destiny_client
 from research_mapper.export import export_mapped_evidence_to_ris
@@ -72,4 +73,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (KeyboardInterrupt, EOFError):
+        print("\nExiting...")
+        sys.exit(130)

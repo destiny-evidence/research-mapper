@@ -14,7 +14,7 @@ from unittest.mock import patch
 import pytest
 from destiny_sdk.identifiers import OpenAlexIdentifier
 
-from research_mapper.models import Evidence, LuceneQuery, UserQuery
+from research_mapper.models import Evidence, LuceneQuery, UserQuery, MappedEvidence
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -116,7 +116,7 @@ def test_research_mapping_agent_end_to_end_live():
     with patch("research_mapper.human_in_loop.input", return_value=""):
         result = agent(query)
 
-    assert result.evidence, "Expected at least one evidence item"
-    for item in result.evidence:
-        assert isinstance(item, Evidence)
-        assert item.destiny_id, "Evidence should have a non-empty id"
+    assert result.evidence_map, "Expected at least one evidence item"
+    for item in result.evidence_map:
+        assert isinstance(item, MappedEvidence)
+        assert item.evidence.destiny_id, "Evidence should have a non-empty id"

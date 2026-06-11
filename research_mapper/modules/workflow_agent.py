@@ -26,7 +26,9 @@ class WorkflowAgent(dspy.Module):
         """
         evidence = self._gather_evidence(user_query)
         filtered_evidence = self._screen_evidence(user_query, evidence)
-        mapped_evidence = self.mapping_agent(user_query, filtered_evidence)
+        mapped_evidence = self.mapping_agent(
+            user_query, filtered_evidence
+        ).mapped_evidence
         return dspy.Prediction(evidence_map=mapped_evidence)
 
     def _gather_evidence(self, user_query: UserQuery) -> list[Evidence]:

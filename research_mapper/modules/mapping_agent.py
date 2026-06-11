@@ -53,7 +53,7 @@ class MappingAgent(dspy.Module):
         mapping = await self._generate_evidence_map(
             user_query, finalised_subtopics, evidence
         )
-        return mapping
+        return dspy.Prediction(mapped_evidence=mapping)
 
     def _generate_suggested_dimensions(
         self, user_query: UserQuery

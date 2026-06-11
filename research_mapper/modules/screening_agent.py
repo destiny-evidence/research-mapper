@@ -3,7 +3,11 @@ import asyncio
 import dspy
 
 from research_mapper.models import Evidence, UserQuery, ScreeningCriterion
-from research_mapper.modules.utils import read_reasoning_stream, run_with_semaphore
+from research_mapper.modules.utils import (
+    MAX_CONCURRENCY,
+    read_reasoning_stream,
+    run_with_semaphore,
+)
 from research_mapper.signatures import (
     UserQueryToScreeningCriteria,
     ScreenEvidenceUsingCriteria,
@@ -97,12 +101,14 @@ class ScreeningAgent(dspy.Module):
         :param evidence: the Evidence objects to be screened
         :return: the collection of screened Evidence objects
         """
+        semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
         if self.tui is not None:
             with LiveAgentPanels(evidence, self.tui) as panel_ui:
                 results = await asyncio.gather(
                     *[
                         run_with_semaphore(
                             read_reasoning_stream,
+                            semaphore,
                             program=self.evidence_screener,
                             evidence=piece_of_evidence,
                             screening_criteria=screening_criteria,
@@ -119,6 +125,7 @@ class ScreeningAgent(dspy.Module):
                 *[
                     run_with_semaphore(
                         self.evidence_screener,
+                        semaphore,
                         evidence=piece_of_evidence,
                         screening_criteria=screening_criteria,
                     )

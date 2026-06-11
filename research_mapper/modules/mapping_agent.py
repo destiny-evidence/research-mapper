@@ -10,7 +10,11 @@ from research_mapper.models import (
     MappingDimension,
     MappingDimensionWithSubTopics,
 )
-from research_mapper.modules.utils import read_reasoning_stream, run_with_semaphore
+from research_mapper.modules.utils import (
+    MAX_CONCURRENCY,
+    read_reasoning_stream,
+    run_with_semaphore,
+)
 from research_mapper.signatures import (
     EvidenceMappingDimensionsFromQuery,
     SubtopicFromEvidenceMappingDimension,
@@ -90,12 +94,14 @@ class MappingAgent(dspy.Module):
         MappingDimensionWithSubTopics,
         MappingDimensionWithSubTopics,
     ]:
+        semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
         if self.tui is not None:
             with LiveAgentPanels(dimensions, self.tui) as panel_ui:
                 results = await asyncio.gather(
                     *[
                         run_with_semaphore(
                             read_reasoning_stream,
+                            semaphore,
                             program=self.dimension_subtopics_generator,
                             original_query=user_query,
                             other_dimensions=list(dimensions[:i] + dimensions[i + 1 :]),
@@ -114,6 +120,7 @@ class MappingAgent(dspy.Module):
                 *[
                     run_with_semaphore(
                         self.dimension_subtopics_generator,
+                        semaphore,
                         original_query=user_query,
                         other_dimensions=list(dimensions[:i] + dimensions[i + 1 :]),
                         dimension=dim,
@@ -183,12 +190,14 @@ class MappingAgent(dspy.Module):
                 f"A mapping dimension happened to have no subtopics somehow: {exc}. Please restart and try again."
             ) from exc
         map_evidence_along_dimensions = dspy.ChainOfThought(MapEvidenceAlongDimensions)
+        semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
         if self.tui is not None:
             with LiveAgentPanels(evidence, self.tui) as panel_ui:
                 results = await asyncio.gather(
                     *[
                         run_with_semaphore(
                             read_reasoning_stream,
+                            semaphore,
                             program=map_evidence_along_dimensions,
                             original_query=user_query,
                             evidence=piece_of_evidence,
@@ -206,6 +215,7 @@ class MappingAgent(dspy.Module):
                 *[
                     run_with_semaphore(
                         map_evidence_along_dimensions,
+                        semaphore,
                         original_query=user_query,
                         evidence=piece_of_evidence,
                         dimensions=dimensions,

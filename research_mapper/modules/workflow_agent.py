@@ -1,6 +1,6 @@
 import dspy
 
-from research_mapper.models import UserQuery, Evidence
+from research_mapper.models import UserQuery, Evidence, MappedEvidence
 from research_mapper.modules.screening_agent import ScreeningAgent
 from research_mapper.modules.search_agent import SearchAgent
 from research_mapper.modules.mapping_agent import MappingAgent
@@ -26,9 +26,7 @@ class WorkflowAgent(dspy.Module):
         """
         evidence = self._gather_evidence(user_query)
         filtered_evidence = self._screen_evidence(user_query, evidence)
-        mapped_evidence = self.mapping_agent(
-            user_query, filtered_evidence
-        ).mapped_evidence
+        mapped_evidence = self._map_evidence(user_query, filtered_evidence)
         return dspy.Prediction(evidence_map=mapped_evidence)
 
     def _gather_evidence(self, user_query: UserQuery) -> list[Evidence]:
@@ -64,3 +62,14 @@ class WorkflowAgent(dspy.Module):
                 f"{len(evidence) - len(filtered_evidence)} piece(s) of evidence removed during screening. {len(filtered_evidence)} piece(s) of evidence remaining."
             )
         return filtered_evidence
+
+    def _map_evidence(
+        self, user_query: UserQuery, filtered_evidence: list[Evidence]
+    ) -> list[MappedEvidence]:
+        if self.tui:
+            self.tui.print_info("Generating suggested dimensions to map across:")
+
+        mapped_evidence = self.mapping_agent(
+            user_query, filtered_evidence
+        ).mapped_evidence
+        return mapped_evidence

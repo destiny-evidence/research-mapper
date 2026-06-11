@@ -202,7 +202,9 @@ class TerminalUI:
         self.print(table)
 
         while True:
-            raw = self.input(f"[dim]Accept these {noun}? [Y/n]:[/dim] ", spacing=False)
+            raw = self.input(
+                f"[dim]Accept these {noun}? [Y (Enter)/n]:[/dim] ", spacing=False
+            )
             try:
                 accepted = parse_yes_no(raw, default=True)
                 break

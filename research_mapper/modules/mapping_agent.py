@@ -158,7 +158,8 @@ class MappingAgent(dspy.Module):
                 )
             finalised_dimensions += (
                 MappingDimensionWithSubTopics(
-                    **dim.model_dump(), subtopics=finalised_subtopics
+                    **dim.model_dump(exclude={"subtopics"}),
+                    subtopics=finalised_subtopics,
                 ),
             )
         return finalised_dimensions

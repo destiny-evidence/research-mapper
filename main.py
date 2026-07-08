@@ -2,6 +2,8 @@ import argparse
 import logging
 import sys
 
+from dotenv import load_dotenv
+
 from research_mapper.config import configure_dspy, get_destiny_client
 from research_mapper.export import export_mapped_evidence_to_ris
 from research_mapper.logs import ColourFormatter
@@ -17,6 +19,7 @@ def initialise() -> None:
     Initialises the destiny_sdk client and DSPy's LLM.
     :return: Nothing.
     """
+    load_dotenv()
     get_destiny_client()
     logger.info("Destiny client ready")
     configure_dspy()

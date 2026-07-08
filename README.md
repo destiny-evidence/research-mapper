@@ -12,7 +12,7 @@ A human-in-the-loop agentic workflow for mapping evidence from the DESTINY repos
 
 - Python 3.13+
 - [uv](https://docs.astral.sh/uv/)
-- Access to a DESTINY repository instance and Azure OAuth credentials
+- Access to a DESTINY repository instance
 
 ### Installation
 
@@ -27,11 +27,8 @@ uv sync
 Copy the `.env.example` file below into a `.env` file at the project root and fill in your credentials:
 
 ```bash
-DESTINY_BASE_URL=https://your-destiny-instance.example.com
-DESTINY_AZURE_CLIENT_ID=...
-DESTINY_AZURE_APPLICATION_ID=...
-DESTINY_AZURE_CLIENT_SECRET=...
-DESTINY_AZURE_LOGIN_URL=...
+# DESTINY_ENV and DESTINY_BASE_URL default to the production DESTINY instance —
+# only set these if you're developing against a staging/development instance.
 
 LLM_MODEL=azure/gpt-4o
 OPENAI_API_BASE=https://your-azure-openai-instance.openai.azure.com/

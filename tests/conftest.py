@@ -21,9 +21,9 @@ def live_setup():
     load_dotenv()
 
     required = [
-        "LLM_MODEL",
-        "OPENAI_API_KEY",
-        "OPENAI_API_BASE",
+        "MAPPER_LLM_MODEL",
+        "MAPPER_LLM_API_KEY",
+        "MAPPER_LLM_BASE_URL",
     ]
     missing = [k for k in required if not os.environ.get(k)]
     if missing:

@@ -27,12 +27,13 @@ uv sync
 Copy the `.env.example` file below into a `.env` file at the project root and fill in your credentials:
 
 ```bash
-# DESTINY_ENV and DESTINY_BASE_URL default to the production DESTINY instance —
-# only set these if you're developing against a staging/development instance.
+# MAPPER_DESTINY_ENV and MAPPER_DESTINY_BASE_URL default to the production
+# DESTINY instance — only set these if you're developing against a
+# staging/development instance.
 
-LLM_MODEL=azure/gpt-4o
-OPENAI_API_BASE=https://your-azure-openai-instance.openai.azure.com/
-OPENAI_API_KEY=...
+MAPPER_LLM_MODEL=azure/gpt-4o
+MAPPER_LLM_BASE_URL=https://your-azure-openai-instance.openai.azure.com/
+MAPPER_LLM_API_KEY=...
 ```
 
 ### Running

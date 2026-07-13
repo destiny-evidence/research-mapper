@@ -3,6 +3,7 @@ repos:
     rev: v0.11.2  # use latest stable tag
     hooks:
       - id: ruff          # linter — catches style/logic issues
+        args: [--fix]
       - id: ruff-format   # formatter — like black, enforces consistent style
   - repo: local
     hooks:

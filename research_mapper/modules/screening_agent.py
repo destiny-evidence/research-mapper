@@ -64,7 +64,7 @@ class ScreeningAgent(dspy.Module):
             with LiveAgentPanel(user_query.query, self.tui) as panel_ui:
                 screening_criteria = read_reasoning_stream(
                     program=self.screening_criteria_generator,
-                    original_query=user_query.query,
+                    original_query=user_query,
                     on_chunk=panel_ui.get_callback_for_buffer(user_query.query),
                 ).screening_criteria
 

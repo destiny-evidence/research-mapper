@@ -4,7 +4,7 @@ A human-in-the-loop agentic workflow for mapping evidence from the DESTINY repos
 
 ## Architecture
 
-![iagram of the intented workflow](assets/Workflow%20Diagram.png)
+![diagram of the intended workflow](assets/Workflow%20Diagram.png)
 
 ## Getting Started
 
@@ -12,43 +12,54 @@ A human-in-the-loop agentic workflow for mapping evidence from the DESTINY repos
 
 - Python 3.13+
 - [uv](https://docs.astral.sh/uv/)
-- Access to a DESTINY repository instance
+- A DESTINY account to authenticate with (defaults to the public production instance)
 
 ### Installation
 
+Install it as a standalone tool, so `research-mapper` is available anywhere on your machine:
+
 ```bash
-git clone <repo-url>
-cd research-mapper
-uv sync
+uv tool install git+https://github.com/destiny-evidence/research-mapper
 ```
+
+To upgrade later: `uv tool upgrade research-mapper`.
 
 ### Configuration
 
-Copy the `.env.example` file below into a `.env` file at the project root and fill in your credentials:
+`research-mapper` needs the following variables (see `.env.example`):
 
 ```bash
-# MAPPER_DESTINY_ENV and MAPPER_DESTINY_BASE_URL default to the production
-# DESTINY instance — only set these if you're developing against a
-# staging/development instance.
-
 MAPPER_LLM_MODEL=azure/gpt-4o
 MAPPER_LLM_BASE_URL=https://your-azure-openai-instance.openai.azure.com/
 MAPPER_LLM_API_KEY=...
 ```
 
+There are several ways to provide them, checked in this order (first match per variable wins):
+
+1. **Exported shell variables** — add them to your `~/.bashrc`/`~/.zshrc`/etc. The `MAPPER_` prefix makes these safe to export globally without colliding with other tools.
+2. **`--env-file <path>`** — pass an explicit `.env` file on the command line.
+3. **`./.env`** — a `.env` file in the current directory (or a parent directory), handy for a local clone.
+4. **A machine-wide fallback file** — `~/.config/research-mapper/.env` (or `%APPDATA%\research-mapper\.env` on Windows), useful when running `research-mapper` from arbitrary directories.
+
 ### Running
 
 ```bash
-uv run main.py
+research-mapper
 ```
 
 You'll be prompted to authenticate, then asked for your research question. The agent will generate a set of database search queries and allow you to validate them before running the evidence search.
 
-## TODO
+## Development
 
+To run `research-mapper` from source:
 
-## DONE
-- [X] **Unit tests** — test core components (query generator, tools, validation logic) with mocked SDK responses, suitable for CI/CD
-- [X] **Live functional tests** — integration tests against a real DESTINY instance and LLM providers for local pre-release verification
-- [X] **Async evidence gathering** — run ReAcT agents concurrently across search queries ~~using DSPy's native async support and async tool implementations~~
-- [X] **More Transparent Logging** — present arg choices of the evidence retrieval agents (i.e. start & end year, sort, and page) alongside LLM reasoning for which Evidence to return.
+```bash
+git clone <repo-url>
+cd research-mapper
+uv sync
+uv run research-mapper
+```
+
+## License
+
+[Apache License 2.0](LICENSE)

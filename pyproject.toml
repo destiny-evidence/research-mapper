@@ -14,6 +14,9 @@ dependencies = [
     "uuid>=1.30",
 ]
 
+[project.scripts]
+research-mapper = "research_mapper.__main__:run"
+
 [dependency-groups]
 dev = [
     "pre-commit>=4.5.1",

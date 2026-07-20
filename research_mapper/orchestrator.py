@@ -22,8 +22,9 @@ from research_mapper.modules.mapping import (
     EvidenceMapper,
     SubtopicGenerator,
 )
-from research_mapper.modules.utils import MAX_CONCURRENCY
 from research_mapper.ui import TerminalUI
+
+MAX_CONCURRENCY = 8
 
 
 class ResearchMappingOrchestrator:

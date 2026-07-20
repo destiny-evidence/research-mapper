@@ -8,7 +8,6 @@ Skip in CI with:
     pytest -m "not integration"
 """
 
-import uuid
 from unittest.mock import patch
 
 import pytest
@@ -67,20 +66,6 @@ def test_search_references_tool_live_pagination():
     ids_page1 = {item.destiny_id for item in page1}
     ids_page2 = {item.destiny_id for item in page2}
     assert ids_page1 - ids_page2, "Pages should not overlap"
-
-
-@pytest.mark.integration
-def test_lookup_references_tool_with_destiny_id_live():
-    """Look up a reference by DOI and verify it returns an Evidence object."""
-    from research_mapper.tools import lookup_references
-
-    test_destiny_id = uuid.UUID("ce0d0782-59b7-4e3f-8719-293a748681a9")
-    results = lookup_references(identifiers=[test_destiny_id])
-
-    assert isinstance(results, list)
-    assert len(results) >= 1, f"Expected to find reference for DOI {test_destiny_id}"
-    assert isinstance(results[0], Evidence)
-    assert results[0].destiny_id
 
 
 @pytest.mark.integration

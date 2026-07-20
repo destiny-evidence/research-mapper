@@ -106,17 +106,16 @@ def test_lookup_references_tool_with_external_id_live():
 
 @pytest.mark.integration
 def test_research_mapping_agent_end_to_end_live():
-    from research_mapper.modules.workflow_agent import WorkflowAgent
+    from research_mapper.orchestrator import ResearchMappingOrchestrator
 
-    agent = WorkflowAgent()
+    orchestrator = ResearchMappingOrchestrator()
     query = UserQuery(
         query="what are the best interventions to mitigate the health risks of climate change"
     )
 
     with patch("research_mapper.human_in_loop.input", return_value=""):
-        result = agent(query)
+        evidence_map = orchestrator.run(query)
 
-    evidence_map = result.evidence_map
     assert evidence_map.mapped_evidence, "Expected at least one evidence item"
     for item in evidence_map.mapped_evidence:
         assert isinstance(item, MappedEvidence)

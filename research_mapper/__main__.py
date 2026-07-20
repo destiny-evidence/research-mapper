@@ -6,7 +6,7 @@ from research_mapper.config import configure_dspy, get_destiny_client, load_envi
 from research_mapper.export import export_mapped_evidence_to_ris
 from research_mapper.logs import ColourFormatter
 from research_mapper.models import UserQuery
-from research_mapper.modules.workflow_agent import WorkflowAgent
+from research_mapper.orchestrator import ResearchMappingOrchestrator
 from research_mapper.ui import TerminalUI
 
 logger = logging.getLogger(__name__)
@@ -69,8 +69,8 @@ def main() -> None:
 
     query = args.query or tui.prompt_user("How can I help?")
     logger.info("Running Research Mapping Agent for query: %s", query)
-    mapping_agent = WorkflowAgent(tui=tui)
-    evidence_map = mapping_agent(UserQuery(query=query)).evidence_map
+    orchestrator = ResearchMappingOrchestrator(tui=tui)
+    evidence_map = orchestrator.run(UserQuery(query=query))
     logger.info(
         "Research Mapping complete — %d piece(s) of evidence mapped:",
         len(evidence_map.mapped_evidence),

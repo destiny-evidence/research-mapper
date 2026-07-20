@@ -26,9 +26,11 @@ from research_mapper.modules.utils import MAX_CONCURRENCY
 from research_mapper.ui import TerminalUI
 
 
-class WorkflowAgent(dspy.Module):
+class ResearchMappingOrchestrator:
     """
-    A DSPy program/module for searching, screening, and mapping evidence/research for a user's query.
+    The application layer: drives the atomic search, screening, and mapping modules, streaming
+    their progress and requesting human review between steps, to search, screen, and map
+    evidence/research for a user's query.
     """
 
     def __init__(self, tui: TerminalUI | None = None) -> None:
@@ -41,16 +43,15 @@ class WorkflowAgent(dspy.Module):
         self.subtopic_generator = SubtopicGenerator()
         self.evidence_mapper = EvidenceMapper()
 
-    def forward(self, user_query: UserQuery) -> dspy.Prediction:
+    def run(self, user_query: UserQuery) -> EvidenceMap:
         """
         Gathers, screens, and maps evidence for relevance to the user's query.
         :param user_query: the user query to map research for
-        :return: a DSPy Prediction wrapping an EvidenceMap
+        :return: an EvidenceMap of the screened, mapped evidence
         """
         evidence = self._gather_evidence(user_query)
         filtered_evidence = self._screen_evidence(user_query, evidence)
-        evidence_map = self._map_evidence(user_query, filtered_evidence)
-        return dspy.Prediction(evidence_map=evidence_map)
+        return self._map_evidence(user_query, filtered_evidence)
 
     def _gather_evidence(self, user_query: UserQuery) -> list[Evidence]:
         """

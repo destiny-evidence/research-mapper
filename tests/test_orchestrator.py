@@ -2,12 +2,12 @@ import uuid
 from unittest.mock import MagicMock
 
 from research_mapper.models import Evidence, LuceneQuery, UserQuery
-from research_mapper.modules.workflow_agent import WorkflowAgent
+from research_mapper.orchestrator import ResearchMappingOrchestrator
 
 
 def test_retrieve_evidence_deduplicates_evidence():
     """Evidence returned from multiple search queries is deduplicated."""
-    agent = WorkflowAgent()
+    agent = ResearchMappingOrchestrator()
 
     shared_id = uuid.uuid4()
     shared_evidence = Evidence(destiny_id=shared_id)

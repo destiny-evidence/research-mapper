@@ -23,7 +23,9 @@ def test_fixed_search_references_binds_query():
     query = LuceneQuery(query="climate AND health")
     fn = _fixed_search_references_builder(query, {})
 
-    with patch("research_mapper.modules.search_agent.search_references") as mock_search:
+    with patch(
+        "research_mapper.modules.sparse_search.search_references"
+    ) as mock_search:
         mock_search.return_value = []
         fn(start_year=2020, end_year=2024, sort=None, page=1)
 
@@ -40,7 +42,9 @@ def test_fixed_search_references_default_args():
     query = LuceneQuery(query="flood")
     fn = _fixed_search_references_builder(query, {})
 
-    with patch("research_mapper.modules.search_agent.search_references") as mock_search:
+    with patch(
+        "research_mapper.modules.sparse_search.search_references"
+    ) as mock_search:
         mock_search.return_value = []
         fn()
 

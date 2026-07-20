@@ -7,6 +7,9 @@ from research_mapper.models import (
     Evidence,
     EvidenceMap,
     LuceneQuery,
+    MappedEvidence,
+    MappingDimension,
+    MappingDimensionWithSubTopics,
     ScreeningCriterion,
 )
 from research_mapper.modules.screening import CriteriaGenerator, EvidenceScreener
@@ -14,7 +17,11 @@ from research_mapper.modules.sparse_search import (
     EvidenceRetriever,
     SparseQueryGenerator,
 )
-from research_mapper.modules.mapping_agent import MappingAgent
+from research_mapper.modules.mapping import (
+    DimensionGenerator,
+    EvidenceMapper,
+    SubtopicGenerator,
+)
 from research_mapper.modules.utils import MAX_CONCURRENCY
 from research_mapper.ui import TerminalUI
 
@@ -30,7 +37,9 @@ class WorkflowAgent(dspy.Module):
         self.evidence_retriever = EvidenceRetriever()
         self.criteria_generator = CriteriaGenerator()
         self.evidence_screener = EvidenceScreener()
-        self.mapping_agent = MappingAgent(tui=tui)
+        self.dimension_generator = DimensionGenerator()
+        self.subtopic_generator = SubtopicGenerator()
+        self.evidence_mapper = EvidenceMapper()
 
     def forward(self, user_query: UserQuery) -> dspy.Prediction:
         """
@@ -185,12 +194,176 @@ class WorkflowAgent(dspy.Module):
         self, user_query: UserQuery, filtered_evidence: list[Evidence]
     ) -> EvidenceMap:
         """
-        Maps screened evidence across mapping dimensions and their subtopics using a MappingAgent.
+        Generates mapping dimensions and their subtopics, validates them by the user, and maps
+        each piece of evidence to a coordinate across those dimensions.
         :param user_query: the user query the evidence is being mapped for
         :param filtered_evidence: the screened evidence to map
         :return: an EvidenceMap of the screened evidence
         """
-        if self.tui:
-            self.tui.print_info("Generating suggested dimensions to map across:")
+        suggested_dimensions = self._generate_suggested_dimensions(user_query)
+        finalised_dimensions = self._validate_dimensions(suggested_dimensions)
+        suggested_subtopics = self._generate_dimension_subtopics(
+            user_query, finalised_dimensions
+        )
+        final_dims_with_subtopics = self._validate_dimension_subtopics(
+            suggested_subtopics
+        )
+        mapping = self._generate_evidence_map(
+            user_query, final_dims_with_subtopics, filtered_evidence
+        )
+        return EvidenceMap(
+            mapped_evidence=mapping, dimensions=final_dims_with_subtopics
+        )
 
-        return self.mapping_agent(user_query, filtered_evidence).evidence_map
+    def _generate_suggested_dimensions(
+        self, user_query: UserQuery
+    ) -> tuple[MappingDimension, MappingDimension, MappingDimension]:
+        """
+        Generates 3 suggested dimensions to map evidence across for a user's query.
+        :param user_query: the user's original query to generate mapping dimensions for
+        :return: the 3 suggested mapping dimensions
+        """
+        prediction = self.dimension_generator(user_query=user_query)
+        if self.tui:
+            self.tui.print_reasoning("Mapping dimensions", prediction.reasoning)
+        return (prediction.dimension1, prediction.dimension2, prediction.dimension3)
+
+    def _validate_dimensions(
+        self, dimensions: tuple[MappingDimension, MappingDimension, MappingDimension]
+    ) -> tuple[MappingDimension, MappingDimension, MappingDimension]:
+        """
+        Validates suggested mapping dimensions via the user when a UI is available. Accepts them
+        all if not.
+        :param dimensions: the suggested mapping dimensions to be validated
+        :return: the finalised mapping dimensions
+        """
+        if self.tui is None:
+            return dimensions
+        finalised = self.tui.confirm_or_replace(
+            dimensions, title="Suggested mapping dimensions", noun="dimensions"
+        )
+        return tuple(finalised)
+
+    def _generate_dimension_subtopics(
+        self,
+        user_query: UserQuery,
+        dimensions: tuple[MappingDimension, MappingDimension, MappingDimension],
+    ) -> tuple[
+        MappingDimensionWithSubTopics,
+        MappingDimensionWithSubTopics,
+        MappingDimensionWithSubTopics,
+    ]:
+        """
+        Generates suggested subtopics for each mapping dimension, in parallel.
+        :param user_query: the user's original query for context
+        :param dimensions: the mapping dimensions to generate subtopics for
+        :return: the mapping dimensions, each upgraded with their suggested subtopics
+        """
+        examples = [
+            dspy.Example(
+                user_query=user_query,
+                dimension=dim,
+                other_dimensions=list(dimensions[:i] + dimensions[i + 1 :]),
+            ).with_inputs("user_query", "dimension", "other_dimensions")
+            for i, dim in enumerate(dimensions)
+        ]
+        results = self.subtopic_generator.batch(examples, num_threads=MAX_CONCURRENCY)
+        if self.tui:
+            for dim, prediction in zip(dimensions, results):
+                self.tui.print_reasoning(str(dim), prediction.reasoning)
+        return tuple(
+            MappingDimensionWithSubTopics(
+                **mapping_dim.model_dump(), subtopics=prediction.subtopics
+            )
+            for mapping_dim, prediction in zip(dimensions, results)
+        )
+
+    def _validate_dimension_subtopics(
+        self,
+        dimensions: tuple[
+            MappingDimensionWithSubTopics,
+            MappingDimensionWithSubTopics,
+            MappingDimensionWithSubTopics,
+        ],
+    ) -> tuple[
+        MappingDimensionWithSubTopics,
+        MappingDimensionWithSubTopics,
+        MappingDimensionWithSubTopics,
+    ]:
+        """
+        Validates suggested dimension subtopics via the user when a UI is available. Accepts them
+        all if not. Re-prompts for a dimension if the user drops all of its subtopics, since each
+        dimension must retain at least one.
+        :param dimensions: the mapping dimensions with suggested subtopics to be validated
+        :return: the mapping dimensions with finalised subtopics
+        """
+        if self.tui is None:
+            return dimensions
+        finalised_dimensions = tuple()
+        for dim in dimensions:
+            while True:
+                finalised_subtopics = self.tui.confirm_or_replace(
+                    dim.subtopics,
+                    title=f"Suggested subtopics for '{dim.name}' dimension",
+                    noun="subtopics",
+                    allow_drop=True,
+                )
+                if finalised_subtopics:
+                    break
+                self.tui.print_info(
+                    f"[red]'{dim.name}' must have at least one subtopic — try again.[/red]"
+                )
+            finalised_dimensions += (
+                MappingDimensionWithSubTopics(
+                    **dim.model_dump(exclude={"subtopics"}),
+                    subtopics=finalised_subtopics,
+                ),
+            )
+        return finalised_dimensions
+
+    def _generate_evidence_map(
+        self,
+        user_query: UserQuery,
+        dimensions: tuple[
+            MappingDimensionWithSubTopics,
+            MappingDimensionWithSubTopics,
+            MappingDimensionWithSubTopics,
+        ],
+        evidence: list[Evidence],
+    ) -> list[MappedEvidence]:
+        """
+        Maps each piece of evidence to a coordinate across the provided dimensions and their
+        subtopics, in parallel.
+        :param user_query: the user's original query for context
+        :param dimensions: the finalised mapping dimensions, each with their finalised subtopics
+        :param evidence: the Evidence objects to be mapped
+        :return: the collection of MappedEvidence objects
+        """
+        examples = [
+            dspy.Example(
+                user_query=user_query, evidence=piece_of_evidence, dimensions=dimensions
+            ).with_inputs("user_query", "evidence", "dimensions")
+            for piece_of_evidence in evidence
+        ]
+        results = self.evidence_mapper.batch(examples, num_threads=MAX_CONCURRENCY)
+        if self.tui:
+            for piece_of_evidence, prediction in zip(evidence, results):
+                self.tui.print_reasoning(str(piece_of_evidence), prediction.reasoning)
+        dimension_names = [dim.name for dim in dimensions]
+        subtopic_fields = (
+            "dimension1_subtopic",
+            "dimension2_subtopic",
+            "dimension3_subtopic",
+        )
+        return [
+            MappedEvidence(
+                evidence=piece_of_evidence,
+                coordinate=dict(
+                    zip(
+                        dimension_names,
+                        (getattr(prediction, field) for field in subtopic_fields),
+                    )
+                ),
+            )
+            for piece_of_evidence, prediction in zip(evidence, results)
+        ]

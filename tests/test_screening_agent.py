@@ -1,10 +1,10 @@
 import uuid
-from unittest.mock import patch
 
+import dspy
 import pytest
 
 from research_mapper.models import Evidence, LuceneQuery, UserQuery
-from research_mapper.modules.screening_agent import ScreeningAgent
+from research_mapper.modules.screening import CriteriaGenerator, EvidenceScreener
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -13,11 +13,26 @@ def _live(live_setup):
 
 
 @pytest.mark.integration
-def test_screening_agent_with_constructed_evidence():
-    agent = ScreeningAgent()
+def test_criteria_generator_with_constructed_query():
+    generator = CriteriaGenerator()
     query = UserQuery(
         query="what are the best interventions to mitigate the health risks of climate change"
     )
+
+    result = generator(user_query=query)
+
+    assert hasattr(result, "screening_criteria")
+    assert isinstance(result.screening_criteria, list)
+    assert result.screening_criteria
+
+
+@pytest.mark.integration
+def test_evidence_screener_with_constructed_evidence():
+    screener = EvidenceScreener()
+    query = UserQuery(
+        query="what are the best interventions to mitigate the health risks of climate change"
+    )
+    screening_criteria = CriteriaGenerator()(user_query=query).screening_criteria
     evidence = [
         Evidence(
             destiny_id=uuid.uuid4(),
@@ -35,34 +50,40 @@ def test_screening_agent_with_constructed_evidence():
         ),
     ]
 
-    with patch("research_mapper.human_in_loop.input", return_value=""):
-        result = agent(query, evidence)
+    results = [
+        screener(evidence=piece_of_evidence, screening_criteria=screening_criteria)
+        for piece_of_evidence in evidence
+    ]
 
-    assert hasattr(result, "screened_evidence")
-    assert isinstance(result.screened_evidence, list)
-    assert len(result.screened_evidence) <= len(evidence)
-    for item in result.screened_evidence:
-        assert isinstance(item, Evidence)
+    assert all(hasattr(result, "include") for result in results)
+    assert all(isinstance(result.include, bool) for result in results)
 
 
 @pytest.mark.integration
-def test_screening_agent_end_to_end_live():
+def test_evidence_screener_end_to_end_live():
     from research_mapper.tools import search_references
 
     evidence = search_references(LuceneQuery(query="climate AND health"))
     assert evidence, "Expected search to return at least one result"
 
-    agent = ScreeningAgent()
     query = UserQuery(
         query="what are the best interventions to mitigate the health risks of climate change"
     )
+    screening_criteria = CriteriaGenerator()(user_query=query).screening_criteria
 
-    with patch("research_mapper.human_in_loop.input", return_value=""):
-        result = agent(query, evidence)
+    screener = EvidenceScreener()
+    results = screener.batch(
+        [
+            dspy.Example(
+                evidence=piece_of_evidence, screening_criteria=screening_criteria
+            ).with_inputs("evidence", "screening_criteria")
+            for piece_of_evidence in evidence
+        ]
+    )
 
-    assert hasattr(result, "screened_evidence")
-    assert isinstance(result.screened_evidence, list)
-    assert len(result.screened_evidence) <= len(evidence)
-    for item in result.screened_evidence:
-        assert isinstance(item, Evidence)
-        assert item.destiny_id
+    included = [
+        piece_of_evidence
+        for piece_of_evidence, result in zip(evidence, results)
+        if result.include
+    ]
+    assert len(included) <= len(evidence)

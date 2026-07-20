@@ -3,23 +3,21 @@ Original end-to-end test, now marked as an integration test.
 See test_integration.py for expanded live test coverage.
 """
 
-from unittest.mock import patch
-
 import pytest
 
-from research_mapper.models import Evidence, UserQuery
-from research_mapper.modules.search_agent import SearchAgent
+from research_mapper.models import Evidence, LuceneQuery, UserQuery
+from research_mapper.modules.sparse_search import EvidenceRetriever
 
 
 @pytest.mark.integration
-def test_search_agent_end_to_end():
-    agent = SearchAgent()
+def test_evidence_retriever_end_to_end():
+    retriever = EvidenceRetriever()
     query = UserQuery(
         query="what are the best interventions to mitigate the health risks of climate change"
     )
+    search_query = LuceneQuery(query="climate AND health")
 
-    with patch("research_mapper.human_in_loop.input", return_value=""):
-        result = agent(query)
+    result = retriever(user_query=query, search_query=search_query)
 
     assert result.evidence, "Expected at least one evidence item"
     for item in result.evidence:

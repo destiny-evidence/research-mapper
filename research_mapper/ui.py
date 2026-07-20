@@ -178,6 +178,23 @@ class TerminalUI:
         """
         self.print(f"{message}")
 
+    def print_reasoning(self, label: str, reasoning: str) -> None:
+        """
+        Prints a completed reasoning trace for a single item, once it's finished generating.
+        :param label: a label identifying what the reasoning belongs to
+        :param reasoning: the reasoning text to print
+        :return: Nothing.
+        """
+        self.print(
+            Panel(
+                f"[dim]{reasoning}[/dim]",
+                title=f"[bold]{label}[/bold]",
+                title_align="left",
+                border_style="dim",
+                padding=(0, 1),
+            )
+        )
+
     def print_process_status(
         self,
         process: Callable[..., Any],

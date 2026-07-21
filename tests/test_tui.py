@@ -2,7 +2,7 @@ import pytest
 
 from research_mapper.models.mapping import DimensionSubTopic, MappingDimension
 from research_mapper.models.sparse_search import LuceneQuery
-from research_mapper.ui import TerminalUI
+from research_mapper.ui.tui import TerminalUI
 
 
 def _queries(*strings):

@@ -10,7 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from research_mapper.human_in_loop import parse_file_path, parse_selection, parse_yes_no
+from research_mapper.ui.parsing import parse_file_path, parse_selection, parse_yes_no
 from research_mapper.models.common import Evidence
 from research_mapper.models.mapping import EvidenceMap
 

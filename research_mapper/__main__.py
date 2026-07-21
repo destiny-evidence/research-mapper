@@ -7,7 +7,7 @@ from research_mapper.export import export_mapped_evidence_to_ris
 from research_mapper.logs import ColourFormatter
 from research_mapper.models.common import UserQuery
 from research_mapper.orchestrator import ResearchMappingOrchestrator
-from research_mapper.ui import TerminalUI
+from research_mapper.ui.tui import TerminalUI
 
 logger = logging.getLogger(__name__)
 

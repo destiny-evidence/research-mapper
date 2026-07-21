@@ -21,7 +21,7 @@ from research_mapper.modules.mapping import (
     EvidenceMapper,
     SubtopicGenerator,
 )
-from research_mapper.ui import TerminalUI
+from research_mapper.ui.tui import TerminalUI
 
 MAX_CONCURRENCY = 8
 

@@ -83,7 +83,7 @@ def test_research_mapping_agent_end_to_end_live():
         query="what are the best interventions to mitigate the health risks of climate change"
     )
 
-    with patch("research_mapper.human_in_loop.input", return_value=""):
+    with patch("research_mapper.ui.parsing.input", return_value=""):
         evidence_map = orchestrator.run(query)
 
     assert evidence_map.mapped_evidence, "Expected at least one evidence item"

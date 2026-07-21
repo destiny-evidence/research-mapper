@@ -2,16 +2,15 @@ from itertools import chain
 
 import dspy
 
-from research_mapper.models import (
-    UserQuery,
-    Evidence,
+from research_mapper.models.common import Evidence, UserQuery
+from research_mapper.models.mapping import (
     EvidenceMap,
-    LuceneQuery,
     MappedEvidence,
     MappingDimension,
     MappingDimensionWithSubTopics,
-    ScreeningCriterion,
 )
+from research_mapper.models.screening import ScreeningCriterion
+from research_mapper.models.sparse_search import LuceneQuery
 from research_mapper.modules.screening import CriteriaGenerator, EvidenceScreener
 from research_mapper.modules.sparse_search import (
     EvidenceRetriever,

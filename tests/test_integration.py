@@ -12,7 +12,9 @@ from unittest.mock import patch
 
 import pytest
 
-from research_mapper.models import Evidence, LuceneQuery, UserQuery, MappedEvidence
+from research_mapper.models.common import Evidence, UserQuery
+from research_mapper.models.mapping import MappedEvidence
+from research_mapper.models.sparse_search import LuceneQuery
 
 
 @pytest.fixture(scope="module", autouse=True)

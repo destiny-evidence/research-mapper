@@ -1,8 +1,7 @@
 import dspy
 
-from research_mapper.models import (
-    Evidence,
-    UserQuery,
+from research_mapper.models.common import Evidence, UserQuery
+from research_mapper.models.mapping import (
     MappingDimension,
     MappingDimensionWithSubTopics,
 )

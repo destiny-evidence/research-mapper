@@ -5,7 +5,7 @@ import sys
 from research_mapper.config import configure_dspy, get_destiny_client, load_environment
 from research_mapper.export import export_mapped_evidence_to_ris
 from research_mapper.logs import ColourFormatter
-from research_mapper.models import UserQuery
+from research_mapper.models.common import UserQuery
 from research_mapper.orchestrator import ResearchMappingOrchestrator
 from research_mapper.ui import TerminalUI
 

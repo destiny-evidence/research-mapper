@@ -2,12 +2,11 @@ from typing import Literal
 
 import dspy
 
-from research_mapper.models import (
-    UserQuery,
-    MappingDimension,
+from research_mapper.models.common import Evidence, UserQuery
+from research_mapper.models.mapping import (
     DimensionSubTopic,
+    MappingDimension,
     MappingDimensionWithSubTopics,
-    Evidence,
 )
 
 

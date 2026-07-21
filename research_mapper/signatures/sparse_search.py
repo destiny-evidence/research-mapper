@@ -1,6 +1,7 @@
 import dspy
 
-from research_mapper.models import UserQuery, LuceneQuery
+from research_mapper.models.common import UserQuery
+from research_mapper.models.sparse_search import LuceneQuery
 
 
 class UserQueryToLuceneSearchQueries(dspy.Signature):

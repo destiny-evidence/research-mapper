@@ -1,10 +1,10 @@
 import uuid
 
 import pytest
+from destiny_sdk.identifiers import DOIIdentifier
 
-from research_mapper.models import Evidence, LuceneQuery, UserQuery
-
-from conftest import _make_mock_reference
+from research_mapper.models.common import Evidence, UserQuery
+from research_mapper.models.sparse_search import LuceneQuery
 
 
 # ---------------------------------------------------------------------------
@@ -51,85 +51,29 @@ def test_lucene_query_invalid_syntax_raises(bad_query):
 
 
 # ---------------------------------------------------------------------------
-# Evidence.from_destiny_reference
+# Evidence.__hash__ / __eq__ deduplication
 # ---------------------------------------------------------------------------
 
 
-def test_evidence_from_reference_full(mock_reference):
-    evidence = Evidence.from_destiny_reference(mock_reference)
-
-    assert evidence.destiny_id == mock_reference.id
-    assert evidence.external_identifiers[0].identifier == "10.1000/test.doi"
-    assert evidence.title == "Test Paper Title"
-    assert evidence.authors == ["Author One", "Author Two"]
-    assert evidence.year == 2023
-    assert evidence.abstract == "This is a test abstract."
-    assert evidence.pdf_urls == ["https://example.com/paper.pdf"]
-
-
-def test_evidence_from_reference_no_enhancements():
-    from unittest.mock import MagicMock
-
-    ref = MagicMock()
-    ref.id = uuid.uuid4()
-    ref.identifiers = []
-    ref.enhancements = []
-
-    evidence = Evidence.from_destiny_reference(ref)
-
-    assert evidence.destiny_id == ref.id
-    assert evidence.external_identifiers == []
-    assert evidence.title is None
-    assert evidence.authors == []
-    assert evidence.year is None
-    assert evidence.abstract is None
-    assert evidence.pdf_urls == []
-
-
-def test_evidence_from_reference_location_without_pdf():
-    """Locations with pdf_url=None should be silently skipped."""
-    from unittest.mock import MagicMock
-    from destiny_sdk.enhancements import EnhancementType
-
-    mock_location = MagicMock()
-    mock_location.pdf_url = None
-
-    location_content = MagicMock()
-    location_content.enhancement_type = EnhancementType.LOCATION
-    location_content.locations = [mock_location]
-
-    location_enhancement = MagicMock()
-    location_enhancement.content = location_content
-
-    ref = MagicMock()
-    ref.id = uuid.uuid4()
-    ref.identifiers = []
-    ref.enhancements = [location_enhancement]
-
-    evidence = Evidence.from_destiny_reference(ref)
-    assert evidence.pdf_urls == []
-
-
-# ---------------------------------------------------------------------------
-# Evidence.__hash__ deduplication
-# ---------------------------------------------------------------------------
+def _evidence(ref_id=None, doi="10.1000/same") -> Evidence:
+    return Evidence(
+        destiny_id=ref_id or uuid.uuid4(),
+        external_identifiers=[DOIIdentifier(identifier=doi)],
+    )
 
 
 def test_evidence_hash_deduplication():
     ref_id = uuid.uuid4()
-    ref_a = _make_mock_reference(ref_id=ref_id, doi="10.1000/same")
-    ref_b = _make_mock_reference(ref_id=ref_id, doi="10.1000/same")
-
-    ev_a = Evidence.from_destiny_reference(ref_a)
-    ev_b = Evidence.from_destiny_reference(ref_b)
+    ev_a = _evidence(ref_id=ref_id)
+    ev_b = _evidence(ref_id=ref_id)
 
     result = {ev_a, ev_b}
     assert len(result) == 1
 
 
 def test_evidence_hash_different_ids():
-    ev_a = Evidence.from_destiny_reference(_make_mock_reference(ref_id=uuid.uuid4()))
-    ev_b = Evidence.from_destiny_reference(_make_mock_reference(ref_id=uuid.uuid4()))
+    ev_a = _evidence(ref_id=uuid.uuid4())
+    ev_b = _evidence(ref_id=uuid.uuid4())
 
     result = {ev_a, ev_b}
     assert len(result) == 2
@@ -137,22 +81,24 @@ def test_evidence_hash_different_ids():
 
 def test_evidences_with_same_hash_are_equal():
     ref_id = uuid.uuid4()
-    ref_a = _make_mock_reference(ref_id=ref_id, doi="10.1000/same")
-    ref_b = _make_mock_reference(ref_id=ref_id, doi="10.1000/same")
-
-    ev_a = Evidence.from_destiny_reference(ref_a)
-    ev_b = Evidence.from_destiny_reference(ref_b)
+    ev_a = _evidence(ref_id=ref_id)
+    ev_b = _evidence(ref_id=ref_id)
 
     assert hash(ev_a) == hash(ev_b)
     assert ev_a == ev_b
 
 
 def test_evidences_with_different_hash_are_not_equal():
-    ev_a = Evidence.from_destiny_reference(_make_mock_reference(ref_id=uuid.uuid4()))
-    ev_b = Evidence.from_destiny_reference(_make_mock_reference(ref_id=uuid.uuid4()))
+    ev_a = _evidence(ref_id=uuid.uuid4())
+    ev_b = _evidence(ref_id=uuid.uuid4())
 
     assert hash(ev_a) != hash(ev_b)
     assert ev_a != ev_b
+
+
+# ---------------------------------------------------------------------------
+# Evidence.__str__
+# ---------------------------------------------------------------------------
 
 
 def test_evidence_to_str_uses_destiny_id_when_no_title_or_abstract_available():

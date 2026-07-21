@@ -9,7 +9,7 @@ from destiny_sdk.enhancements import Pagination, PublicationVenue, PublicationVe
 from destiny_sdk.identifiers import DOIIdentifier, PubMedIdentifier
 
 from research_mapper.export import export_evidence_to_ris
-from research_mapper.models import Evidence
+from research_mapper.models.common import Evidence
 
 
 def _make_evidence(**kwargs) -> Evidence:

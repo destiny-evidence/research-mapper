@@ -5,7 +5,8 @@ See test_integration.py for expanded live test coverage.
 
 import pytest
 
-from research_mapper.models import Evidence, LuceneQuery, UserQuery
+from research_mapper.models.common import Evidence, UserQuery
+from research_mapper.models.sparse_search import LuceneQuery
 from research_mapper.modules.sparse_search import EvidenceRetriever
 
 

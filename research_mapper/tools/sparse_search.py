@@ -3,7 +3,9 @@ import logging
 from typing import Annotated, Callable
 
 from research_mapper.config import get_destiny_client
-from research_mapper.models import Evidence, LuceneQuery
+from research_mapper.destiny import evidence_from_destiny_reference
+from research_mapper.models.common import Evidence
+from research_mapper.models.sparse_search import LuceneQuery
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +41,7 @@ def search_references(
         page=page,
     )
 
-    evidence = [Evidence.from_destiny_reference(ref) for ref in result.references]
+    evidence = [evidence_from_destiny_reference(ref) for ref in result.references]
     logger.debug("search_references returned %d results", len(evidence))
     return evidence
 

@@ -1,7 +1,8 @@
 import inspect
 from unittest.mock import patch
 
-from research_mapper.models import Evidence, LuceneQuery
+from research_mapper.models.common import Evidence
+from research_mapper.models.sparse_search import LuceneQuery
 from research_mapper.tools.sparse_search import (
     fixed_search_references_builder,
     search_references,

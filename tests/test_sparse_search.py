@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
-from research_mapper.models import LuceneQuery, UserQuery
+from research_mapper.models.common import UserQuery
+from research_mapper.models.sparse_search import LuceneQuery
 from research_mapper.modules.sparse_search import SparseQueryGenerator
 
 

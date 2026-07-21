@@ -11,7 +11,8 @@ from rich.table import Table
 from rich.text import Text
 
 from research_mapper.human_in_loop import parse_file_path, parse_selection, parse_yes_no
-from research_mapper.models import Evidence, EvidenceMap
+from research_mapper.models.common import Evidence
+from research_mapper.models.mapping import EvidenceMap
 
 
 class _StageStatusMessageProvider(dspy.streaming.StatusMessageProvider):

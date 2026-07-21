@@ -3,7 +3,8 @@ import uuid
 import dspy
 import pytest
 
-from research_mapper.models import Evidence, LuceneQuery, UserQuery
+from research_mapper.models.common import Evidence, UserQuery
+from research_mapper.models.sparse_search import LuceneQuery
 from research_mapper.modules.screening import CriteriaGenerator, EvidenceScreener
 
 

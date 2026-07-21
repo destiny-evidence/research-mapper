@@ -3,12 +3,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from research_mapper.models import (
+from research_mapper.models.common import Evidence, UserQuery
+from research_mapper.models.mapping import (
     DimensionSubTopic,
-    Evidence,
     MappingDimension,
     MappingDimensionWithSubTopics,
-    UserQuery,
 )
 from research_mapper.modules.mapping import (
     DimensionGenerator,

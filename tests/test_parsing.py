@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from research_mapper.human_in_loop import parse_file_path, parse_selection, parse_yes_no
-from research_mapper.models import LuceneQuery
+from research_mapper.ui.parsing import parse_file_path, parse_selection, parse_yes_no
+from research_mapper.models.sparse_search import LuceneQuery
 
 
 def _queries(*strings):

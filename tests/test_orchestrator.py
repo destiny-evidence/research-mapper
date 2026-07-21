@@ -1,0 +1,27 @@
+import uuid
+from unittest.mock import MagicMock
+
+from research_mapper.models.common import Evidence, UserQuery
+from research_mapper.models.sparse_search import LuceneQuery
+from research_mapper.orchestrator import ResearchMappingOrchestrator
+
+
+def test_retrieve_evidence_deduplicates_evidence():
+    """Evidence returned from multiple search queries is deduplicated."""
+    agent = ResearchMappingOrchestrator()
+
+    shared_id = uuid.uuid4()
+    shared_evidence = Evidence(destiny_id=shared_id)
+
+    search_queries = [LuceneQuery(query="q1"), LuceneQuery(query="q2")]
+
+    mock_prediction = MagicMock()
+    mock_prediction.evidence = [shared_evidence]
+    mock_prediction.reasoning = "reasoning"
+    agent.evidence_retriever.batch = MagicMock(
+        return_value=[mock_prediction, mock_prediction]
+    )
+
+    result = agent._retrieve_evidence(UserQuery(query="test"), search_queries)
+
+    assert len(result) == 1

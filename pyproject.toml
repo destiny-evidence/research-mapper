@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-research-mapper = "research_mapper.__main__:run"
+research-mapper = "research_mapper.cli:run"
 
 [dependency-groups]
 dev = [

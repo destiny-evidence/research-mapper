@@ -1,19 +1,71 @@
 import shutil
-import textwrap
 from contextlib import contextmanager
-from itertools import chain
-from typing import IO, Iterator, Sequence, Callable, T, Any, Self
+from typing import IO, Iterator, Sequence, Callable, T, Any
 
+import dspy
 from rich.align import Align
-from rich.console import Console, Group
+from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
-from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
-from research_mapper.human_in_loop import parse_file_path, parse_selection, parse_yes_no
-from research_mapper.models import Evidence, EvidenceMap
+from research_mapper.ui.parsing import parse_file_path, parse_selection, parse_yes_no
+from research_mapper.models.common import Evidence
+from research_mapper.models.mapping import EvidenceMap
+
+
+class _StageStatusMessageProvider(dspy.streaming.StatusMessageProvider):
+    """
+    Phrases DSPy's built-in LM/tool callback events as short progress messages, for display on a
+    spinner while a single (non-batched) program call is in flight.
+    """
+
+    def __init__(self, thinking_message: str = "Thinking...") -> None:
+        self._thinking_message = thinking_message
+
+    def lm_start_status_message(self, instance: Any, inputs: dict[str, Any]) -> str:
+        return self._thinking_message
+
+    def tool_start_status_message(self, instance: Any, inputs: dict[str, Any]) -> str:
+        return f"Calling {instance.name}..."
+
+
+class _LiveReasoningPanel:
+    """
+    A single Panel that grows as a program streams its `reasoning` field, for use inside a
+    `rich.Live` display. Shows a caller-supplied status message as placeholder text until
+    reasoning tokens start arriving.
+    """
+
+    def __init__(self, label: str, placeholder: str) -> None:
+        self._label = label
+        self._placeholder = placeholder
+        self._buffer = ""
+        self._done = False
+
+    def set_placeholder(self, text: str) -> None:
+        """Updates the placeholder shown while no reasoning tokens have arrived yet."""
+        self._placeholder = text
+
+    def append(self, chunk: str) -> None:
+        """Appends a streamed chunk of reasoning text to the panel's content."""
+        self._buffer += chunk
+
+    def finish(self) -> None:
+        """Marks the panel as complete, switching it to its resting style."""
+        self._done = True
+
+    def __rich__(self) -> Panel:
+        content = self._buffer or self._placeholder
+        return Panel(
+            f"[dim]{content}[/dim]",
+            title=f"[bold]{self._label}[/bold]",
+            title_align="left",
+            subtitle="[green]done[/green]" if self._done else "[dim]reasoning...[/dim]",
+            border_style="green" if self._done else "cyan",
+            padding=(0, 1),
+        )
 
 
 class TerminalUI:
@@ -178,6 +230,37 @@ class TerminalUI:
         """
         self.print(f"{message}")
 
+    def print_reasoning(self, label: str, reasoning: str) -> None:
+        """
+        Prints a completed reasoning trace for a single item, once it's finished generating.
+        :param label: a label identifying what the reasoning belongs to
+        :param reasoning: the reasoning text to print
+        :return: Nothing.
+        """
+        self.print(
+            Panel(
+                f"[dim]{reasoning}[/dim]",
+                title=f"[bold]{label}[/bold]",
+                title_align="left",
+                border_style="dim",
+                padding=(0, 1),
+            )
+        )
+
+    def print_reasoning_batch(
+        self, labels: Sequence[str], reasonings: Sequence[str]
+    ) -> None:
+        """
+        Prints completed reasoning traces for a batch of items, e.g. after a `dspy.Module.batch`
+        call, whose tqdm progress bar leaves the cursor without a trailing newline.
+        :param labels: labels identifying what each reasoning trace belongs to
+        :param reasonings: the reasoning texts to print, one per label
+        :return: Nothing.
+        """
+        self.console.print()
+        for label, reasoning in zip(labels, reasonings):
+            self.print_reasoning(label, reasoning)
+
     def print_process_status(
         self,
         process: Callable[..., Any],
@@ -200,6 +283,53 @@ class TerminalUI:
         if complete_message is not None:
             self.print_info(complete_message)
         return outputs
+
+    def run_with_status(
+        self,
+        program: dspy.Module,
+        label: str,
+        status: str | None = None,
+        **program_inputs,
+    ) -> dspy.Prediction:
+        """
+        Runs a single (non-batched) DSPy program, live-updating a panel with its `reasoning`
+        field as it streams in (falling back to a status message before reasoning tokens
+        arrive), so the user sees liveness during calls that would otherwise print nothing
+        until they complete. The finished panel is left in the scrollback, so callers don't
+        need to print the reasoning again afterwards.
+        :param program: the DSPy program to run
+        :param label: the label to title the live panel with
+        :param status: the status message to show as a placeholder before reasoning tokens
+            arrive (and while any tool calls are in flight). Defaults to "{label}..." if not given
+        :param program_inputs: the arguments to be forwarded to the program
+        :return: the program's final Prediction
+        :raises ValueError: if the program's stream never yielded a Prediction
+        """
+        status = status or f"{label}..."
+        stream_predict = dspy.streamify(
+            program,
+            status_message_provider=_StageStatusMessageProvider(status),
+            stream_listeners=[
+                dspy.streaming.StreamListener(signature_field_name="reasoning")
+            ],
+            async_streaming=False,
+        )
+        panel = _LiveReasoningPanel(label, placeholder=status)
+        result = None
+        with Live(panel, console=self.console, refresh_per_second=10):
+            for chunk in stream_predict(**program_inputs):
+                if isinstance(chunk, dspy.streaming.StatusMessage):
+                    panel.set_placeholder(chunk.message)
+                elif isinstance(chunk, dspy.streaming.StreamResponse):
+                    panel.append(chunk.chunk)
+                elif isinstance(chunk, dspy.Prediction):
+                    panel.finish()
+                    result = chunk
+                    break
+        self.console.print()
+        if result is None:
+            raise ValueError("No Prediction reached")
+        return result
 
     def prompt_user(self, message: str | None = None) -> str:
         """
@@ -326,162 +456,3 @@ class TerminalUI:
                 return parse_selection(raw, items)
             except ValueError as e:
                 self.print_info(f"[red] {e} — try again.[/red]")
-
-
-class LivePanelGroup:
-    """
-    A collection of live updating rich Panel objects.
-    """
-
-    def __init__(
-        self,
-        buffers: dict,
-        active: dict,
-        items: Sequence,
-        label: Callable,
-        max_lines: int,
-        content_width: int,
-        status_text: str = "Thinking...",
-    ) -> None:
-        """
-        Initialises with relevant state to manage and update an arbitrary number of live panels.
-        :param buffers: the text buffers that will store the text of each live panel
-        :param active: a dictionary mapping each item to a boolean representing whether it's still expecting updates
-        :param items: the collection of items to each be given a panel
-        :param label: a function to be used for generating panel labels
-        :param max_lines: the maximum number of lines any one panel should have
-        :param content_width: the width of the panels
-        :param status_text: the text to be displayed at the top of the live panels
-        """
-        self._buffers = buffers
-        self._active = active
-        self._items = items
-        self._label = label
-        self._max_lines = max_lines
-        self._content_width = content_width
-        self._status_text = status_text
-        self._spinner = Spinner("dots", style="cyan")
-
-    def __rich__(self) -> Group:
-        """
-        Live updates text in panels using rich's underlying special method called during each update of the console.
-        :return: a rich Group object containing all the panels
-        """
-        panels = []
-        for item in self._items:
-            wrapped = self._wrap(self._buffers[item])
-            visible = "\n".join(wrapped[-self._max_lines :])
-            active = self._active[item]
-            panels.append(
-                Panel(
-                    visible,
-                    title=self._label(item),
-                    title_align="left",
-                    subtitle="[dim]reasoning...[/dim]"
-                    if active
-                    else "[green]done[/green]",
-                    border_style="cyan" if active else "green",
-                    padding=(0, 1),
-                )
-            )
-        spaced = list(chain.from_iterable((p, Text("")) for p in panels))
-        n_active = sum(1 for value in self._active.values() if value)
-        self._spinner.text = (
-            f"{self._status_text} {n_active} subagent(s) still working."
-        )
-        if any(self._active.values()):
-            return Group(
-                self._spinner, Text(""), *spaced
-            )  # the empty text is for spacing
-        return Group(*spaced)
-
-    def _wrap(self, text: str) -> list[str]:
-        """
-        Wraps text to the content width LivePanelGroup was initialised with.
-        :param text: the text to wrap
-        :return: the collection of wrapped text
-        """
-        lines = []
-        for paragraph in text.split("\n"):
-            lines.extend(textwrap.wrap(paragraph, self._content_width) or [""])
-        return lines
-
-
-class LiveAgentPanels:
-    """
-    A collection of live panels tailored to displaying streamed responses of DSPy agents and programs.
-    """
-
-    def __init__(
-        self,
-        items: Sequence[T],
-        tui: TerminalUI,
-        label: Callable[[T], str] = str,
-        max_lines: int = 50,
-    ) -> None:
-        """
-        Initialises LiveAgentPanels object with the necessary state to manage and display streamed responses live.
-        :param items: the collection of items to each be given a panel
-        :param tui: the terminal UI instance to use
-        :param label: the function to be used for generating panel labels from items
-        :param max_lines: the maximum number of lines any one panel should have
-        """
-        self._buffers = {item: "" for item in items}
-        self._active = {item: True for item in items}
-        content_width = tui.console.width - 4  # panel borders
-        self._live = Live(
-            LivePanelGroup(
-                self._buffers, self._active, items, label, max_lines, content_width
-            ),
-            refresh_per_second=10,
-            console=tui.console,
-        )
-
-    def get_callback_for_buffer(self, item: T) -> Callable[[str, bool], None]:
-        """
-        Returns a callback to allow external processes to modify the buffer contents of items.
-        :param item: the item to get the callback for
-        :return: a callback to append text to the item's buffer
-        """
-
-        def append(chunk: str, completed: bool = False) -> None:
-            """
-            Appends text chunk to buffer contents and updates active status.
-            :param chunk: text chunk to append
-            :param completed: whether the live process that "owns" the buffer has completed
-            :return: Nothing.
-            """
-            self._buffers[item] += chunk
-            if completed:
-                self._active[item] = False
-
-        return append
-
-    def __enter__(self) -> Self:
-        """
-        Wrapper over rich's Live's context manager
-        :return: own LiveAgentPanels instance
-        """
-        self._live.__enter__()
-        return self
-
-    def __exit__(self, *args) -> None:
-        """
-        Wrapper over rich's Live's context manager
-        :param args:
-        :return: Nothing.
-        """
-        self._live.__exit__(*args)
-
-
-def LiveAgentPanel(
-    item: T, tui: TerminalUI, label: Callable[[T], str] = str
-) -> LiveAgentPanels:
-    """
-    A factory function for producing a single LiveAgentPanel object.
-    :param item: the hashable object associated with the panel
-    :param tui: the TerminalUI object to write to the terminal with
-    :param label: the callable to generate the item's label from
-    :return: an instance of LiveAgentPanels with a single item
-    """
-    return LiveAgentPanels([item], tui, label)

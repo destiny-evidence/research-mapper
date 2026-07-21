@@ -8,13 +8,13 @@ Skip in CI with:
     pytest -m "not integration"
 """
 
-import uuid
 from unittest.mock import patch
 
 import pytest
-from destiny_sdk.identifiers import OpenAlexIdentifier
 
-from research_mapper.models import Evidence, LuceneQuery, UserQuery, MappedEvidence
+from research_mapper.models.common import Evidence, UserQuery
+from research_mapper.models.mapping import MappedEvidence
+from research_mapper.models.sparse_search import LuceneQuery
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -29,7 +29,7 @@ def _live(live_setup):
 
 @pytest.mark.integration
 def test_search_references_tool_live():
-    from research_mapper.tools import search_references
+    from research_mapper.tools.sparse_search import search_references
 
     query = LuceneQuery(query="climate AND health")
     results = search_references(query=query)
@@ -43,7 +43,7 @@ def test_search_references_tool_live():
 
 @pytest.mark.integration
 def test_search_references_tool_live_with_year_filter():
-    from research_mapper.tools import search_references
+    from research_mapper.tools.sparse_search import search_references
 
     query = LuceneQuery(query="heat AND mortality")
     results = search_references(query=query, start_year=2020, end_year=2024)
@@ -58,7 +58,7 @@ def test_search_references_tool_live_with_year_filter():
 
 @pytest.mark.integration
 def test_search_references_tool_live_pagination():
-    from research_mapper.tools import search_references
+    from research_mapper.tools.sparse_search import search_references
 
     query = LuceneQuery(query="climate AND health")
     page1 = search_references(query=query, page=1)
@@ -69,36 +69,6 @@ def test_search_references_tool_live_pagination():
     assert ids_page1 - ids_page2, "Pages should not overlap"
 
 
-@pytest.mark.integration
-def test_lookup_references_tool_with_destiny_id_live():
-    """Look up a reference by DOI and verify it returns an Evidence object."""
-    from research_mapper.tools import lookup_references
-
-    test_destiny_id = uuid.UUID("ce0d0782-59b7-4e3f-8719-293a748681a9")
-    results = lookup_references(identifiers=[test_destiny_id])
-
-    assert isinstance(results, list)
-    assert len(results) >= 1, f"Expected to find reference for DOI {test_destiny_id}"
-    assert isinstance(results[0], Evidence)
-    assert results[0].destiny_id
-
-
-@pytest.mark.integration
-def test_lookup_references_tool_with_external_id_live():
-    """Look up a reference by DOI and verify it returns an Evidence object."""
-    from research_mapper.tools import lookup_references
-
-    test_open_alex_id = OpenAlexIdentifier(
-        identifier="W3087468654", identifier_type="open_alex"
-    )
-    results = lookup_references(identifiers=[test_open_alex_id])
-
-    assert isinstance(results, list)
-    assert len(results) >= 1, f"Expected to find reference for DOI {test_open_alex_id}"
-    assert isinstance(results[0], Evidence)
-    assert results[0].destiny_id
-
-
 # ---------------------------------------------------------------------------
 # Full agent integration test
 # ---------------------------------------------------------------------------
@@ -106,17 +76,16 @@ def test_lookup_references_tool_with_external_id_live():
 
 @pytest.mark.integration
 def test_research_mapping_agent_end_to_end_live():
-    from research_mapper.modules.workflow_agent import WorkflowAgent
+    from research_mapper.orchestrator import ResearchMappingOrchestrator
 
-    agent = WorkflowAgent()
+    orchestrator = ResearchMappingOrchestrator()
     query = UserQuery(
         query="what are the best interventions to mitigate the health risks of climate change"
     )
 
-    with patch("research_mapper.human_in_loop.input", return_value=""):
-        result = agent(query)
+    with patch("research_mapper.ui.parsing.input", return_value=""):
+        evidence_map = orchestrator.run(query)
 
-    evidence_map = result.evidence_map
     assert evidence_map.mapped_evidence, "Expected at least one evidence item"
     for item in evidence_map.mapped_evidence:
         assert isinstance(item, MappedEvidence)

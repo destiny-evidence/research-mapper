@@ -1,15 +1,15 @@
 import dspy
 
-from research_mapper.factory import mapping_along_dimensions_signature_builder
 from research_mapper.models import (
     Evidence,
     UserQuery,
     MappingDimension,
     MappingDimensionWithSubTopics,
 )
-from research_mapper.signatures import (
+from research_mapper.signatures.mapping import (
     EvidenceMappingDimensionsFromQuery,
     SubtopicFromEvidenceMappingDimension,
+    mapping_along_dimensions_signature_builder,
 )
 
 

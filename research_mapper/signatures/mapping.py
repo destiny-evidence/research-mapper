@@ -3,10 +3,50 @@ from typing import Literal
 import dspy
 
 from research_mapper.models import (
+    UserQuery,
+    MappingDimension,
+    DimensionSubTopic,
     MappingDimensionWithSubTopics,
     Evidence,
-    UserQuery,
 )
+
+
+class EvidenceMappingDimensionsFromQuery(dspy.Signature):
+    """
+    Suggest 3 dimensions, e.g. 2 dimensions and 1 facet, to map academic evidence across.
+    """
+
+    original_query: UserQuery = dspy.InputField(
+        desc="The user's original query that initiated the evidence map."
+    )
+    dimension1: MappingDimension = dspy.OutputField(
+        desc="The first dimension to map the evidence data against."
+    )
+    dimension2: MappingDimension = dspy.OutputField(
+        desc="The second dimension to map the evidence data against."
+    )
+    dimension3: MappingDimension = dspy.OutputField(
+        desc="The third dimension to map the evidence data against."
+    )
+
+
+class SubtopicFromEvidenceMappingDimension(dspy.Signature):
+    """
+    Suggest a collection of sub-topics/dimensions for a given evidence mapping dimension.
+    """
+
+    original_query: UserQuery = dspy.InputField(
+        desc="The user's original query that initiated the evidence map."
+    )
+    other_dimensions: list[MappingDimension] = dspy.InputField(
+        desc="The other top-level evidence mapping dimensions that will be used, for context."
+    )
+    dimension: MappingDimension = dspy.InputField(
+        desc="The evidence mapping dimension to generate sub-topics/dimensions for."
+    )
+    subtopics: list[DimensionSubTopic] = dspy.OutputField(
+        desc="The collection of sub-topics/dimensions for the given evidence mapping dimension."
+    )
 
 
 def mapping_along_dimensions_signature_builder(

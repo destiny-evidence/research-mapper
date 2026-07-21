@@ -1,7 +1,7 @@
 import dspy
 
 from research_mapper.models import Evidence, ScreeningCriterion, UserQuery
-from research_mapper.signatures import (
+from research_mapper.signatures.screening import (
     ScreenEvidenceUsingCriteria,
     UserQueryToScreeningCriteria,
 )

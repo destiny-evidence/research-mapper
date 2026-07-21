@@ -4,7 +4,7 @@ from typing import Annotated, Callable, Optional
 import dspy
 
 from research_mapper.models import UserQuery, LuceneQuery, Evidence
-from research_mapper.signatures import (
+from research_mapper.signatures.sparse_search import (
     UserQueryToLuceneSearchQueries,
     GatherEvidenceFromSearchQuery,
 )

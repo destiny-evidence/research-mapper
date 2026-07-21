@@ -1,57 +1,15 @@
 import logging
-from typing import Annotated, Callable, Optional
 
 import dspy
 
-from research_mapper.models import UserQuery, LuceneQuery, Evidence
+from research_mapper.models import UserQuery, LuceneQuery
 from research_mapper.signatures.sparse_search import (
     UserQueryToLuceneSearchQueries,
     GatherEvidenceFromSearchQuery,
 )
-from research_mapper.tools import search_references
+from research_mapper.tools.sparse_search import fixed_search_references_builder
 
 logger = logging.getLogger(__name__)
-
-
-# easy partial application approaches like functools' partial function don't
-# work well/cleanly here because DSPy wraps functions that are meant to be
-# used as tools in their dspy.Tool object that relies on function metadata
-# (i.e. __name__, __doc__, etc) to let the LLM know how to call the function
-def _fixed_search_references_builder(
-    query: LuceneQuery,
-    retrieved: dict,
-) -> Callable[[Optional[int], Optional[int], Optional[str], int], list[Evidence]]:
-    """
-    Creates a version of the search_references tool with a fixed search query.
-    Results are accumulated into retrieved keyed by destiny_id so the caller
-    can access all fetched Evidence regardless of what the LLM puts in its output field.
-    :param query: the query to fix the tool with
-    :param retrieved: shared dict to accumulate fetched Evidence objects into
-    :return: a fixed version of the search_references tool
-    """
-
-    def _search_references(
-        start_year: Annotated[
-            int | None, "The start year for filtering results."
-        ] = None,
-        end_year: Annotated[int | None, "The end year for filtering results."] = None,
-        sort: Annotated[
-            str | None,
-            "The field to sort the results by. Prefix a field with '-' to sort in descending order. If omitted, will sort by relevance score descending.",
-        ] = None,
-        page: Annotated[int, "The page number of the results to retrieve."] = 1,
-    ) -> list[Evidence]:
-        """
-        Query-fixed version of the DESTINY search_references tool.
-        :return: list of references retrieved from DESTINY as evidence objects
-        """
-        results = search_references(
-            query=query, start_year=start_year, end_year=end_year, sort=sort, page=page
-        )
-        retrieved.update({ev.destiny_id: ev for ev in results})
-        return results
-
-    return _search_references
 
 
 class SparseQueryGenerator(dspy.Module):
@@ -91,7 +49,7 @@ class EvidenceRetriever(dspy.Module):
             search_summary, stopping_reason, and reasoning
         """
         retrieved: dict = {}
-        _search_references = _fixed_search_references_builder(search_query, retrieved)
+        _search_references = fixed_search_references_builder(search_query, retrieved)
         subagent = dspy.ReAct(
             signature=GatherEvidenceFromSearchQuery,
             tools=[_search_references],

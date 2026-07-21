@@ -11,7 +11,6 @@ Skip in CI with:
 from unittest.mock import patch
 
 import pytest
-from destiny_sdk.identifiers import OpenAlexIdentifier
 
 from research_mapper.models import Evidence, LuceneQuery, UserQuery, MappedEvidence
 
@@ -28,7 +27,7 @@ def _live(live_setup):
 
 @pytest.mark.integration
 def test_search_references_tool_live():
-    from research_mapper.tools import search_references
+    from research_mapper.tools.sparse_search import search_references
 
     query = LuceneQuery(query="climate AND health")
     results = search_references(query=query)
@@ -42,7 +41,7 @@ def test_search_references_tool_live():
 
 @pytest.mark.integration
 def test_search_references_tool_live_with_year_filter():
-    from research_mapper.tools import search_references
+    from research_mapper.tools.sparse_search import search_references
 
     query = LuceneQuery(query="heat AND mortality")
     results = search_references(query=query, start_year=2020, end_year=2024)
@@ -57,7 +56,7 @@ def test_search_references_tool_live_with_year_filter():
 
 @pytest.mark.integration
 def test_search_references_tool_live_pagination():
-    from research_mapper.tools import search_references
+    from research_mapper.tools.sparse_search import search_references
 
     query = LuceneQuery(query="climate AND health")
     page1 = search_references(query=query, page=1)
@@ -66,22 +65,6 @@ def test_search_references_tool_live_pagination():
     ids_page1 = {item.destiny_id for item in page1}
     ids_page2 = {item.destiny_id for item in page2}
     assert ids_page1 - ids_page2, "Pages should not overlap"
-
-
-@pytest.mark.integration
-def test_lookup_references_tool_with_external_id_live():
-    """Look up a reference by DOI and verify it returns an Evidence object."""
-    from research_mapper.tools import lookup_references
-
-    test_open_alex_id = OpenAlexIdentifier(
-        identifier="W3087468654", identifier_type="open_alex"
-    )
-    results = lookup_references(identifiers=[test_open_alex_id])
-
-    assert isinstance(results, list)
-    assert len(results) >= 1, f"Expected to find reference for DOI {test_open_alex_id}"
-    assert isinstance(results[0], Evidence)
-    assert results[0].destiny_id
 
 
 # ---------------------------------------------------------------------------

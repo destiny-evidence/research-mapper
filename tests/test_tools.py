@@ -1,9 +1,11 @@
+import inspect
 from unittest.mock import patch
 
-from destiny_sdk.identifiers import DOIIdentifier, IdentifierLookup, PubMedIdentifier
-
 from research_mapper.models import Evidence, LuceneQuery
-from research_mapper.tools import lookup_references, search_references
+from research_mapper.tools.sparse_search import (
+    fixed_search_references_builder,
+    search_references,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -13,7 +15,8 @@ from research_mapper.tools import lookup_references, search_references
 
 def test_search_references_returns_evidence(mock_destiny_client, mock_reference):
     with patch(
-        "research_mapper.tools.get_destiny_client", return_value=mock_destiny_client
+        "research_mapper.tools.sparse_search.get_destiny_client",
+        return_value=mock_destiny_client,
     ):
         query = LuceneQuery(query="climate AND health")
         result = search_references(query=query)
@@ -24,7 +27,8 @@ def test_search_references_returns_evidence(mock_destiny_client, mock_reference)
 
 def test_search_references_passes_args(mock_destiny_client):
     with patch(
-        "research_mapper.tools.get_destiny_client", return_value=mock_destiny_client
+        "research_mapper.tools.sparse_search.get_destiny_client",
+        return_value=mock_destiny_client,
     ):
         query = LuceneQuery(query="climate AND health")
         search_references(
@@ -43,7 +47,8 @@ def test_search_references_passes_args(mock_destiny_client):
 
 def test_search_references_default_args(mock_destiny_client):
     with patch(
-        "research_mapper.tools.get_destiny_client", return_value=mock_destiny_client
+        "research_mapper.tools.sparse_search.get_destiny_client",
+        return_value=mock_destiny_client,
     ):
         query = LuceneQuery(query="simple")
         search_references(query=query)
@@ -61,7 +66,8 @@ def test_search_references_default_args(mock_destiny_client):
 def test_search_references_empty_results(mock_destiny_client):
     mock_destiny_client.search.return_value.references = []
     with patch(
-        "research_mapper.tools.get_destiny_client", return_value=mock_destiny_client
+        "research_mapper.tools.sparse_search.get_destiny_client",
+        return_value=mock_destiny_client,
     ):
         result = search_references(query=LuceneQuery(query="climate AND health"))
 
@@ -69,47 +75,69 @@ def test_search_references_empty_results(mock_destiny_client):
 
 
 # ---------------------------------------------------------------------------
-# lookup_references
+# fixed_search_references_builder
 # ---------------------------------------------------------------------------
 
 
-def test_lookup_references_returns_evidence(mock_destiny_client, mock_reference):
+def test_fixed_search_references_builder_drops_query_param():
+    query = LuceneQuery(query="climate AND health")
+    fn = fixed_search_references_builder(query, {})
+
+    assert "query" not in inspect.signature(fn).parameters
+
+
+def test_fixed_search_references_builder_binds_query(mock_destiny_client):
+    query = LuceneQuery(query="climate AND health")
+    fn = fixed_search_references_builder(query, {})
+
     with patch(
-        "research_mapper.tools.get_destiny_client", return_value=mock_destiny_client
+        "research_mapper.tools.sparse_search.get_destiny_client",
+        return_value=mock_destiny_client,
     ):
-        result = lookup_references(
-            identifiers=[DOIIdentifier(identifier="10.1000/test.doi")]
-        )
+        fn(start_year=2020, end_year=2024, sort=None, page=1)
 
-    assert len(result) == 1
-    assert isinstance(result[0], Evidence)
+    mock_destiny_client.search.assert_called_once_with(
+        query="climate AND health",
+        start_year=2020,
+        end_year=2024,
+        annotations=None,
+        sort=None,
+        page=1,
+    )
 
 
-def test_lookup_references_builds_identifier_lookup_objects(mock_destiny_client):
+def test_fixed_search_references_builder_default_args(mock_destiny_client):
+    query = LuceneQuery(query="flood")
+    fn = fixed_search_references_builder(query, {})
+
     with patch(
-        "research_mapper.tools.get_destiny_client", return_value=mock_destiny_client
+        "research_mapper.tools.sparse_search.get_destiny_client",
+        return_value=mock_destiny_client,
     ):
-        lookup_references(
-            identifiers=[
-                DOIIdentifier(identifier="10.1000/doi1"),
-                PubMedIdentifier(identifier="12345"),
-            ]
-        )
+        fn()
 
-    call_args = mock_destiny_client.lookup.call_args[0][0]
-    assert len(call_args) == 2
-    assert all(isinstance(item, IdentifierLookup) for item in call_args)
-    assert call_args[0].identifier == "10.1000/doi1"
-    assert call_args[0].identifier_type == "doi"
-    assert call_args[1].identifier == "12345"
-    assert call_args[1].identifier_type == "pm_id"
+    mock_destiny_client.search.assert_called_once_with(
+        query="flood",
+        start_year=None,
+        end_year=None,
+        annotations=None,
+        sort=None,
+        page=1,
+    )
 
 
-def test_lookup_references_empty_input(mock_destiny_client):
-    mock_destiny_client.lookup.return_value = []
+def test_fixed_search_references_builder_accumulates_retrieved(
+    mock_destiny_client, mock_reference
+):
+    query = LuceneQuery(query="climate AND health")
+    retrieved = {}
+    fn = fixed_search_references_builder(query, retrieved)
+
     with patch(
-        "research_mapper.tools.get_destiny_client", return_value=mock_destiny_client
+        "research_mapper.tools.sparse_search.get_destiny_client",
+        return_value=mock_destiny_client,
     ):
-        result = lookup_references(identifiers=[])
+        results = fn()
 
-    assert result == []
+    assert len(retrieved) == 1
+    assert list(retrieved.values()) == results

@@ -75,9 +75,15 @@ class ResearchMappingOrchestrator:
         :param user_query: the user's query to generate search queries for
         :return: a collection of Lucene search queries
         """
-        prediction = self.search_query_generator(user_query=user_query)
         if self.tui:
-            self.tui.print_reasoning("Search queries", prediction.reasoning)
+            prediction = self.tui.run_with_status(
+                self.search_query_generator,
+                "Search queries",
+                status="Generating suggested search queries...",
+                user_query=user_query,
+            )
+        else:
+            prediction = self.search_query_generator(user_query=user_query)
         return prediction.search_queries
 
     def _filter_search_queries(
@@ -104,6 +110,11 @@ class ResearchMappingOrchestrator:
         :param search_queries: the search queries to retrieve evidence for
         :return: a set of unique Evidence objects
         """
+        if self.tui:
+            self.tui.print_info(
+                f"Retrieving evidence for {len(search_queries)} search quer"
+                f"{'y' if len(search_queries) == 1 else 'ies'}..."
+            )
         examples = [
             dspy.Example(user_query=user_query, search_query=search_query).with_inputs(
                 "user_query", "search_query"
@@ -112,8 +123,9 @@ class ResearchMappingOrchestrator:
         ]
         results = self.evidence_retriever.batch(examples, num_threads=MAX_CONCURRENCY)
         if self.tui:
-            for search_query, prediction in zip(search_queries, results):
-                self.tui.print_reasoning(str(search_query), prediction.reasoning)
+            self.tui.print_reasoning_batch(
+                [str(q) for q in search_queries], [p.reasoning for p in results]
+            )
         return list(
             set(chain.from_iterable(prediction.evidence for prediction in results))
         )
@@ -145,9 +157,15 @@ class ResearchMappingOrchestrator:
         :param user_query: the original user's query to generate screening criteria for
         :return: a list of ScreeningCriterion objects to consider
         """
-        prediction = self.criteria_generator(user_query=user_query)
         if self.tui:
-            self.tui.print_reasoning("Screening criteria", prediction.reasoning)
+            prediction = self.tui.run_with_status(
+                self.criteria_generator,
+                "Screening criteria",
+                status="Generating suggested screening criteria...",
+                user_query=user_query,
+            )
+        else:
+            prediction = self.criteria_generator(user_query=user_query)
         return prediction.screening_criteria
 
     def _filter_screening_criteria(
@@ -176,6 +194,8 @@ class ResearchMappingOrchestrator:
         :param evidence: the Evidence objects to be screened
         :return: the collection of evidence to include
         """
+        if self.tui:
+            self.tui.print_info(f"Screening {len(evidence)} piece(s) of evidence...")
         examples = [
             dspy.Example(
                 evidence=piece_of_evidence, screening_criteria=screening_criteria
@@ -184,8 +204,9 @@ class ResearchMappingOrchestrator:
         ]
         results = self.evidence_screener.batch(examples, num_threads=MAX_CONCURRENCY)
         if self.tui:
-            for piece_of_evidence, prediction in zip(evidence, results):
-                self.tui.print_reasoning(str(piece_of_evidence), prediction.reasoning)
+            self.tui.print_reasoning_batch(
+                [str(e) for e in evidence], [p.reasoning for p in results]
+            )
         return [
             piece_of_evidence
             for piece_of_evidence, prediction in zip(evidence, results)
@@ -225,9 +246,15 @@ class ResearchMappingOrchestrator:
         :param user_query: the user's original query to generate mapping dimensions for
         :return: the 3 suggested mapping dimensions
         """
-        prediction = self.dimension_generator(user_query=user_query)
         if self.tui:
-            self.tui.print_reasoning("Mapping dimensions", prediction.reasoning)
+            prediction = self.tui.run_with_status(
+                self.dimension_generator,
+                "Mapping dimensions",
+                status="Generating suggested mapping dimensions...",
+                user_query=user_query,
+            )
+        else:
+            prediction = self.dimension_generator(user_query=user_query)
         return (prediction.dimension1, prediction.dimension2, prediction.dimension3)
 
     def _validate_dimensions(
@@ -261,6 +288,8 @@ class ResearchMappingOrchestrator:
         :param dimensions: the mapping dimensions to generate subtopics for
         :return: the mapping dimensions, each upgraded with their suggested subtopics
         """
+        if self.tui:
+            self.tui.print_info("Generating suggested subtopics for each dimension...")
         examples = [
             dspy.Example(
                 user_query=user_query,
@@ -271,8 +300,9 @@ class ResearchMappingOrchestrator:
         ]
         results = self.subtopic_generator.batch(examples, num_threads=MAX_CONCURRENCY)
         if self.tui:
-            for dim, prediction in zip(dimensions, results):
-                self.tui.print_reasoning(str(dim), prediction.reasoning)
+            self.tui.print_reasoning_batch(
+                [str(d) for d in dimensions], [p.reasoning for p in results]
+            )
         return tuple(
             MappingDimensionWithSubTopics(
                 **mapping_dim.model_dump(), subtopics=prediction.subtopics
@@ -341,6 +371,10 @@ class ResearchMappingOrchestrator:
         :param evidence: the Evidence objects to be mapped
         :return: the collection of MappedEvidence objects
         """
+        if self.tui:
+            self.tui.print_info(
+                f"Mapping {len(evidence)} piece(s) of evidence across dimensions..."
+            )
         examples = [
             dspy.Example(
                 user_query=user_query, evidence=piece_of_evidence, dimensions=dimensions
@@ -349,8 +383,9 @@ class ResearchMappingOrchestrator:
         ]
         results = self.evidence_mapper.batch(examples, num_threads=MAX_CONCURRENCY)
         if self.tui:
-            for piece_of_evidence, prediction in zip(evidence, results):
-                self.tui.print_reasoning(str(piece_of_evidence), prediction.reasoning)
+            self.tui.print_reasoning_batch(
+                [str(e) for e in evidence], [p.reasoning for p in results]
+            )
         dimension_names = [dim.name for dim in dimensions]
         subtopic_fields = (
             "dimension1_subtopic",

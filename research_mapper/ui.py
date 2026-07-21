@@ -2,14 +2,69 @@ import shutil
 from contextlib import contextmanager
 from typing import IO, Iterator, Sequence, Callable, T, Any
 
+import dspy
 from rich.align import Align
 from rich.console import Console
+from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
 from research_mapper.human_in_loop import parse_file_path, parse_selection, parse_yes_no
 from research_mapper.models import Evidence, EvidenceMap
+
+
+class _StageStatusMessageProvider(dspy.streaming.StatusMessageProvider):
+    """
+    Phrases DSPy's built-in LM/tool callback events as short progress messages, for display on a
+    spinner while a single (non-batched) program call is in flight.
+    """
+
+    def __init__(self, thinking_message: str = "Thinking...") -> None:
+        self._thinking_message = thinking_message
+
+    def lm_start_status_message(self, instance: Any, inputs: dict[str, Any]) -> str:
+        return self._thinking_message
+
+    def tool_start_status_message(self, instance: Any, inputs: dict[str, Any]) -> str:
+        return f"Calling {instance.name}..."
+
+
+class _LiveReasoningPanel:
+    """
+    A single Panel that grows as a program streams its `reasoning` field, for use inside a
+    `rich.Live` display. Shows a caller-supplied status message as placeholder text until
+    reasoning tokens start arriving.
+    """
+
+    def __init__(self, label: str, placeholder: str) -> None:
+        self._label = label
+        self._placeholder = placeholder
+        self._buffer = ""
+        self._done = False
+
+    def set_placeholder(self, text: str) -> None:
+        """Updates the placeholder shown while no reasoning tokens have arrived yet."""
+        self._placeholder = text
+
+    def append(self, chunk: str) -> None:
+        """Appends a streamed chunk of reasoning text to the panel's content."""
+        self._buffer += chunk
+
+    def finish(self) -> None:
+        """Marks the panel as complete, switching it to its resting style."""
+        self._done = True
+
+    def __rich__(self) -> Panel:
+        content = self._buffer or self._placeholder
+        return Panel(
+            f"[dim]{content}[/dim]",
+            title=f"[bold]{self._label}[/bold]",
+            title_align="left",
+            subtitle="[green]done[/green]" if self._done else "[dim]reasoning...[/dim]",
+            border_style="green" if self._done else "cyan",
+            padding=(0, 1),
+        )
 
 
 class TerminalUI:
@@ -191,6 +246,20 @@ class TerminalUI:
             )
         )
 
+    def print_reasoning_batch(
+        self, labels: Sequence[str], reasonings: Sequence[str]
+    ) -> None:
+        """
+        Prints completed reasoning traces for a batch of items, e.g. after a `dspy.Module.batch`
+        call, whose tqdm progress bar leaves the cursor without a trailing newline.
+        :param labels: labels identifying what each reasoning trace belongs to
+        :param reasonings: the reasoning texts to print, one per label
+        :return: Nothing.
+        """
+        self.console.print()
+        for label, reasoning in zip(labels, reasonings):
+            self.print_reasoning(label, reasoning)
+
     def print_process_status(
         self,
         process: Callable[..., Any],
@@ -213,6 +282,53 @@ class TerminalUI:
         if complete_message is not None:
             self.print_info(complete_message)
         return outputs
+
+    def run_with_status(
+        self,
+        program: dspy.Module,
+        label: str,
+        status: str | None = None,
+        **program_inputs,
+    ) -> dspy.Prediction:
+        """
+        Runs a single (non-batched) DSPy program, live-updating a panel with its `reasoning`
+        field as it streams in (falling back to a status message before reasoning tokens
+        arrive), so the user sees liveness during calls that would otherwise print nothing
+        until they complete. The finished panel is left in the scrollback, so callers don't
+        need to print the reasoning again afterwards.
+        :param program: the DSPy program to run
+        :param label: the label to title the live panel with
+        :param status: the status message to show as a placeholder before reasoning tokens
+            arrive (and while any tool calls are in flight). Defaults to "{label}..." if not given
+        :param program_inputs: the arguments to be forwarded to the program
+        :return: the program's final Prediction
+        :raises ValueError: if the program's stream never yielded a Prediction
+        """
+        status = status or f"{label}..."
+        stream_predict = dspy.streamify(
+            program,
+            status_message_provider=_StageStatusMessageProvider(status),
+            stream_listeners=[
+                dspy.streaming.StreamListener(signature_field_name="reasoning")
+            ],
+            async_streaming=False,
+        )
+        panel = _LiveReasoningPanel(label, placeholder=status)
+        result = None
+        with Live(panel, console=self.console, refresh_per_second=10):
+            for chunk in stream_predict(**program_inputs):
+                if isinstance(chunk, dspy.streaming.StatusMessage):
+                    panel.set_placeholder(chunk.message)
+                elif isinstance(chunk, dspy.streaming.StreamResponse):
+                    panel.append(chunk.chunk)
+                elif isinstance(chunk, dspy.Prediction):
+                    panel.finish()
+                    result = chunk
+                    break
+        self.console.print()
+        if result is None:
+            raise ValueError("No Prediction reached")
+        return result
 
     def prompt_user(self, message: str | None = None) -> str:
         """

@@ -8,7 +8,7 @@ from research_mapper.signatures.sparse_search import (
     UserQueryToLuceneSearchQueries,
     GatherEvidenceFromSearchQuery,
 )
-from research_mapper.tools.sparse_search import fixed_search_references_builder
+from research_mapper.tools.sparse_search import SearchReferencesTool
 
 logger = logging.getLogger(__name__)
 
@@ -49,16 +49,15 @@ class EvidenceRetriever(dspy.Module):
         :return: a Prediction wrapping the retrieved evidence, alongside the subagent's
             search_summary, stopping_reason, and reasoning
         """
-        retrieved: dict = {}
-        _search_references = fixed_search_references_builder(search_query, retrieved)
+        tool = SearchReferencesTool(search_query)
         subagent = dspy.ReAct(
             signature=GatherEvidenceFromSearchQuery,
-            tools=[_search_references],
+            tools=[tool.search_references],
             max_iters=5,
         )
         prediction = subagent(original_query=user_query, search_query=search_query)
 
-        logger.info("Found %d new items for: %s", len(retrieved), search_query)
+        logger.info("Found %d new items for: %s", len(tool.retrieved), search_query)
         logger.debug(
             "Search summary for %s: %s", search_query, prediction.search_summary
         )
@@ -68,7 +67,7 @@ class EvidenceRetriever(dspy.Module):
             prediction.stopping_reason,
         )
         return dspy.Prediction(
-            evidence=list(retrieved.values()),
+            evidence=list(tool.retrieved.values()),
             search_summary=prediction.search_summary,
             stopping_reason=prediction.stopping_reason,
             reasoning=prediction.reasoning,

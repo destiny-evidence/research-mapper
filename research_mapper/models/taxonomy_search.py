@@ -21,3 +21,19 @@ class ConceptFilterGroup(BaseModel):
     scheme: str
     concept_local_refs: list[str]
     reason: str
+
+
+class IndexedVocab(BaseModel):
+    """A taxonomy's concepts, indexed for LLM-facing selection and IRI resolution."""
+
+    concepts: list[Concept]
+    local_ref_to_iri: dict[str, IRI]
+
+    def resolve(self, local_refs: list[str]) -> list[IRI]:
+        """
+        Resolves local_refs back to their concept IRIs.
+        :param local_refs: the local_refs to resolve, e.g. from a ConceptFilterGroup
+        :return: the corresponding concept IRIs
+        :raises KeyError: if a local_ref isn't part of this index
+        """
+        return [self.local_ref_to_iri[ref] for ref in local_refs]

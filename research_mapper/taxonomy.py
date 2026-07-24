@@ -23,6 +23,13 @@ _VOCAB_URLS: dict[RepoCommunity, str] = {
     RepoCommunity.ESEA: "https://vocab.evidence-repository.org/published/019d9463-2780-7243-b4de-e547386f2a90/1.1/vocabulary.jsonld",
 }
 
+# The label a community is tagged with under DESTINY's "domain-inclusion" annotation
+# scheme. Not always the same as the RepoCommunity name — ESEA's is "jacobs-education".
+COMMUNITY_ANNOTATION_LABELS: dict[RepoCommunity, str] = {
+    RepoCommunity.HPV: "hpv",
+    RepoCommunity.ESEA: "jacobs-education",
+}
+
 
 class TaxonomyFetchError(Exception):
     """Raised when a taxonomy/vocabulary JSON-LD document can't be fetched or parsed."""

@@ -2,6 +2,8 @@ from itertools import chain
 
 import dspy
 
+from research_mapper import taxonomy
+from research_mapper.concept_search import retrieve_evidence_by_concepts
 from research_mapper.models.common import Evidence, UserQuery
 from research_mapper.models.mapping import (
     EvidenceMap,
@@ -21,6 +23,7 @@ from research_mapper.modules.mapping import (
     EvidenceMapper,
     SubtopicGenerator,
 )
+from research_mapper.modules.taxonomy_search import TaxonomyConceptFilterGenerator
 from research_mapper.ui.tui import TerminalUI
 
 MAX_CONCURRENCY = 8
@@ -37,6 +40,7 @@ class ResearchMappingOrchestrator:
         self.tui = tui
         self.search_query_generator = SparseQueryGenerator()
         self.evidence_retriever = EvidenceRetriever()
+        self.concept_filter_generator = TaxonomyConceptFilterGenerator(ui=tui)
         self.criteria_generator = CriteriaGenerator()
         self.evidence_screener = EvidenceScreener()
         self.dimension_generator = DimensionGenerator()
@@ -128,6 +132,50 @@ class ResearchMappingOrchestrator:
         return list(
             set(chain.from_iterable(prediction.evidence for prediction in results))
         )
+
+    def _generate_concept_filters(self, user_query: UserQuery) -> list[str | list[str]]:
+        """
+        Fetches the HPV taxonomy, generates concept filters relevant to the user's query, and
+        resolves them to the concept IRIs the DESTINY search API expects.
+        :param user_query: the user's original query to generate concept filters for
+        :return: concept IRI filters, AND'd across entries and OR'd within an entry
+        """
+        vocab = taxonomy.get_taxonomy(taxonomy.RepoCommunity.HPV)
+        indexed = taxonomy.build_concept_index(vocab)
+        if self.tui:
+            prediction = self.tui.run_with_status(
+                self.concept_filter_generator,
+                "Concept filters",
+                status="Generating suggested concept filters...",
+                user_query=user_query,
+                taxonomy_concepts=indexed.concepts,
+            )
+        else:
+            prediction = self.concept_filter_generator(
+                user_query=user_query, taxonomy_concepts=indexed.concepts
+            )
+        return [
+            indexed.resolve(group.concept_local_refs)
+            for group in prediction.filter_groups
+        ]
+
+    def _gather_evidence_by_concepts(self, user_query: UserQuery) -> list[Evidence]:
+        """
+        Generates and applies concept filters to retrieve evidence directly, without going
+        through Lucene search. Not yet wired into `run()` — a future mode-selection step
+        will decide when to call this instead of (or alongside) `_gather_evidence`.
+        :param user_query: the user query to gather concept-filtered evidence for
+        :return: the matching evidence
+        """
+        concept_filters = self._generate_concept_filters(user_query)
+        evidence = retrieve_evidence_by_concepts(
+            taxonomy.RepoCommunity.HPV, concept_filters
+        )
+        if self.tui:
+            self.tui.print_info(
+                f"{len(evidence)} pieces of evidence retrieved via concept filters."
+            )
+        return evidence
 
     def _screen_evidence(
         self, user_query: UserQuery, evidence: list[Evidence]

@@ -66,6 +66,19 @@ def test_zero_index_raises():
         parse_selection("0", queries)
 
 
+def test_empty_input_uses_default_when_given():
+    queries = _queries("climate AND health", "heat AND mortality", "flood AND disease")
+    result = parse_selection("", queries, default=[2])
+    assert len(result) == 1
+    assert result[0].query == "heat AND mortality"
+
+
+def test_empty_input_uses_multiple_defaults_when_given():
+    queries = _queries("climate AND health", "heat AND mortality", "flood AND disease")
+    result = parse_selection("", queries, default=[1, 3])
+    assert [q.query for q in result] == ["climate AND health", "flood AND disease"]
+
+
 # ---------------------------------------------------------------------------
 # parse_single_selection — picking exactly one enumerated item
 # (e.g. search mode, community)

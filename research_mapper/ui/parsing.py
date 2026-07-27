@@ -29,15 +29,21 @@ def parse_file_path(raw: str, default: str) -> Path:
     return Path(raw.strip() if raw.strip() else default)
 
 
-def parse_selection(raw: str, items: Sequence[T]) -> list[T]:
+def parse_selection(
+    raw: str, items: Sequence[T], default: Sequence[int] | None = None
+) -> list[T]:
     """
     Parses and processes raw user input selecting a subset of enumerated items.
     :param raw: the raw user input to parse
     :param items: the collection of enumerated items to select from
+    :param default: the 1-indexed items to select on empty input; selects all items if
+        not given
     :return: the subset of user selected items
     """
     if not raw:
-        return items
+        if default is None:
+            return items
+        return [items[i - 1] for i in default]
     kept = []
     for token in raw.split():
         if not token.isdigit():

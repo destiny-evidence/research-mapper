@@ -27,10 +27,7 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
         tools = []
         if ui is not None:
             filter_generation_tools = ConceptFilterGenerationTools(ui)
-            tools = [
-                filter_generation_tools.ask_for_clarification,
-                filter_generation_tools.ask_for_disambiguation,
-            ]
+            tools = [filter_generation_tools.ask_for_clarification]
         self.agent = dspy.ReAct(
             signature=TaxonomyConceptFiltersFromUserQuery,
             tools=tools,

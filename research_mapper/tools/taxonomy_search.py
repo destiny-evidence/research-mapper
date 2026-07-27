@@ -5,22 +5,37 @@ from destiny_sdk.search import AnnotationFilter
 
 from research_mapper.config import get_destiny_client
 from research_mapper.destiny import evidence_from_destiny_reference
-from research_mapper.models.taxonomy_search import ConceptSearchPage
+from research_mapper.models.taxonomy_search import (
+    ClarificationOptions,
+    ConceptSearchPage,
+)
 from research_mapper.taxonomy import COMMUNITY_ANNOTATION_LABELS, RepoCommunity
 from research_mapper.ui.tui import TerminalUI
 
 logger = logging.getLogger(__name__)
+
+_UNSURE_OPTION = "I'm not sure / none of these"
 
 
 class ConceptFilterGenerationTools:
     def __init__(self, ui: TerminalUI) -> None:
         self.ui = ui
 
-    def ask_for_clarification(self, question: str):
-        return self.ui.prompt_user(question)
-
-    def ask_for_disambiguation(self, question: str):
-        return self.ui.prompt_user(question)
+    def ask_for_clarification(self, request: ClarificationOptions) -> list[str]:
+        """Ask the user a clarifying question — including to disambiguate between
+        conflicting interpretations — giving them a fixed set of concrete options to
+        choose one or more from. An "I'm not sure" option is always added automatically."""
+        options = [*request.options, _UNSURE_OPTION]
+        self.ui.print_info(request.question)
+        while True:
+            selected = self.ui.select_from_list(options, default=[len(options)])
+            if _UNSURE_OPTION in selected and len(selected) > 1:
+                self.ui.print_info(
+                    f'[red]"{_UNSURE_OPTION}" can\'t be combined with other '
+                    "options — try again.[/red]"
+                )
+                continue
+            return selected
 
 
 def retrieve_evidence_by_concepts(

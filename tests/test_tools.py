@@ -1,12 +1,14 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from destiny_sdk.search import AnnotationFilter
 
 from research_mapper.models.common import Evidence
 from research_mapper.models.sparse_search import LuceneQuery
+from research_mapper.models.taxonomy_search import ClarificationOptions
 from research_mapper.taxonomy import RepoCommunity
 from research_mapper.tools.sparse_search import SearchReferencesTool, search_references
 from research_mapper.tools.taxonomy_search import (
+    ConceptFilterGenerationTools,
     RetrieveEvidenceByConceptsTool,
     retrieve_evidence_by_concepts,
 )
@@ -278,3 +280,89 @@ def test_retrieve_evidence_by_concepts_tool_reports_page_and_total(
     assert "Page 2" in summary
     assert "1 result" in summary
     assert "total matching: 1" in summary
+
+
+# ---------------------------------------------------------------------------
+# ConceptFilterGenerationTools
+# ---------------------------------------------------------------------------
+
+
+def test_ask_for_clarification_appends_unsure_option():
+    mock_ui = MagicMock()
+    mock_ui.select_from_list.return_value = ["A"]
+    tools = ConceptFilterGenerationTools(ui=mock_ui)
+
+    result = tools.ask_for_clarification(
+        ClarificationOptions(question="Which one?", options=["A", "B"])
+    )
+
+    mock_ui.select_from_list.assert_called_once_with(
+        ["A", "B", "I'm not sure / none of these"],
+        default=[3],
+    )
+    assert result == ["A"]
+
+
+def test_ask_for_clarification_allows_multiple_selections():
+    mock_ui = MagicMock()
+    mock_ui.select_from_list.return_value = ["A", "B"]
+    tools = ConceptFilterGenerationTools(ui=mock_ui)
+
+    result = tools.ask_for_clarification(
+        ClarificationOptions(question="Which apply?", options=["A", "B", "C"])
+    )
+
+    assert result == ["A", "B"]
+
+
+def test_ask_for_clarification_allows_unsure_alone():
+    mock_ui = MagicMock()
+    mock_ui.select_from_list.return_value = ["I'm not sure / none of these"]
+    tools = ConceptFilterGenerationTools(ui=mock_ui)
+
+    result = tools.ask_for_clarification(
+        ClarificationOptions(question="Which one?", options=["A", "B"])
+    )
+
+    assert result == ["I'm not sure / none of these"]
+    assert mock_ui.select_from_list.call_count == 1
+
+
+def test_ask_for_clarification_rejects_unsure_combined_with_other_options():
+    mock_ui = MagicMock()
+    mock_ui.select_from_list.side_effect = [
+        ["A", "I'm not sure / none of these"],  # invalid: mixed with a real option
+        ["A"],  # corrected on retry
+    ]
+    tools = ConceptFilterGenerationTools(ui=mock_ui)
+
+    result = tools.ask_for_clarification(
+        ClarificationOptions(question="Which one?", options=["A", "B"])
+    )
+
+    assert result == ["A"]
+    assert mock_ui.select_from_list.call_count == 2
+
+
+def test_ask_for_clarification_prints_the_question():
+    mock_ui = MagicMock()
+    tools = ConceptFilterGenerationTools(ui=mock_ui)
+
+    tools.ask_for_clarification(
+        ClarificationOptions(question="Which one?", options=["A"])
+    )
+
+    mock_ui.print_info.assert_called_once_with("Which one?")
+
+
+def test_ask_for_clarification_defaults_to_the_unsure_option():
+    """Pressing Enter with no thought must not silently pick the LLM's first option."""
+    mock_ui = MagicMock()
+    tools = ConceptFilterGenerationTools(ui=mock_ui)
+
+    tools.ask_for_clarification(
+        ClarificationOptions(question="Which one?", options=["A", "B", "C"])
+    )
+
+    _, kwargs = mock_ui.select_from_list.call_args
+    assert kwargs["default"] == [4]  # 1-indexed; "I'm not sure" is the 4th of 4 options

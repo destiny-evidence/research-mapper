@@ -83,6 +83,14 @@ def test_select_from_list_reprompts_on_invalid_input():
     assert result[0].query == "climate AND health"
 
 
+def test_select_from_list_empty_input_uses_default_when_given():
+    queries = _queries("climate AND health", "heat AND mortality", "flood AND disease")
+    ui = FakeUI(responses=[""])
+    result = ui.select_from_list(queries, title="Pick one", default=[2])
+    assert len(result) == 1
+    assert result[0].query == "heat AND mortality"
+
+
 # ---------------------------------------------------------------------------
 # select_one — picking exactly one item from a small fixed list
 # (e.g. search mode, community)

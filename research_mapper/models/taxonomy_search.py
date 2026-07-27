@@ -47,3 +47,16 @@ class ConceptSearchPage(BaseModel):
     evidence: list[Evidence]
     total_count: int
     is_total_lower_bound: bool
+
+
+class ClarificationOptions(BaseModel):
+    """A question with a fixed set of options for the user to choose from."""
+
+    question: str = Field(description="The clarifying question to ask the user.")
+    options: list[str] = Field(
+        min_length=1,
+        description=(
+            "Concrete, mutually exclusive answer options for the user to pick from. "
+            "Do not include a catch-all 'not sure' option — one is added automatically."
+        ),
+    )

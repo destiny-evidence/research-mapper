@@ -105,6 +105,8 @@ def mock_reference():
 def mock_destiny_client(mock_reference):
     mock_search_result = MagicMock()
     mock_search_result.references = [mock_reference]
+    mock_search_result.total.count = 1
+    mock_search_result.total.is_lower_bound = False
 
     client = MagicMock()
     client.search.return_value = mock_search_result

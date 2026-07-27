@@ -1,8 +1,15 @@
 from unittest.mock import patch
 
+from destiny_sdk.search import AnnotationFilter
+
 from research_mapper.models.common import Evidence
 from research_mapper.models.sparse_search import LuceneQuery
+from research_mapper.taxonomy import RepoCommunity
 from research_mapper.tools.sparse_search import SearchReferencesTool, search_references
+from research_mapper.tools.taxonomy_search import (
+    RetrieveEvidenceByConceptsTool,
+    retrieve_evidence_by_concepts,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -139,3 +146,135 @@ def test_search_references_tool_accumulates_retrieved(
 
     assert len(tool.retrieved) == 1
     assert list(tool.retrieved.values()) == results
+
+
+# ---------------------------------------------------------------------------
+# retrieve_evidence_by_concepts
+# ---------------------------------------------------------------------------
+
+
+def test_retrieve_evidence_by_concepts_returns_evidence(
+    mock_destiny_client, mock_reference
+):
+    with patch(
+        "research_mapper.tools.taxonomy_search.get_destiny_client",
+        return_value=mock_destiny_client,
+    ):
+        result = retrieve_evidence_by_concepts(
+            RepoCommunity.HPV, ["https://vocab.example.org/A"]
+        )
+
+    assert len(result.evidence) == 1
+    assert isinstance(result.evidence[0], Evidence)
+    assert result.total_count == 1
+    assert result.is_total_lower_bound is False
+
+
+def test_retrieve_evidence_by_concepts_applies_domain_inclusion_annotation(
+    mock_destiny_client,
+):
+    with patch(
+        "research_mapper.tools.taxonomy_search.get_destiny_client",
+        return_value=mock_destiny_client,
+    ):
+        retrieve_evidence_by_concepts(
+            RepoCommunity.HPV, ["https://vocab.example.org/A"]
+        )
+
+    mock_destiny_client.search.assert_called_once_with(
+        query="*",
+        concepts=["https://vocab.example.org/A"],
+        annotations=[AnnotationFilter(scheme="domain-inclusion", label="hpv")],
+        page=1,
+        timeout=60,
+    )
+
+
+def test_retrieve_evidence_by_concepts_uses_correct_label_for_esea(
+    mock_destiny_client,
+):
+    with patch(
+        "research_mapper.tools.taxonomy_search.get_destiny_client",
+        return_value=mock_destiny_client,
+    ):
+        retrieve_evidence_by_concepts(RepoCommunity.ESEA, [], page=2)
+
+    mock_destiny_client.search.assert_called_once_with(
+        query="*",
+        concepts=[],
+        annotations=[
+            AnnotationFilter(scheme="domain-inclusion", label="jacobs-education")
+        ],
+        page=2,
+        timeout=60,
+    )
+
+
+def test_retrieve_evidence_by_concepts_empty_results(mock_destiny_client):
+    mock_destiny_client.search.return_value.references = []
+    mock_destiny_client.search.return_value.total.count = 0
+    with patch(
+        "research_mapper.tools.taxonomy_search.get_destiny_client",
+        return_value=mock_destiny_client,
+    ):
+        result = retrieve_evidence_by_concepts(RepoCommunity.HPV, [])
+
+    assert result.evidence == []
+    assert result.total_count == 0
+
+
+# ---------------------------------------------------------------------------
+# RetrieveEvidenceByConceptsTool
+# ---------------------------------------------------------------------------
+
+
+def test_retrieve_evidence_by_concepts_tool_binds_community_and_concepts(
+    mock_destiny_client,
+):
+    tool = RetrieveEvidenceByConceptsTool(
+        RepoCommunity.HPV, ["https://vocab.example.org/A"]
+    )
+
+    with patch(
+        "research_mapper.tools.taxonomy_search.get_destiny_client",
+        return_value=mock_destiny_client,
+    ):
+        tool.retrieve_evidence()
+
+    mock_destiny_client.search.assert_called_once_with(
+        query="*",
+        concepts=["https://vocab.example.org/A"],
+        annotations=[AnnotationFilter(scheme="domain-inclusion", label="hpv")],
+        page=1,
+        timeout=60,
+    )
+
+
+def test_retrieve_evidence_by_concepts_tool_accumulates_retrieved(
+    mock_destiny_client, mock_reference
+):
+    tool = RetrieveEvidenceByConceptsTool(RepoCommunity.HPV, [])
+
+    with patch(
+        "research_mapper.tools.taxonomy_search.get_destiny_client",
+        return_value=mock_destiny_client,
+    ):
+        tool.retrieve_evidence()
+
+    assert len(tool.retrieved) == 1
+
+
+def test_retrieve_evidence_by_concepts_tool_reports_page_and_total(
+    mock_destiny_client,
+):
+    tool = RetrieveEvidenceByConceptsTool(RepoCommunity.HPV, [])
+
+    with patch(
+        "research_mapper.tools.taxonomy_search.get_destiny_client",
+        return_value=mock_destiny_client,
+    ):
+        summary = tool.retrieve_evidence(page=2)
+
+    assert "Page 2" in summary
+    assert "1 result" in summary
+    assert "total matching: 1" in summary

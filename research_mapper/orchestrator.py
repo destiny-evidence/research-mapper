@@ -38,6 +38,11 @@ class SearchMode(StrEnum):
     TAXONOMY = auto()
 
 
+class UnsatisfiableQueryError(Exception):
+    """Raised when the concept-filter-generation agent flags that the user's query
+    cannot be expressed with the available taxonomy concepts."""
+
+
 class ResearchMappingOrchestrator:
     """
     The application layer: drives the atomic search, screening, and mapping modules, streaming
@@ -177,6 +182,8 @@ class ResearchMappingOrchestrator:
         )
         if self.tui:
             self.tui.print_reasoning("Concept filters", prediction.reasoning)
+        if prediction.unsatisfiable_reason is not None:
+            raise UnsatisfiableQueryError(prediction.unsatisfiable_reason)
         concepts = [
             indexed.resolve(group.concept_local_refs)
             for group in prediction.filter_groups

@@ -12,6 +12,7 @@ from research_mapper.taxonomy import RepoCommunity
 from research_mapper.tools.taxonomy_search import (
     ConceptFilterGenerationTools,
     RetrieveEvidenceByConceptsTool,
+    UnsatisfiabilityTool,
 )
 from research_mapper.ui.tui import TerminalUI
 
@@ -27,7 +28,9 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
         tools = []
         if ui is not None:
             filter_generation_tools = ConceptFilterGenerationTools(ui)
-            tools = [filter_generation_tools.ask_for_clarification]
+            tools.append(filter_generation_tools.ask_for_clarification)
+        self._unsatisfiability_tool = UnsatisfiabilityTool()
+        tools.append(self._unsatisfiability_tool.mark_unsatisfiable)
         self.agent = dspy.ReAct(
             signature=TaxonomyConceptFiltersFromUserQuery,
             tools=tools,
@@ -41,9 +44,21 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
         Runs an agent to interactively generate a set of concepts to filter references on.
         :param user_query: the original user query
         :param taxonomy_concepts: the collection of taxonomy/vocabulary concepts to generate filter groups with
-        :return:  a Prediction wrapping a collection of ConceptFilterGroup instances
+        :return: a Prediction wrapping a collection of ConceptFilterGroup instances, plus
+            unsatisfiable_reason (None unless the agent flagged the query as unsatisfiable)
         """
-        return self.agent(user_query=user_query, taxonomy_concepts=taxonomy_concepts)
+        # self.agent/self._unsatisfiability_tool are built once and reused across calls
+        # (that's what makes run_with_status's live streaming work here), so any reason
+        # left over from a previous call must be cleared before this one runs.
+        self._unsatisfiability_tool.reason = None
+        prediction = self.agent(
+            user_query=user_query, taxonomy_concepts=taxonomy_concepts
+        )
+        return dspy.Prediction(
+            filter_groups=prediction.filter_groups,
+            reasoning=prediction.reasoning,
+            unsatisfiable_reason=self._unsatisfiability_tool.reason,
+        )
 
 
 class ConceptEvidenceRetriever(dspy.Module):

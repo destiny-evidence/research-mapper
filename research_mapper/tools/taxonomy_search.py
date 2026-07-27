@@ -38,6 +38,25 @@ class ConceptFilterGenerationTools:
             return selected
 
 
+class UnsatisfiabilityTool:
+    """
+    Lets the concept-filter-generation agent flag that the user's (clarified) intent
+    cannot be expressed with the available taxonomy concepts. `reason` is accumulated
+    for the caller to inspect after the agent finishes, regardless of what filter_groups
+    the agent's own output field also produced.
+    """
+
+    def __init__(self) -> None:
+        self.reason: str | None = None
+
+    def mark_unsatisfiable(self, reason: str) -> str:
+        """Call this if the user's clarified intent genuinely cannot be expressed using
+        the available taxonomy concepts — e.g. no concept exists for a required part of
+        the query, even after asking clarifying questions. Provide a brief reason."""
+        self.reason = reason
+        return "Noted. You may now finish."
+
+
 def retrieve_evidence_by_concepts(
     community: RepoCommunity,
     concepts: list[str | list[str]],

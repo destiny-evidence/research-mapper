@@ -1,6 +1,8 @@
 import uuid
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from research_mapper import taxonomy
 from research_mapper.models.common import Evidence, UserQuery
 from research_mapper.models.sparse_search import LuceneQuery
@@ -9,7 +11,11 @@ from research_mapper.models.taxonomy_search import (
     ConceptFilterGroup,
     IndexedVocab,
 )
-from research_mapper.orchestrator import ResearchMappingOrchestrator, SearchMode
+from research_mapper.orchestrator import (
+    ResearchMappingOrchestrator,
+    SearchMode,
+    UnsatisfiableQueryError,
+)
 
 
 def test_retrieve_evidence_deduplicates_evidence():
@@ -47,6 +53,7 @@ def test_generate_concept_filters_resolves_local_refs_to_iris():
     )
     mock_prediction = MagicMock()
     mock_prediction.filter_groups = [filter_group]
+    mock_prediction.unsatisfiable_reason = None
     agent.concept_filter_generator = MagicMock(return_value=mock_prediction)
 
     with (
@@ -77,6 +84,7 @@ def test_generate_concept_filters_does_not_wrap_generator_in_live_streaming():
     mock_prediction = MagicMock()
     mock_prediction.filter_groups = []
     mock_prediction.reasoning = "some reasoning"
+    mock_prediction.unsatisfiable_reason = None
     agent.concept_filter_generator = MagicMock(return_value=mock_prediction)
 
     with (
@@ -94,6 +102,31 @@ def test_generate_concept_filters_does_not_wrap_generator_in_live_streaming():
     mock_tui.print_reasoning.assert_called_once_with(
         "Concept filters", "some reasoning"
     )
+
+
+def test_generate_concept_filters_raises_when_agent_flags_unsatisfiable():
+    """_generate_concept_filters raises UnsatisfiableQueryError when the agent flags
+    the query as unsatisfiable, and does not attempt to resolve any filter_groups."""
+    agent = ResearchMappingOrchestrator()
+
+    indexed = IndexedVocab(
+        concepts=[Concept(local_ref="C0", scheme="Country", label="Kenya")],
+        local_ref_to_iri={"C0": "https://vocab.example.org/Country/KE"},
+    )
+    mock_prediction = MagicMock()
+    mock_prediction.filter_groups = []
+    mock_prediction.reasoning = "no matching concepts exist"
+    mock_prediction.unsatisfiable_reason = "No concept covers this topic."
+    agent.concept_filter_generator = MagicMock(return_value=mock_prediction)
+
+    with (
+        patch("research_mapper.taxonomy.get_taxonomy", return_value={}),
+        patch("research_mapper.taxonomy.build_concept_index", return_value=indexed),
+        pytest.raises(UnsatisfiableQueryError, match="No concept covers this topic."),
+    ):
+        agent._generate_concept_filters(
+            UserQuery(query="test"), taxonomy.RepoCommunity.HPV
+        )
 
 
 def test_gather_evidence_by_concepts_retrieves_via_resolved_filters():

@@ -10,6 +10,7 @@ from research_mapper.tools.sparse_search import SearchReferencesTool, search_ref
 from research_mapper.tools.taxonomy_search import (
     ConceptFilterGenerationTools,
     RetrieveEvidenceByConceptsTool,
+    UnsatisfiabilityTool,
     retrieve_evidence_by_concepts,
 )
 
@@ -366,3 +367,21 @@ def test_ask_for_clarification_defaults_to_the_unsure_option():
 
     _, kwargs = mock_ui.select_from_list.call_args
     assert kwargs["default"] == [4]  # 1-indexed; "I'm not sure" is the 4th of 4 options
+
+
+# ---------------------------------------------------------------------------
+# UnsatisfiabilityTool
+# ---------------------------------------------------------------------------
+
+
+def test_unsatisfiability_tool_starts_with_no_reason():
+    tool = UnsatisfiabilityTool()
+    assert tool.reason is None
+
+
+def test_unsatisfiability_tool_accumulates_reason():
+    tool = UnsatisfiabilityTool()
+
+    tool.mark_unsatisfiable("No concept covers this topic.")
+
+    assert tool.reason == "No concept covers this topic."

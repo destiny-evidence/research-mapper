@@ -10,7 +10,12 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from research_mapper.ui.parsing import parse_file_path, parse_selection, parse_yes_no
+from research_mapper.ui.parsing import (
+    parse_file_path,
+    parse_selection,
+    parse_single_selection,
+    parse_yes_no,
+)
 from research_mapper.models.common import Evidence
 from research_mapper.models.mapping import EvidenceMap
 
@@ -456,3 +461,32 @@ class TerminalUI:
                 return parse_selection(raw, items)
             except ValueError as e:
                 self.print_info(f"[red] {e} — try again.[/red]")
+
+    def select_one(
+        self,
+        items: Sequence[T],
+        label: Callable[[T], str] = str,
+        title: str | None = None,
+        default: int = 1,
+    ) -> T:
+        """
+        Prompts the user to pick exactly one item from a small fixed list.
+        :param items: the collection of items to choose from
+        :param label: a function that returns a label to display for a given item
+        :param title: the title for the table used to display the items the user must pick from
+        :param default: the 1-indexed item chosen when the user presses Enter
+        :return: the selected item
+        """
+        table = Table(title=title, show_header=False, box=None, padding=(0, 1))
+        table.add_column(style="bold dim", width=3)
+        table.add_column(style="cyan")
+        for i, item in enumerate(items, start=1):
+            table.add_row(str(i), label(item))
+        self.print(table)
+
+        while True:
+            raw = self.prompt_user(f"[dim]Choose (number, Enter for {default}):[/dim] ")
+            try:
+                return parse_single_selection(raw, items, default=default)
+            except ValueError as e:
+                self.print_info(f"[red]{e} — try again.[/red]")

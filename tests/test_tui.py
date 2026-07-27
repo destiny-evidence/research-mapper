@@ -84,6 +84,33 @@ def test_select_from_list_reprompts_on_invalid_input():
 
 
 # ---------------------------------------------------------------------------
+# select_one — picking exactly one item from a small fixed list
+# (e.g. search mode, community)
+# ---------------------------------------------------------------------------
+
+
+def test_select_one_empty_input_returns_default():
+    queries = _queries("climate AND health", "heat AND mortality")
+    ui = FakeUI(responses=[""])
+    result = ui.select_one(queries, title="Pick one", default=2)
+    assert result.query == "heat AND mortality"
+
+
+def test_select_one_returns_chosen_item():
+    queries = _queries("climate AND health", "heat AND mortality", "flood AND disease")
+    ui = FakeUI(responses=["3"])
+    result = ui.select_one(queries, title="Pick one")
+    assert result.query == "flood AND disease"
+
+
+def test_select_one_reprompts_on_invalid_input():
+    queries = _queries("climate AND health", "heat AND mortality")
+    ui = FakeUI(responses=["abc", "5", "2"])
+    result = ui.select_one(queries, title="Pick one")
+    assert result.query == "heat AND mortality"
+
+
+# ---------------------------------------------------------------------------
 # confirm_or_replace — reviewing top-level mapping dimensions
 # (accept all outright, or replace individually by name — dimensions are a
 # fixed-size collection and cannot be dropped)

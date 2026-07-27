@@ -37,6 +37,7 @@ def test_retrieve_evidence_by_concepts_applies_domain_inclusion_annotation(
         query="*",
         concepts=["https://vocab.example.org/A"],
         annotations=[AnnotationFilter(scheme="domain-inclusion", label="hpv")],
+        timeout=60,
     )
 
 
@@ -55,6 +56,7 @@ def test_retrieve_evidence_by_concepts_uses_correct_label_for_esea(
         annotations=[
             AnnotationFilter(scheme="domain-inclusion", label="jacobs-education")
         ],
+        timeout=60,
     )
 
 

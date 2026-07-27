@@ -34,6 +34,9 @@ def retrieve_evidence_by_concepts(
         query="*",
         concepts=concepts,
         annotations=[AnnotationFilter(scheme="domain-inclusion", label=label)],
+        # A wildcard query with concept/annotation filtering is a heavier server-side
+        # query than a narrow Lucene search; the client's 10s default isn't enough.
+        timeout=60,
     )
 
     evidence = [evidence_from_destiny_reference(ref) for ref in result.references]

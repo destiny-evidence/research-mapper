@@ -1,3 +1,4 @@
+from enum import StrEnum, auto
 from itertools import chain
 
 import dspy
@@ -29,6 +30,11 @@ from research_mapper.ui.tui import TerminalUI
 MAX_CONCURRENCY = 8
 
 
+class SearchMode(StrEnum):
+    SPARSE = auto()
+    TAXONOMY = auto()
+
+
 class ResearchMappingOrchestrator:
     """
     The application layer: drives the atomic search, screening, and mapping modules, streaming
@@ -47,13 +53,25 @@ class ResearchMappingOrchestrator:
         self.subtopic_generator = SubtopicGenerator()
         self.evidence_mapper = EvidenceMapper()
 
-    def run(self, user_query: UserQuery) -> EvidenceMap:
+    def run(
+        self,
+        user_query: UserQuery,
+        search_mode: SearchMode = SearchMode.SPARSE,
+        community: taxonomy.RepoCommunity = taxonomy.RepoCommunity.HPV,
+    ) -> EvidenceMap:
         """
         Gathers, screens, and maps evidence for relevance to the user's query.
         :param user_query: the user query to map research for
+        :param search_mode: whether to gather evidence via sparse (Lucene) search or
+            taxonomy (concept-filter) search
+        :param community: the repository community to search, when using taxonomy search
         :return: an EvidenceMap of the screened, mapped evidence
         """
-        evidence = self._gather_evidence(user_query)
+        match search_mode:
+            case SearchMode.SPARSE:
+                evidence = self._gather_evidence(user_query)
+            case SearchMode.TAXONOMY:
+                evidence = self._gather_evidence_by_concepts(user_query, community)
         filtered_evidence = self._screen_evidence(user_query, evidence)
         return self._map_evidence(user_query, filtered_evidence)
 
@@ -133,44 +151,44 @@ class ResearchMappingOrchestrator:
             set(chain.from_iterable(prediction.evidence for prediction in results))
         )
 
-    def _generate_concept_filters(self, user_query: UserQuery) -> list[str | list[str]]:
+    def _generate_concept_filters(
+        self, user_query: UserQuery, community: taxonomy.RepoCommunity
+    ) -> list[str | list[str]]:
         """
-        Fetches the HPV taxonomy, generates concept filters relevant to the user's query, and
-        resolves them to the concept IRIs the DESTINY search API expects.
+        Fetches a community's taxonomy, generates concept filters relevant to the user's
+        query, and resolves them to the concept IRIs the DESTINY search API expects.
         :param user_query: the user's original query to generate concept filters for
+        :param community: the repository community to generate concept filters for
         :return: concept IRI filters, AND'd across entries and OR'd within an entry
         """
-        vocab = taxonomy.get_taxonomy(taxonomy.RepoCommunity.HPV)
+        vocab = taxonomy.get_taxonomy(community)
         indexed = taxonomy.build_concept_index(vocab)
         if self.tui:
-            prediction = self.tui.run_with_status(
-                self.concept_filter_generator,
-                "Concept filters",
-                status="Generating suggested concept filters...",
-                user_query=user_query,
-                taxonomy_concepts=indexed.concepts,
+            self.tui.print_info(
+                "Generating concept filters — you may be asked clarifying questions..."
             )
-        else:
-            prediction = self.concept_filter_generator(
-                user_query=user_query, taxonomy_concepts=indexed.concepts
-            )
+        prediction = self.concept_filter_generator(
+            user_query=user_query, taxonomy_concepts=indexed.concepts
+        )
+        if self.tui:
+            self.tui.print_reasoning("Concept filters", prediction.reasoning)
         return [
             indexed.resolve(group.concept_local_refs)
             for group in prediction.filter_groups
         ]
 
-    def _gather_evidence_by_concepts(self, user_query: UserQuery) -> list[Evidence]:
+    def _gather_evidence_by_concepts(
+        self, user_query: UserQuery, community: taxonomy.RepoCommunity
+    ) -> list[Evidence]:
         """
         Generates and applies concept filters to retrieve evidence directly, without going
-        through Lucene search. Not yet wired into `run()` — a future mode-selection step
-        will decide when to call this instead of (or alongside) `_gather_evidence`.
+        through Lucene search.
         :param user_query: the user query to gather concept-filtered evidence for
+        :param community: the repository community to gather evidence for
         :return: the matching evidence
         """
-        concept_filters = self._generate_concept_filters(user_query)
-        evidence = retrieve_evidence_by_concepts(
-            taxonomy.RepoCommunity.HPV, concept_filters
-        )
+        concept_filters = self._generate_concept_filters(user_query, community)
+        evidence = retrieve_evidence_by_concepts(community, concept_filters)
         if self.tui:
             self.tui.print_info(
                 f"{len(evidence)} pieces of evidence retrieved via concept filters."

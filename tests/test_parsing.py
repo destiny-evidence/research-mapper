@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from research_mapper.ui.parsing import parse_file_path, parse_selection, parse_yes_no
+from research_mapper.ui.parsing import (
+    parse_file_path,
+    parse_selection,
+    parse_single_selection,
+    parse_yes_no,
+)
 from research_mapper.models.sparse_search import LuceneQuery
 
 
@@ -59,6 +64,42 @@ def test_zero_index_raises():
     queries = _queries("climate AND health")
     with pytest.raises(ValueError, match="out of range"):
         parse_selection("0", queries)
+
+
+# ---------------------------------------------------------------------------
+# parse_single_selection — picking exactly one enumerated item
+# (e.g. search mode, community)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_single_selection_empty_input_returns_default():
+    queries = _queries("climate AND health", "heat AND mortality")
+    result = parse_single_selection("", queries, default=2)
+    assert result.query == "heat AND mortality"
+
+
+def test_parse_single_selection_returns_chosen_item():
+    queries = _queries("climate AND health", "heat AND mortality", "flood AND disease")
+    result = parse_single_selection("3", queries)
+    assert result.query == "flood AND disease"
+
+
+def test_parse_single_selection_non_digit_raises():
+    queries = _queries("climate AND health")
+    with pytest.raises(ValueError, match="not a valid number"):
+        parse_single_selection("abc", queries)
+
+
+def test_parse_single_selection_out_of_range_raises():
+    queries = _queries("climate AND health")
+    with pytest.raises(ValueError, match="out of range"):
+        parse_single_selection("2", queries)
+
+
+def test_parse_single_selection_zero_index_raises():
+    queries = _queries("climate AND health")
+    with pytest.raises(ValueError, match="out of range"):
+        parse_single_selection("0", queries)
 
 
 # ---------------------------------------------------------------------------

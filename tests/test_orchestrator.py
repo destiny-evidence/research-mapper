@@ -237,35 +237,85 @@ def test_gather_evidence_by_concepts_does_not_wrap_retriever_in_live_streaming()
     )
 
 
-def test_run_dispatches_to_sparse_search_by_default():
-    """run() defaults to sparse search."""
+def test_gather_all_evidence_defaults_to_sparse_only():
+    """_gather_all_evidence defaults to sparse-only when search_modes is None."""
     agent = ResearchMappingOrchestrator()
-    agent._gather_evidence = MagicMock(return_value=[])
+    agent._gather_evidence_by_queries = MagicMock(return_value=[])
     agent._gather_evidence_by_concepts = MagicMock(return_value=[])
-    agent._screen_evidence = MagicMock(return_value=[])
-    agent._map_evidence = MagicMock()
 
-    agent.run(UserQuery(query="test"))
+    agent._gather_all_evidence(
+        UserQuery(query="test"), None, taxonomy.RepoCommunity.HPV
+    )
 
-    agent._gather_evidence.assert_called_once_with(UserQuery(query="test"))
+    agent._gather_evidence_by_queries.assert_called_once_with(UserQuery(query="test"))
     agent._gather_evidence_by_concepts.assert_not_called()
 
 
-def test_run_dispatches_to_taxonomy_search_with_chosen_community():
-    """run() gathers evidence via concept filters when search_mode is TAXONOMY."""
+def test_gather_all_evidence_sparse_only():
     agent = ResearchMappingOrchestrator()
-    agent._gather_evidence = MagicMock(return_value=[])
+    agent._gather_evidence_by_queries = MagicMock(return_value=[])
     agent._gather_evidence_by_concepts = MagicMock(return_value=[])
-    agent._screen_evidence = MagicMock(return_value=[])
-    agent._map_evidence = MagicMock()
 
-    agent.run(
-        UserQuery(query="test"),
-        search_mode=SearchMode.TAXONOMY,
-        community=taxonomy.RepoCommunity.ESEA,
+    agent._gather_all_evidence(
+        UserQuery(query="test"), {SearchMode.SPARSE}, taxonomy.RepoCommunity.HPV
+    )
+
+    agent._gather_evidence_by_queries.assert_called_once_with(UserQuery(query="test"))
+    agent._gather_evidence_by_concepts.assert_not_called()
+
+
+def test_gather_all_evidence_taxonomy_only_with_chosen_community():
+    agent = ResearchMappingOrchestrator()
+    agent._gather_evidence_by_queries = MagicMock(return_value=[])
+    agent._gather_evidence_by_concepts = MagicMock(return_value=[])
+
+    agent._gather_all_evidence(
+        UserQuery(query="test"), {SearchMode.TAXONOMY}, taxonomy.RepoCommunity.ESEA
     )
 
     agent._gather_evidence_by_concepts.assert_called_once_with(
         UserQuery(query="test"), taxonomy.RepoCommunity.ESEA
     )
-    agent._gather_evidence.assert_not_called()
+    agent._gather_evidence_by_queries.assert_not_called()
+
+
+def test_gather_all_evidence_both_modes_runs_taxonomy_before_sparse():
+    """When both modes are selected, taxonomy search runs first, then sparse search."""
+    agent = ResearchMappingOrchestrator()
+    call_order = []
+    agent._gather_evidence_by_concepts = MagicMock(
+        side_effect=lambda *a: call_order.append("taxonomy") or []
+    )
+    agent._gather_evidence_by_queries = MagicMock(
+        side_effect=lambda *a: call_order.append("sparse") or []
+    )
+
+    agent._gather_all_evidence(
+        UserQuery(query="test"),
+        {SearchMode.SPARSE, SearchMode.TAXONOMY},
+        taxonomy.RepoCommunity.HPV,
+    )
+
+    assert call_order == ["taxonomy", "sparse"]
+
+
+def test_gather_all_evidence_both_modes_deduplicates_overlapping_evidence():
+    """Evidence returned by both modes (same destiny_id) is deduplicated in the union."""
+    agent = ResearchMappingOrchestrator()
+    shared_id = uuid.uuid4()
+    shared_evidence = Evidence(destiny_id=shared_id)
+    only_sparse = Evidence(destiny_id=uuid.uuid4())
+
+    agent._gather_evidence_by_concepts = MagicMock(return_value=[shared_evidence])
+    agent._gather_evidence_by_queries = MagicMock(
+        return_value=[shared_evidence, only_sparse]
+    )
+
+    result = agent._gather_all_evidence(
+        UserQuery(query="test"),
+        {SearchMode.SPARSE, SearchMode.TAXONOMY},
+        taxonomy.RepoCommunity.HPV,
+    )
+
+    assert len(result) == 2
+    assert set(result) == {shared_evidence, only_sparse}

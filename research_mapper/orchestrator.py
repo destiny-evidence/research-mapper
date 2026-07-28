@@ -65,26 +65,51 @@ class ResearchMappingOrchestrator:
     def run(
         self,
         user_query: UserQuery,
-        search_mode: SearchMode = SearchMode.SPARSE,
+        search_modes: set[SearchMode] | None = None,
         community: taxonomy.RepoCommunity = taxonomy.RepoCommunity.HPV,
     ) -> EvidenceMap:
         """
         Gathers, screens, and maps evidence for relevance to the user's query.
         :param user_query: the user query to map research for
-        :param search_mode: whether to gather evidence via sparse (Lucene) search or
-            taxonomy (concept-filter) search
+        :param search_modes: which search mode(s) to gather evidence via — sparse
+            (Lucene), taxonomy (concept-filter), or both. Defaults to sparse-only.
         :param community: the repository community to search, when using taxonomy search
         :return: an EvidenceMap of the screened, mapped evidence
         """
-        match search_mode:
-            case SearchMode.SPARSE:
-                evidence = self._gather_evidence(user_query)
-            case SearchMode.TAXONOMY:
-                evidence = self._gather_evidence_by_concepts(user_query, community)
+        evidence = self._gather_all_evidence(user_query, search_modes, community)
         filtered_evidence = self._screen_evidence(user_query, evidence)
         return self._map_evidence(user_query, filtered_evidence)
 
-    def _gather_evidence(self, user_query: UserQuery) -> list[Evidence]:
+    def _gather_all_evidence(
+        self,
+        user_query: UserQuery,
+        search_modes: set[SearchMode] | None,
+        community: taxonomy.RepoCommunity,
+    ) -> list[Evidence]:
+        """
+        Gathers evidence via each requested search mode, sequentially — taxonomy
+        first, then sparse — unioning and deduplicating results across modes.
+        :param user_query: the user query to gather evidence for
+        :param search_modes: which search mode(s) to use; defaults to sparse-only
+        :param community: the repository community to use for taxonomy search
+        :return: the deduplicated union of evidence across all requested modes
+        """
+        search_modes = search_modes or {SearchMode.SPARSE}
+        evidence_sets = []
+        if SearchMode.TAXONOMY in search_modes:
+            evidence_sets.append(
+                self._gather_evidence_by_concepts(user_query, community)
+            )
+        if SearchMode.SPARSE in search_modes:
+            evidence_sets.append(self._gather_evidence_by_queries(user_query))
+        evidence = list(set(chain.from_iterable(evidence_sets)))
+        if self.tui and len(search_modes) > 1:
+            self.tui.print_info(
+                f"{len(evidence)} unique piece(s) of evidence after combining search modes."
+            )
+        return evidence
+
+    def _gather_evidence_by_queries(self, user_query: UserQuery) -> list[Evidence]:
         """
         Generates search queries, validates them by the user, and retrieves evidence for each.
         :param user_query: the user query to gather evidence for

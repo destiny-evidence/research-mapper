@@ -63,17 +63,19 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _select_search_mode(tui: TerminalUI) -> SearchMode:
+def _select_search_modes(tui: TerminalUI) -> set[SearchMode]:
     """
-    Prompts the user to choose between sparse (Lucene) and taxonomy (concept-filter) search.
+    Prompts the user to choose one or more search modes: sparse (Lucene), taxonomy
+    (concept-filter), or both.
     :param tui: the terminal UI to prompt with
-    :return: the chosen search mode
+    :return: the chosen search mode(s)
     """
-    return tui.select_one(
+    selected = tui.select_from_list(
         list(SearchMode),
         label=lambda mode: _SEARCH_MODE_LABELS[mode],
         title="How would you like to search?",
     )
+    return set(selected)
 
 
 def _select_community(tui: TerminalUI) -> RepoCommunity:
@@ -124,10 +126,10 @@ def main() -> None:
         complete_message="[green]✓[/green] Initialisation Successful!",
     )
 
-    search_mode = _select_search_mode(tui)
+    search_modes = _select_search_modes(tui)
     community = (
         _select_community(tui)
-        if search_mode == SearchMode.TAXONOMY
+        if SearchMode.TAXONOMY in search_modes
         else RepoCommunity.HPV
     )
 
@@ -135,7 +137,7 @@ def main() -> None:
     logger.info("Running Research Mapping Agent for query: %s", query)
     orchestrator = ResearchMappingOrchestrator(tui=tui)
     evidence_map = orchestrator.run(
-        UserQuery(query=query), search_mode=search_mode, community=community
+        UserQuery(query=query), search_modes=search_modes, community=community
     )
     logger.info(
         "Research Mapping complete — %d piece(s) of evidence mapped:",

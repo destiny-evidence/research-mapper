@@ -29,15 +29,21 @@ def parse_file_path(raw: str, default: str) -> Path:
     return Path(raw.strip() if raw.strip() else default)
 
 
-def parse_selection(raw: str, items: Sequence[T]) -> list[T]:
+def parse_selection(
+    raw: str, items: Sequence[T], default: Sequence[int] | None = None
+) -> list[T]:
     """
     Parses and processes raw user input selecting a subset of enumerated items.
     :param raw: the raw user input to parse
     :param items: the collection of enumerated items to select from
+    :param default: the 1-indexed items to select on empty input; selects all items if
+        not given
     :return: the subset of user selected items
     """
     if not raw:
-        return items
+        if default is None:
+            return items
+        return [items[i - 1] for i in default]
     kept = []
     for token in raw.split():
         if not token.isdigit():
@@ -47,3 +53,20 @@ def parse_selection(raw: str, items: Sequence[T]) -> list[T]:
             raise ValueError(f"'{n} is out of range (1-{len(items)})")
         kept.append(items[n - 1])
     return kept
+
+
+def parse_single_selection(raw: str, items: Sequence[T], default: int = 1) -> T:
+    """
+    Parses raw user input selecting exactly one enumerated item, defaulting on empty input.
+    :param raw: the raw user input to parse
+    :param items: the collection of enumerated items to select from
+    :param default: the 1-indexed item to select on empty input
+    :return: the selected item
+    """
+    token = raw.strip() or str(default)
+    if not token.isdigit():
+        raise ValueError(f"'{token}' is not a valid number")
+    n = int(token)
+    if not (1 <= n <= len(items)):
+        raise ValueError(f"{n} is out of range (1-{len(items)})")
+    return items[n - 1]

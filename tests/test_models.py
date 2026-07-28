@@ -2,9 +2,11 @@ import uuid
 
 import pytest
 from destiny_sdk.identifiers import DOIIdentifier
+from pydantic import ValidationError
 
 from research_mapper.models.common import Evidence, UserQuery
 from research_mapper.models.sparse_search import LuceneQuery
+from research_mapper.models.taxonomy_search import ClarificationOptions
 
 
 # ---------------------------------------------------------------------------
@@ -136,3 +138,18 @@ def test_evidence_to_str_uses_title_andabstract_when_both_available():
     ev_a = Evidence(destiny_id=uuid.uuid4(), title=title, abstract=abstract)
 
     assert str(ev_a) == f"{title} - {abstract}"
+
+
+# ---------------------------------------------------------------------------
+# ClarificationOptions validation
+# ---------------------------------------------------------------------------
+
+
+def test_clarification_options_accepts_one_or_more_options():
+    opts = ClarificationOptions(question="Which do you mean?", options=["A", "B"])
+    assert opts.options == ["A", "B"]
+
+
+def test_clarification_options_rejects_empty_options():
+    with pytest.raises(ValidationError):
+        ClarificationOptions(question="Which do you mean?", options=[])

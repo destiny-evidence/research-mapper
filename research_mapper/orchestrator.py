@@ -1,7 +1,9 @@
+from enum import StrEnum, auto
 from itertools import chain
 
 import dspy
 
+from research_mapper import taxonomy
 from research_mapper.models.common import Evidence, UserQuery
 from research_mapper.models.mapping import (
     EvidenceMap,
@@ -11,6 +13,7 @@ from research_mapper.models.mapping import (
 )
 from research_mapper.models.screening import ScreeningCriterion
 from research_mapper.models.sparse_search import LuceneQuery
+from research_mapper.models.taxonomy_search import ConceptFilterGroup
 from research_mapper.modules.screening import CriteriaGenerator, EvidenceScreener
 from research_mapper.modules.sparse_search import (
     EvidenceRetriever,
@@ -21,9 +24,23 @@ from research_mapper.modules.mapping import (
     EvidenceMapper,
     SubtopicGenerator,
 )
+from research_mapper.modules.taxonomy_search import (
+    ConceptEvidenceRetriever,
+    TaxonomyConceptFilterGenerator,
+)
 from research_mapper.ui.tui import TerminalUI
 
 MAX_CONCURRENCY = 8
+
+
+class SearchMode(StrEnum):
+    SPARSE = auto()
+    TAXONOMY = auto()
+
+
+class UnsatisfiableQueryError(Exception):
+    """Raised when the concept-filter-generation agent flags that the user's query
+    cannot be expressed with the available taxonomy concepts."""
 
 
 class ResearchMappingOrchestrator:
@@ -37,23 +54,62 @@ class ResearchMappingOrchestrator:
         self.tui = tui
         self.search_query_generator = SparseQueryGenerator()
         self.evidence_retriever = EvidenceRetriever()
+        self.concept_filter_generator = TaxonomyConceptFilterGenerator(ui=tui)
+        self.concept_evidence_retriever = ConceptEvidenceRetriever()
         self.criteria_generator = CriteriaGenerator()
         self.evidence_screener = EvidenceScreener()
         self.dimension_generator = DimensionGenerator()
         self.subtopic_generator = SubtopicGenerator()
         self.evidence_mapper = EvidenceMapper()
 
-    def run(self, user_query: UserQuery) -> EvidenceMap:
+    def run(
+        self,
+        user_query: UserQuery,
+        search_modes: set[SearchMode] | None = None,
+        community: taxonomy.RepoCommunity = taxonomy.RepoCommunity.HPV,
+    ) -> EvidenceMap:
         """
         Gathers, screens, and maps evidence for relevance to the user's query.
         :param user_query: the user query to map research for
+        :param search_modes: which search mode(s) to gather evidence via — sparse
+            (Lucene), taxonomy (concept-filter), or both. Defaults to sparse-only.
+        :param community: the repository community to search, when using taxonomy search
         :return: an EvidenceMap of the screened, mapped evidence
         """
-        evidence = self._gather_evidence(user_query)
+        evidence = self._gather_all_evidence(user_query, search_modes, community)
         filtered_evidence = self._screen_evidence(user_query, evidence)
         return self._map_evidence(user_query, filtered_evidence)
 
-    def _gather_evidence(self, user_query: UserQuery) -> list[Evidence]:
+    def _gather_all_evidence(
+        self,
+        user_query: UserQuery,
+        search_modes: set[SearchMode] | None,
+        community: taxonomy.RepoCommunity,
+    ) -> list[Evidence]:
+        """
+        Gathers evidence via each requested search mode, sequentially — taxonomy
+        first, then sparse — unioning and deduplicating results across modes.
+        :param user_query: the user query to gather evidence for
+        :param search_modes: which search mode(s) to use; defaults to sparse-only
+        :param community: the repository community to use for taxonomy search
+        :return: the deduplicated union of evidence across all requested modes
+        """
+        search_modes = search_modes or {SearchMode.SPARSE}
+        evidence_sets = []
+        if SearchMode.TAXONOMY in search_modes:
+            evidence_sets.append(
+                self._gather_evidence_by_concepts(user_query, community)
+            )
+        if SearchMode.SPARSE in search_modes:
+            evidence_sets.append(self._gather_evidence_by_queries(user_query))
+        evidence = list(set(chain.from_iterable(evidence_sets)))
+        if self.tui and len(search_modes) > 1:
+            self.tui.print_info(
+                f"{len(evidence)} unique piece(s) of evidence after combining search modes."
+            )
+        return evidence
+
+    def _gather_evidence_by_queries(self, user_query: UserQuery) -> list[Evidence]:
         """
         Generates search queries, validates them by the user, and retrieves evidence for each.
         :param user_query: the user query to gather evidence for
@@ -128,6 +184,75 @@ class ResearchMappingOrchestrator:
         return list(
             set(chain.from_iterable(prediction.evidence for prediction in results))
         )
+
+    def _generate_concept_filters(
+        self, user_query: UserQuery, community: taxonomy.RepoCommunity
+    ) -> tuple[list[ConceptFilterGroup], list[str | list[str]]]:
+        """
+        Fetches a community's taxonomy, generates concept filters relevant to the user's
+        query, and resolves them to the concept IRIs the DESTINY search API expects.
+        :param user_query: the user's original query to generate concept filters for
+        :param community: the repository community to generate concept filters for
+        :return: the LLM-facing filter groups, and their concept IRIs resolved (AND'd
+            across entries, OR'd within an entry)
+        """
+        vocab = taxonomy.get_taxonomy(community)
+        indexed = taxonomy.build_concept_index(vocab)
+        if self.tui:
+            self.tui.print_info(
+                "Generating concept filters — you may be asked clarifying questions..."
+            )
+        prediction = self.concept_filter_generator(
+            user_query=user_query, taxonomy_concepts=indexed.concepts
+        )
+        if self.tui:
+            self.tui.print_reasoning("Concept filters", prediction.reasoning)
+        if prediction.unsatisfiable_reason is not None:
+            raise UnsatisfiableQueryError(prediction.unsatisfiable_reason)
+        if self.tui:
+            label_by_ref = {c.local_ref: c.label for c in indexed.concepts}
+            self.tui.print_table(
+                prediction.filter_groups,
+                label=lambda group: (
+                    f"[bold]{group.scheme}[/bold]: "
+                    f"{', '.join(label_by_ref[ref] for ref in group.concept_local_refs)}\n"
+                    f"[dim]{group.reason}[/dim]"
+                ),
+                title="Concept filters to apply",
+            )
+        concepts = [
+            indexed.resolve(group.concept_local_refs)
+            for group in prediction.filter_groups
+        ]
+        return prediction.filter_groups, concepts
+
+    def _gather_evidence_by_concepts(
+        self, user_query: UserQuery, community: taxonomy.RepoCommunity
+    ) -> list[Evidence]:
+        """
+        Generates concept filters, then dispatches a retrieval subagent to fetch matching
+        evidence, without going through Lucene search.
+        :param user_query: the user query to gather concept-filtered evidence for
+        :param community: the repository community to gather evidence for
+        :return: the matching evidence
+        """
+        filter_groups, concepts = self._generate_concept_filters(user_query, community)
+        if self.tui:
+            self.tui.print_info(
+                "Retrieving evidence for the generated concept filters..."
+            )
+        prediction = self.concept_evidence_retriever(
+            user_query=user_query,
+            community=community,
+            filter_groups=filter_groups,
+            concepts=concepts,
+        )
+        if self.tui:
+            self.tui.print_reasoning("Concept evidence", prediction.reasoning)
+            self.tui.print_info(
+                f"{len(prediction.evidence)} pieces of evidence retrieved via concept filters."
+            )
+        return prediction.evidence
 
     def _screen_evidence(
         self, user_query: UserQuery, evidence: list[Evidence]

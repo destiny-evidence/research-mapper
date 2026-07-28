@@ -83,6 +83,53 @@ def test_select_from_list_reprompts_on_invalid_input():
     assert result[0].query == "climate AND health"
 
 
+def test_select_from_list_empty_input_uses_default_when_given():
+    queries = _queries("climate AND health", "heat AND mortality", "flood AND disease")
+    ui = FakeUI(responses=[""])
+    result = ui.select_from_list(queries, title="Pick one", default=[2])
+    assert len(result) == 1
+    assert result[0].query == "heat AND mortality"
+
+
+# ---------------------------------------------------------------------------
+# print_table — display-only, no selection prompt
+# ---------------------------------------------------------------------------
+
+
+def test_print_table_does_not_prompt_for_input():
+    """Unlike select_from_list/select_one, print_table never reads from input."""
+    queries = _queries("climate AND health", "heat AND mortality")
+    ui = FakeUI(responses=[])  # would raise StopIteration if input() were called
+    ui.print_table(queries, title="Applied queries")
+
+
+# ---------------------------------------------------------------------------
+# select_one — picking exactly one item from a small fixed list
+# (e.g. search mode, community)
+# ---------------------------------------------------------------------------
+
+
+def test_select_one_empty_input_returns_default():
+    queries = _queries("climate AND health", "heat AND mortality")
+    ui = FakeUI(responses=[""])
+    result = ui.select_one(queries, title="Pick one", default=2)
+    assert result.query == "heat AND mortality"
+
+
+def test_select_one_returns_chosen_item():
+    queries = _queries("climate AND health", "heat AND mortality", "flood AND disease")
+    ui = FakeUI(responses=["3"])
+    result = ui.select_one(queries, title="Pick one")
+    assert result.query == "flood AND disease"
+
+
+def test_select_one_reprompts_on_invalid_input():
+    queries = _queries("climate AND health", "heat AND mortality")
+    ui = FakeUI(responses=["abc", "5", "2"])
+    result = ui.select_one(queries, title="Pick one")
+    assert result.query == "heat AND mortality"
+
+
 # ---------------------------------------------------------------------------
 # confirm_or_replace — reviewing top-level mapping dimensions
 # (accept all outright, or replace individually by name — dimensions are a

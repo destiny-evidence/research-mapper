@@ -6,8 +6,23 @@ from research_mapper.config import configure_dspy, get_destiny_client, load_envi
 from research_mapper.export import export_mapped_evidence_to_ris
 from research_mapper.logs import ColourFormatter
 from research_mapper.models.common import UserQuery
-from research_mapper.orchestrator import ResearchMappingOrchestrator
+from research_mapper.orchestrator import (
+    ResearchMappingOrchestrator,
+    SearchMode,
+    UnsatisfiableQueryError,
+)
+from research_mapper.taxonomy import RepoCommunity
 from research_mapper.ui.tui import TerminalUI
+
+_SEARCH_MODE_LABELS = {
+    SearchMode.SPARSE: "Sparse search",
+    SearchMode.TAXONOMY: "Taxonomy search",
+}
+
+_COMMUNITY_LABELS = {
+    RepoCommunity.HPV: "HPV Vaccine Delivery",
+    RepoCommunity.ESEA: "Education (ESEA)",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +63,34 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _select_search_modes(tui: TerminalUI) -> set[SearchMode]:
+    """
+    Prompts the user to choose one or more search modes: sparse (Lucene), taxonomy
+    (concept-filter), or both.
+    :param tui: the terminal UI to prompt with
+    :return: the chosen search mode(s)
+    """
+    selected = tui.select_from_list(
+        list(SearchMode),
+        label=lambda mode: _SEARCH_MODE_LABELS[mode],
+        title="How would you like to search?",
+    )
+    return set(selected)
+
+
+def _select_community(tui: TerminalUI) -> RepoCommunity:
+    """
+    Prompts the user to choose which repository community's taxonomy to search.
+    :param tui: the terminal UI to prompt with
+    :return: the chosen repository community
+    """
+    return tui.select_one(
+        list(RepoCommunity),
+        label=lambda community: _COMMUNITY_LABELS[community],
+        title="Which community's taxonomy?",
+    )
+
+
 def _configure_logging(args: argparse.Namespace) -> None:
     """
     Configures root and dspy logging levels/handlers from parsed CLI arguments.
@@ -83,10 +126,19 @@ def main() -> None:
         complete_message="[green]✓[/green] Initialisation Successful!",
     )
 
+    search_modes = _select_search_modes(tui)
+    community = (
+        _select_community(tui)
+        if SearchMode.TAXONOMY in search_modes
+        else RepoCommunity.HPV
+    )
+
     query = args.query or tui.prompt_user("How can I help?")
     logger.info("Running Research Mapping Agent for query: %s", query)
     orchestrator = ResearchMappingOrchestrator(tui=tui)
-    evidence_map = orchestrator.run(UserQuery(query=query))
+    evidence_map = orchestrator.run(
+        UserQuery(query=query), search_modes=search_modes, community=community
+    )
     logger.info(
         "Research Mapping complete — %d piece(s) of evidence mapped:",
         len(evidence_map.mapped_evidence),
@@ -106,3 +158,6 @@ def run() -> None:
     except (KeyboardInterrupt, EOFError):
         print("\nExiting...")
         sys.exit(130)
+    except UnsatisfiableQueryError as exc:
+        print(f"\nThis query can't be mapped to the taxonomy: {exc}")
+        sys.exit(1)

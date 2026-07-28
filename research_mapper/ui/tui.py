@@ -10,7 +10,12 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from research_mapper.ui.parsing import parse_file_path, parse_selection, parse_yes_no
+from research_mapper.ui.parsing import (
+    parse_file_path,
+    parse_selection,
+    parse_single_selection,
+    parse_yes_no,
+)
 from research_mapper.models.common import Evidence
 from research_mapper.models.mapping import EvidenceMap
 
@@ -428,18 +433,15 @@ class TerminalUI:
             finalised.append(type(item)(name=raw, description="") if raw else item)
         return finalised
 
-    def select_from_list(
-        self,
-        items: Sequence[T],
-        label: Callable[[T], str] = str,
-        title: str | None = None,
-    ) -> list[T]:
+    def _print_selection_table(
+        self, items: Sequence[T], label: Callable[[T], str], title: str | None
+    ) -> None:
         """
-        Filters a collection of items via user by asking for the indices of enumerated items to keep.
-        :param items: the collection of items to select from
+        Prints a numbered table of items for the user to choose from.
+        :param items: the collection of items to display
         :param label: a function that returns a label to display for a given item
-        :param title: the title for the table used to display the items the user must pick from
-        :return: the collection of selected items
+        :param title: the title for the table
+        :return: Nothing.
         """
         table = Table(title=title, show_header=False, box=None, padding=(0, 1))
         table.add_column(style="bold dim", width=3)
@@ -448,11 +450,76 @@ class TerminalUI:
             table.add_row(str(i), label(item))
         self.print(table)
 
+    def print_table(
+        self,
+        items: Sequence[T],
+        label: Callable[[T], str] = str,
+        title: str | None = None,
+    ) -> None:
+        """
+        Prints a numbered table of items for display only — no selection prompt, unlike
+        select_from_list/select_one.
+        :param items: the collection of items to display
+        :param label: a function that returns a label to display for a given item
+        :param title: the title for the table
+        :return: Nothing.
+        """
+        self._print_selection_table(items, label, title)
+
+    def select_from_list(
+        self,
+        items: Sequence[T],
+        label: Callable[[T], str] = str,
+        title: str | None = None,
+        default: Sequence[int] | None = None,
+    ) -> list[T]:
+        """
+        Filters a collection of items via user by asking for the indices of enumerated items to keep.
+        :param items: the collection of items to select from
+        :param label: a function that returns a label to display for a given item
+        :param title: the title for the table used to display the items the user must pick from
+        :param default: the 1-indexed items to select on empty input; selects all items if
+            not given
+        :return: the collection of selected items
+        """
+        self._print_selection_table(items, label, title)
+
+        if default is None:
+            prompt = "[dim]Keep (space-separated numbers, or Enter for all):[/dim] "
+        else:
+            default_label = ", ".join(label(items[i - 1]) for i in default)
+            prompt = (
+                f"[dim]Choose (space-separated numbers, or Enter for "
+                f"'{default_label}'):[/dim] "
+            )
+
         while True:
-            raw = self.prompt_user(
-                "[dim]Keep (space-separated numbers, or Enter for all):[/dim] "
-            ).strip()
+            raw = self.prompt_user(prompt).strip()
             try:
-                return parse_selection(raw, items)
+                return parse_selection(raw, items, default=default)
             except ValueError as e:
                 self.print_info(f"[red] {e} — try again.[/red]")
+
+    def select_one(
+        self,
+        items: Sequence[T],
+        label: Callable[[T], str] = str,
+        title: str | None = None,
+        default: int = 1,
+    ) -> T:
+        """
+        Prompts the user to pick exactly one item from a small fixed list.
+        :param items: the collection of items to choose from
+        :param label: a function that returns a label to display for a given item
+        :param title: the title for the table used to display the items the user must pick from
+        :param default: the 1-indexed item chosen when the user presses Enter
+        :return: the selected item
+        """
+        self._print_selection_table(items, label, title)
+
+        while True:
+            raw = self.prompt_user(f"[dim]Choose (number, Enter for {default}):[/dim] ")
+            try:
+                return parse_single_selection(raw, items, default=default)
+            except ValueError as e:
+                self.print_info(f"[red]{e} — try again.[/red]")

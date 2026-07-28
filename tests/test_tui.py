@@ -92,6 +92,18 @@ def test_select_from_list_empty_input_uses_default_when_given():
 
 
 # ---------------------------------------------------------------------------
+# print_table — display-only, no selection prompt
+# ---------------------------------------------------------------------------
+
+
+def test_print_table_does_not_prompt_for_input():
+    """Unlike select_from_list/select_one, print_table never reads from input."""
+    queries = _queries("climate AND health", "heat AND mortality")
+    ui = FakeUI(responses=[])  # would raise StopIteration if input() were called
+    ui.print_table(queries, title="Applied queries")
+
+
+# ---------------------------------------------------------------------------
 # select_one — picking exactly one item from a small fixed list
 # (e.g. search mode, community)
 # ---------------------------------------------------------------------------

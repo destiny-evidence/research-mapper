@@ -450,6 +450,22 @@ class TerminalUI:
             table.add_row(str(i), label(item))
         self.print(table)
 
+    def print_table(
+        self,
+        items: Sequence[T],
+        label: Callable[[T], str] = str,
+        title: str | None = None,
+    ) -> None:
+        """
+        Prints a numbered table of items for display only — no selection prompt, unlike
+        select_from_list/select_one.
+        :param items: the collection of items to display
+        :param label: a function that returns a label to display for a given item
+        :param title: the title for the table
+        :return: Nothing.
+        """
+        self._print_selection_table(items, label, title)
+
     def select_from_list(
         self,
         items: Sequence[T],

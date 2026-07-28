@@ -184,6 +184,17 @@ class ResearchMappingOrchestrator:
             self.tui.print_reasoning("Concept filters", prediction.reasoning)
         if prediction.unsatisfiable_reason is not None:
             raise UnsatisfiableQueryError(prediction.unsatisfiable_reason)
+        if self.tui:
+            label_by_ref = {c.local_ref: c.label for c in indexed.concepts}
+            self.tui.print_table(
+                prediction.filter_groups,
+                label=lambda group: (
+                    f"[bold]{group.scheme}[/bold]: "
+                    f"{', '.join(label_by_ref[ref] for ref in group.concept_local_refs)}\n"
+                    f"[dim]{group.reason}[/dim]"
+                ),
+                title="Concept filters to apply",
+            )
         concepts = [
             indexed.resolve(group.concept_local_refs)
             for group in prediction.filter_groups

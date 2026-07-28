@@ -129,6 +129,48 @@ def test_generate_concept_filters_raises_when_agent_flags_unsatisfiable():
         )
 
 
+def test_generate_concept_filters_displays_resolved_labels():
+    """Displays the generated filter groups with concept local_refs resolved to labels,
+    not raw local_refs (which are meaningless to the user)."""
+    mock_tui = MagicMock()
+    agent = ResearchMappingOrchestrator(tui=mock_tui)
+
+    indexed = IndexedVocab(
+        concepts=[
+            Concept(local_ref="C0", scheme="Country", label="Kenya"),
+            Concept(local_ref="C1", scheme="Country", label="Uganda"),
+        ],
+        local_ref_to_iri={
+            "C0": "https://vocab.example.org/Country/KE",
+            "C1": "https://vocab.example.org/Country/UG",
+        },
+    )
+    filter_group = ConceptFilterGroup(
+        scheme="Country", concept_local_refs=["C0", "C1"], reason="East Africa focus"
+    )
+    mock_prediction = MagicMock()
+    mock_prediction.filter_groups = [filter_group]
+    mock_prediction.reasoning = "some reasoning"
+    mock_prediction.unsatisfiable_reason = None
+    agent.concept_filter_generator = MagicMock(return_value=mock_prediction)
+
+    with (
+        patch("research_mapper.taxonomy.get_taxonomy", return_value={}),
+        patch("research_mapper.taxonomy.build_concept_index", return_value=indexed),
+    ):
+        agent._generate_concept_filters(
+            UserQuery(query="test"), taxonomy.RepoCommunity.HPV
+        )
+
+    mock_tui.print_table.assert_called_once()
+    args, kwargs = mock_tui.print_table.call_args
+    assert args[0] == [filter_group]
+    assert kwargs["title"] == "Concept filters to apply"
+    assert kwargs["label"](filter_group) == (
+        "[bold]Country[/bold]: Kenya, Uganda\n[dim]East Africa focus[/dim]"
+    )
+
+
 def test_gather_evidence_by_concepts_retrieves_via_resolved_filters():
     """_gather_evidence_by_concepts dispatches the retrieval subagent with resolved filters."""
     agent = ResearchMappingOrchestrator()

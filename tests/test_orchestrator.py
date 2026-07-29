@@ -319,3 +319,43 @@ def test_gather_all_evidence_both_modes_deduplicates_overlapping_evidence():
 
     assert len(result) == 2
     assert set(result) == {shared_evidence, only_sparse}
+
+
+def test_gather_all_evidence_taxonomy_unsatisfiable_alone_still_raises():
+    """When taxonomy is the only selected mode, an unsatisfiable query still aborts."""
+    agent = ResearchMappingOrchestrator()
+    agent._gather_evidence_by_concepts = MagicMock(
+        side_effect=UnsatisfiableQueryError("no matching concepts")
+    )
+    agent._gather_evidence_by_queries = MagicMock(return_value=[])
+
+    with pytest.raises(UnsatisfiableQueryError, match="no matching concepts"):
+        agent._gather_all_evidence(
+            UserQuery(query="test"), {SearchMode.TAXONOMY}, taxonomy.RepoCommunity.HPV
+        )
+
+    agent._gather_evidence_by_queries.assert_not_called()
+
+
+def test_gather_all_evidence_taxonomy_unsatisfiable_with_sparse_continues():
+    """
+    Regression test: an unsatisfiable taxonomy search must not abort the whole run when
+    sparse search is also selected — it should contribute zero evidence and sparse
+    search should still run.
+    """
+    mock_tui = MagicMock()
+    agent = ResearchMappingOrchestrator(tui=mock_tui)
+    only_sparse = Evidence(destiny_id=uuid.uuid4())
+    agent._gather_evidence_by_concepts = MagicMock(
+        side_effect=UnsatisfiableQueryError("no matching concepts")
+    )
+    agent._gather_evidence_by_queries = MagicMock(return_value=[only_sparse])
+
+    result = agent._gather_all_evidence(
+        UserQuery(query="test"),
+        {SearchMode.SPARSE, SearchMode.TAXONOMY},
+        taxonomy.RepoCommunity.HPV,
+    )
+
+    agent._gather_evidence_by_queries.assert_called_once_with(UserQuery(query="test"))
+    assert result == [only_sparse]

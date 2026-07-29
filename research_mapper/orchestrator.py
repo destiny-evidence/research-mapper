@@ -97,9 +97,18 @@ class ResearchMappingOrchestrator:
         search_modes = search_modes or {SearchMode.SPARSE}
         evidence_sets = []
         if SearchMode.TAXONOMY in search_modes:
-            evidence_sets.append(
-                self._gather_evidence_by_concepts(user_query, community)
-            )
+            try:
+                evidence_sets.append(
+                    self._gather_evidence_by_concepts(user_query, community)
+                )
+            except UnsatisfiableQueryError as exc:
+                if len(search_modes) == 1:
+                    raise
+                if self.tui:
+                    self.tui.print_info(
+                        f"[yellow]Taxonomy search couldn't be mapped to the taxonomy "
+                        f"({exc}) — continuing with the other selected mode(s).[/yellow]"
+                    )
         if SearchMode.SPARSE in search_modes:
             evidence_sets.append(self._gather_evidence_by_queries(user_query))
         evidence = list(set(chain.from_iterable(evidence_sets)))

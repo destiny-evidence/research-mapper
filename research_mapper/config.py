@@ -5,7 +5,7 @@ from pathlib import Path
 
 import dspy
 from destiny_sdk.client import OAuthClient
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,11 @@ def load_environment(env_file: str | None = None) -> None:
             msg = f"--env-file {env_file} does not exist"
             raise FileNotFoundError(msg)
         load_dotenv(path)
-    load_dotenv()
+    # usecwd=True: without it, load_dotenv() searches upward from the *calling
+    # file's* location rather than the user's actual working directory — for an
+    # installed console script, that's somewhere in site-packages, never the
+    # user's cwd, so their local .env would silently never be found.
+    load_dotenv(find_dotenv(usecwd=True))
     load_dotenv(_global_env_path())
 
 

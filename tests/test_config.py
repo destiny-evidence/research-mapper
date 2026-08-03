@@ -1,6 +1,8 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-from research_mapper.config import load_environment
+import pytest
+
+from research_mapper.config import configure_dspy, load_environment
 
 
 # ---------------------------------------------------------------------------
@@ -38,3 +40,44 @@ def test_load_environment_explicit_env_file_takes_precedence(tmp_path):
 
         first_call_path = mock_load_dotenv.call_args_list[0].args[0]
         assert first_call_path == env_file
+
+
+# ---------------------------------------------------------------------------
+# configure_dspy — the LLM sanity check must accept any non-empty response,
+# not just literal "hello world": different providers/models phrase their
+# reply differently (e.g. "Hello, world! 🌍", capitalised, punctuated,
+# translated, etc.), so asserting an exact substring/element match rejects
+# perfectly valid responses.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _required_env(monkeypatch):
+    monkeypatch.setenv("MAPPER_LLM_MODEL", "test-model")
+    monkeypatch.setenv("MAPPER_LLM_BASE_URL", "https://example.test")
+    monkeypatch.setenv("MAPPER_LLM_API_KEY", "test-key")
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        ["Hello, world! 🌍"],
+        ["HELLO WORLD"],
+        ["Bonjour le monde"],
+    ],
+)
+def test_configure_dspy_accepts_any_non_empty_response(response):
+    with patch("research_mapper.config.dspy") as mock_dspy:
+        mock_dspy.LM.return_value = MagicMock(return_value=response)
+
+        configure_dspy()
+
+        mock_dspy.configure.assert_called_once()
+
+
+def test_configure_dspy_rejects_empty_response():
+    with patch("research_mapper.config.dspy") as mock_dspy:
+        mock_dspy.LM.return_value = MagicMock(return_value=[""])
+
+        with pytest.raises(AssertionError):
+            configure_dspy()

@@ -5,6 +5,11 @@ import pytest
 
 from research_mapper import taxonomy
 from research_mapper.models.common import Evidence, UserQuery
+from research_mapper.models.mapping import (
+    MappingDimension,
+    MappingDimensionWithSubTopics,
+)
+from research_mapper.models.screening import ScreeningCriterion, ScreeningCriterionType
 from research_mapper.models.sparse_search import LuceneQuery
 from research_mapper.models.taxonomy_search import (
     Concept,
@@ -359,3 +364,97 @@ def test_gather_all_evidence_taxonomy_unsatisfiable_with_sparse_continues():
 
     agent._gather_evidence_by_queries.assert_called_once_with(UserQuery(query="test"))
     assert result == [only_sparse]
+
+
+# ---------------------------------------------------------------------------
+# dspy.Module.batch() substitutes None for individual examples that raise during
+# parallel execution, rather than failing the whole batch. Every call site that
+# consumes batch() results must guard against None entries in the results list.
+# ---------------------------------------------------------------------------
+
+
+def test_retrieve_evidence_skips_failed_batch_items():
+    """
+    Regression test: a query whose batch() call failed (result is None) must be
+    skipped rather than crashing on `.reasoning`/`.evidence` access.
+    """
+    mock_tui = MagicMock()
+    agent = ResearchMappingOrchestrator(tui=mock_tui)
+    search_queries = [LuceneQuery(query="q1"), LuceneQuery(query="q2")]
+    ok_evidence = Evidence(destiny_id=uuid.uuid4())
+    ok_prediction = MagicMock(evidence=[ok_evidence], reasoning="reasoning")
+    agent.evidence_retriever.batch = MagicMock(return_value=[ok_prediction, None])
+
+    result = agent._retrieve_evidence(UserQuery(query="test"), search_queries)
+
+    assert result == [ok_evidence]
+
+
+def test_run_screening_skips_failed_batch_items():
+    """Regression test: a screening batch failure must not crash `.reasoning` access."""
+    mock_tui = MagicMock()
+    agent = ResearchMappingOrchestrator(tui=mock_tui)
+    included = Evidence(destiny_id=uuid.uuid4())
+    failed = Evidence(destiny_id=uuid.uuid4())
+    ok_prediction = MagicMock(include=True, reasoning="reasoning")
+    agent.evidence_screener.batch = MagicMock(return_value=[ok_prediction, None])
+    criteria = [
+        ScreeningCriterion(
+            criterion_type=ScreeningCriterionType.INCLUSION, description="c1"
+        )
+    ]
+
+    result = agent._run_screening(criteria, [included, failed])
+
+    assert result == [included]
+
+
+def test_generate_dimension_subtopics_raises_on_failed_batch_item():
+    """
+    Regression test: dimensions are a fixed-size tuple downstream, so a failed
+    subtopic-generation batch item can't be silently dropped — it must raise.
+    """
+    agent = ResearchMappingOrchestrator()
+    dimensions = (
+        MappingDimension(name="d1", description="desc1"),
+        MappingDimension(name="d2", description="desc2"),
+        MappingDimension(name="d3", description="desc3"),
+    )
+    ok_prediction = MagicMock(reasoning="reasoning")
+    ok_prediction.subtopics = []
+    agent.subtopic_generator.batch = MagicMock(
+        return_value=[ok_prediction, None, ok_prediction]
+    )
+
+    with pytest.raises(RuntimeError, match="d2"):
+        agent._generate_dimension_subtopics(UserQuery(query="test"), dimensions)
+
+
+def test_generate_evidence_map_skips_failed_batch_items():
+    """
+    Regression test for the reported crash: a mapping batch item that fails (result
+    is None) must be skipped rather than raising `AttributeError` on `.reasoning`.
+    """
+    mock_tui = MagicMock()
+    agent = ResearchMappingOrchestrator(tui=mock_tui)
+    mapped = Evidence(destiny_id=uuid.uuid4())
+    failed = Evidence(destiny_id=uuid.uuid4())
+    ok_prediction = MagicMock(
+        reasoning="reasoning",
+        dimension1_subtopic="s1",
+        dimension2_subtopic="s2",
+        dimension3_subtopic="s3",
+    )
+    agent.evidence_mapper.batch = MagicMock(return_value=[ok_prediction, None])
+    dimensions = (
+        MappingDimensionWithSubTopics(name="d1", description="desc1", subtopics=[]),
+        MappingDimensionWithSubTopics(name="d2", description="desc2", subtopics=[]),
+        MappingDimensionWithSubTopics(name="d3", description="desc3", subtopics=[]),
+    )
+
+    result = agent._generate_evidence_map(
+        UserQuery(query="test"), dimensions, [mapped, failed]
+    )
+
+    assert len(result) == 1
+    assert result[0].evidence == mapped

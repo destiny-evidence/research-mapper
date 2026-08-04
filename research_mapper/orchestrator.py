@@ -1,5 +1,7 @@
+from collections.abc import Sequence
 from enum import StrEnum, auto
 from itertools import chain
+from typing import Any, TypeVar
 
 import dspy
 
@@ -32,6 +34,8 @@ from research_mapper.ui.tui import TerminalUI
 
 MAX_CONCURRENCY = 8
 
+T = TypeVar("T")
+
 
 class SearchMode(StrEnum):
     SPARSE = auto()
@@ -61,6 +65,31 @@ class ResearchMappingOrchestrator:
         self.dimension_generator = DimensionGenerator()
         self.subtopic_generator = SubtopicGenerator()
         self.evidence_mapper = EvidenceMapper()
+
+    def _drop_batch_failures(
+        self, items: Sequence[T], results: Sequence[Any | None], noun_singular: str
+    ) -> list[tuple[T, Any]]:
+        """
+        Pairs each item with its corresponding `dspy.Module.batch()` result, dropping any
+        pair whose result is `None` — batch() substitutes `None` for individual examples
+        that failed during parallel execution (e.g. a transient API error) rather than
+        failing the whole batch, so callers must guard against it.
+        :param items: the inputs the batch was run over
+        :param results: the batch's results, one per item, possibly containing `None`
+            for any item whose processing failed
+        :param noun_singular: a singular noun describing the items, for the warning message
+        :return: the (item, result) pairs whose result succeeded
+        """
+        pairs = [
+            (item, result) for item, result in zip(items, results) if result is not None
+        ]
+        failed = len(results) - len(pairs)
+        if failed and self.tui:
+            noun = noun_singular if failed == 1 else f"{noun_singular}s"
+            self.tui.print_info(
+                f"[yellow]{failed} {noun} failed to process and will be skipped.[/yellow]"
+            )
+        return pairs
 
     def run(
         self,
@@ -186,12 +215,13 @@ class ResearchMappingOrchestrator:
             for search_query in search_queries
         ]
         results = self.evidence_retriever.batch(examples, num_threads=MAX_CONCURRENCY)
+        pairs = self._drop_batch_failures(search_queries, results, "search query")
         if self.tui:
             self.tui.print_reasoning_batch(
-                [str(q) for q in search_queries], [p.reasoning for p in results]
+                [str(q) for q, _ in pairs], [p.reasoning for _, p in pairs]
             )
         return list(
-            set(chain.from_iterable(prediction.evidence for prediction in results))
+            set(chain.from_iterable(prediction.evidence for _, prediction in pairs))
         )
 
     def _generate_concept_filters(
@@ -336,13 +366,14 @@ class ResearchMappingOrchestrator:
             for piece_of_evidence in evidence
         ]
         results = self.evidence_screener.batch(examples, num_threads=MAX_CONCURRENCY)
+        pairs = self._drop_batch_failures(evidence, results, "piece of evidence")
         if self.tui:
             self.tui.print_reasoning_batch(
-                [str(e) for e in evidence], [p.reasoning for p in results]
+                [str(e) for e, _ in pairs], [p.reasoning for _, p in pairs]
             )
         return [
             piece_of_evidence
-            for piece_of_evidence, prediction in zip(evidence, results)
+            for piece_of_evidence, prediction in pairs
             if prediction.include
         ]
 
@@ -432,6 +463,11 @@ class ResearchMappingOrchestrator:
             for i, dim in enumerate(dimensions)
         ]
         results = self.subtopic_generator.batch(examples, num_threads=MAX_CONCURRENCY)
+        failed_dims = [dim for dim, r in zip(dimensions, results) if r is None]
+        if failed_dims:
+            names = ", ".join(dim.name for dim in failed_dims)
+            msg = f"Failed to generate subtopics for dimension(s): {names}"
+            raise RuntimeError(msg)
         if self.tui:
             self.tui.print_reasoning_batch(
                 [str(d) for d in dimensions], [p.reasoning for p in results]
@@ -515,9 +551,10 @@ class ResearchMappingOrchestrator:
             for piece_of_evidence in evidence
         ]
         results = self.evidence_mapper.batch(examples, num_threads=MAX_CONCURRENCY)
+        pairs = self._drop_batch_failures(evidence, results, "piece of evidence")
         if self.tui:
             self.tui.print_reasoning_batch(
-                [str(e) for e in evidence], [p.reasoning for p in results]
+                [str(e) for e, _ in pairs], [p.reasoning for _, p in pairs]
             )
         dimension_names = [dim.name for dim in dimensions]
         subtopic_fields = (
@@ -535,5 +572,5 @@ class ResearchMappingOrchestrator:
                     )
                 ),
             )
-            for piece_of_evidence, prediction in zip(evidence, results)
+            for piece_of_evidence, prediction in pairs
         ]

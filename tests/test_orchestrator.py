@@ -6,6 +6,7 @@ import pytest
 from research_mapper import taxonomy
 from research_mapper.models.common import Evidence, UserQuery
 from research_mapper.models.mapping import (
+    EvidenceMap,
     MappingDimension,
     MappingDimensionWithSubTopics,
 )
@@ -17,6 +18,7 @@ from research_mapper.models.taxonomy_search import (
     IndexedVocab,
 )
 from research_mapper.orchestrator import (
+    NoEvidenceToActOnError,
     ResearchMappingOrchestrator,
     SearchMode,
     UnsatisfiableQueryError,
@@ -326,20 +328,29 @@ def test_gather_all_evidence_both_modes_deduplicates_overlapping_evidence():
     assert set(result) == {shared_evidence, only_sparse}
 
 
-def test_gather_all_evidence_taxonomy_unsatisfiable_alone_still_raises():
-    """When taxonomy is the only selected mode, an unsatisfiable query still aborts."""
-    agent = ResearchMappingOrchestrator()
+def test_gather_all_evidence_taxonomy_unsatisfiable_alone_returns_empty():
+    """
+    When taxonomy is the only selected mode, an unsatisfiable query no longer raises
+    UnsatisfiableQueryError directly — it contributes zero evidence, and run()'s
+    NoEvidenceToActOnError guard (tested separately) is what surfaces this to the user.
+    """
+    mock_tui = MagicMock()
+    agent = ResearchMappingOrchestrator(tui=mock_tui)
     agent._gather_evidence_by_concepts = MagicMock(
         side_effect=UnsatisfiableQueryError("no matching concepts")
     )
     agent._gather_evidence_by_queries = MagicMock(return_value=[])
 
-    with pytest.raises(UnsatisfiableQueryError, match="no matching concepts"):
-        agent._gather_all_evidence(
-            UserQuery(query="test"), {SearchMode.TAXONOMY}, taxonomy.RepoCommunity.HPV
-        )
+    result = agent._gather_all_evidence(
+        UserQuery(query="test"), {SearchMode.TAXONOMY}, taxonomy.RepoCommunity.HPV
+    )
 
+    assert result == []
     agent._gather_evidence_by_queries.assert_not_called()
+    mock_tui.print_info.assert_any_call(
+        "[yellow]Taxonomy search couldn't be mapped to the "
+        "taxonomy (no matching concepts).[/yellow]"
+    )
 
 
 def test_gather_all_evidence_taxonomy_unsatisfiable_with_sparse_continues():
@@ -458,3 +469,89 @@ def test_generate_evidence_map_skips_failed_batch_items():
 
     assert len(result) == 1
     assert result[0].evidence == mapped
+
+
+# ---------------------------------------------------------------------------
+# run() must not silently proceed with an empty pipeline stage — that produces a
+# confusing "0 pieces of evidence mapped" result with no indication of which stage
+# dropped everything (search, screening, or mapping).
+# ---------------------------------------------------------------------------
+
+
+def test_run_raises_when_no_evidence_retrieved():
+    agent = ResearchMappingOrchestrator()
+    agent._gather_all_evidence = MagicMock(return_value=[])
+    agent._screen_evidence = MagicMock()
+    agent._map_evidence = MagicMock()
+
+    with pytest.raises(NoEvidenceToActOnError, match="No evidence was retrieved"):
+        agent.run(UserQuery(query="test"))
+
+    agent._screen_evidence.assert_not_called()
+    agent._map_evidence.assert_not_called()
+
+
+def test_run_raises_when_all_evidence_screened_out():
+    agent = ResearchMappingOrchestrator()
+    agent._gather_all_evidence = MagicMock(
+        return_value=[Evidence(destiny_id=uuid.uuid4())]
+    )
+    agent._screen_evidence = MagicMock(return_value=[])
+    agent._map_evidence = MagicMock()
+
+    with pytest.raises(NoEvidenceToActOnError, match="excluded during screening"):
+        agent.run(UserQuery(query="test"))
+
+    agent._map_evidence.assert_not_called()
+
+
+def test_run_raises_when_nothing_could_be_mapped():
+    agent = ResearchMappingOrchestrator()
+    only_evidence = Evidence(destiny_id=uuid.uuid4())
+    agent._gather_all_evidence = MagicMock(return_value=[only_evidence])
+    agent._screen_evidence = MagicMock(return_value=[only_evidence])
+    agent._map_evidence = MagicMock(
+        return_value=EvidenceMap(
+            mapped_evidence=[],
+            dimensions=(
+                MappingDimensionWithSubTopics(
+                    name="d1", description="desc1", subtopics=[]
+                ),
+                MappingDimensionWithSubTopics(
+                    name="d2", description="desc2", subtopics=[]
+                ),
+                MappingDimensionWithSubTopics(
+                    name="d3", description="desc3", subtopics=[]
+                ),
+            ),
+        )
+    )
+
+    with pytest.raises(NoEvidenceToActOnError, match="No evidence could be mapped"):
+        agent.run(UserQuery(query="test"))
+
+
+def test_run_returns_evidence_map_when_all_stages_succeed():
+    agent = ResearchMappingOrchestrator()
+    only_evidence = Evidence(destiny_id=uuid.uuid4())
+    dimensions = (
+        MappingDimensionWithSubTopics(name="d1", description="desc1", subtopics=[]),
+        MappingDimensionWithSubTopics(name="d2", description="desc2", subtopics=[]),
+        MappingDimensionWithSubTopics(name="d3", description="desc3", subtopics=[]),
+    )
+    expected_map = EvidenceMap(
+        mapped_evidence=[
+            {
+                "evidence": only_evidence,
+                "coordinate": {"d1": "s1", "d2": "s2", "d3": "s3"},
+            }
+        ],
+        dimensions=dimensions,
+    )
+    agent._gather_all_evidence = MagicMock(return_value=[only_evidence])
+    agent._screen_evidence = MagicMock(return_value=[only_evidence])
+    agent._map_evidence = MagicMock(return_value=expected_map)
+
+    result = agent.run(UserQuery(query="test"))
+
+    assert result == expected_map

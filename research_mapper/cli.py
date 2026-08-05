@@ -8,9 +8,9 @@ from research_mapper.export import export_mapped_evidence_to_ris
 from research_mapper.logs import ColourFormatter, configure_file_logging
 from research_mapper.models.common import UserQuery
 from research_mapper.orchestrator import (
+    NoEvidenceToActOnError,
     ResearchMappingOrchestrator,
     SearchMode,
-    UnsatisfiableQueryError,
 )
 from research_mapper.taxonomy import RepoCommunity
 from research_mapper.ui.tui import TerminalUI
@@ -161,8 +161,8 @@ def run() -> None:
     except (KeyboardInterrupt, EOFError):
         print("\nExiting...")
         sys.exit(130)
-    except UnsatisfiableQueryError as exc:
-        print(f"\nThis query can't be mapped to the taxonomy: {exc}")
+    except NoEvidenceToActOnError as exc:
+        print(f"\n{exc}")
         sys.exit(1)
     except Exception:
         logger.exception("Unhandled error")

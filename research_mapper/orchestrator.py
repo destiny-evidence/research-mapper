@@ -47,6 +47,12 @@ class UnsatisfiableQueryError(Exception):
     cannot be expressed with the available taxonomy concepts."""
 
 
+class NoEvidenceToActOnError(Exception):
+    """Raised when a pipeline stage (gather, screen, map) has nothing left to hand off
+    to the next stage — e.g. a search returned no results, screening excluded
+    everything, or every mapping batch item failed."""
+
+
 class ResearchMappingOrchestrator:
     """
     The application layer: drives the atomic search, screening, and mapping modules, streaming
@@ -106,8 +112,20 @@ class ResearchMappingOrchestrator:
         :return: an EvidenceMap of the screened, mapped evidence
         """
         evidence = self._gather_all_evidence(user_query, search_modes, community)
+        if not evidence:
+            msg = "No evidence was retrieved for this query."
+            raise NoEvidenceToActOnError(msg)
+
         filtered_evidence = self._screen_evidence(user_query, evidence)
-        return self._map_evidence(user_query, filtered_evidence)
+        if not filtered_evidence:
+            msg = "All retrieved evidence was excluded during screening."
+            raise NoEvidenceToActOnError(msg)
+
+        evidence_map = self._map_evidence(user_query, filtered_evidence)
+        if not evidence_map.mapped_evidence:
+            msg = "No evidence could be mapped."
+            raise NoEvidenceToActOnError(msg)
+        return evidence_map
 
     def _gather_all_evidence(
         self,
@@ -131,12 +149,10 @@ class ResearchMappingOrchestrator:
                     self._gather_evidence_by_concepts(user_query, community)
                 )
             except UnsatisfiableQueryError as exc:
-                if len(search_modes) == 1:
-                    raise
                 if self.tui:
                     self.tui.print_info(
-                        f"[yellow]Taxonomy search couldn't be mapped to the taxonomy "
-                        f"({exc}) — continuing with the other selected mode(s).[/yellow]"
+                        f"[yellow]Taxonomy search couldn't be mapped to the "
+                        f"taxonomy ({exc}).[/yellow]"
                     )
         if SearchMode.SPARSE in search_modes:
             evidence_sets.append(self._gather_evidence_by_queries(user_query))

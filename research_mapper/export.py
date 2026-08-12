@@ -91,7 +91,11 @@ def mapped_evidence_to_ris_entry(item: MappedEvidence) -> dict:
     attaching its evidence map coordinate as keywords (one per dimension/subtopic pair) so it
     can be filtered/grouped on after import.
     """
-    keywords = [f"{dim}: {subtopic}" for dim, subtopic in item.coordinate.items()]
+    keywords = [
+        f"{dim}: {subtopic}"
+        for dim, subtopics in item.coordinate.items()
+        for subtopic in subtopics
+    ]
     return evidence_to_ris_entry(item.evidence, keywords=keywords)
 
 

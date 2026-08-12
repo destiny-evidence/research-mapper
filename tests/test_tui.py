@@ -1,6 +1,15 @@
+import uuid
+
 import pytest
 
-from research_mapper.models.mapping import DimensionSubTopic, MappingDimension
+from research_mapper.models.common import Evidence
+from research_mapper.models.mapping import (
+    DimensionSubTopic,
+    EvidenceMap,
+    MappedEvidence,
+    MappingDimension,
+    MappingDimensionWithSubTopics,
+)
 from research_mapper.models.sparse_search import LuceneQuery
 from research_mapper.ui.tui import TerminalUI
 
@@ -210,3 +219,51 @@ def test_confirm_or_replace_can_replace_and_drop_in_combination(subtopics):
     assert len(result) == 2
     assert result[0] == DimensionSubTopic(name="Out-of-pocket costs", description="")
     assert result[1] == subtopics[1]
+
+
+# ---------------------------------------------------------------------------
+# print_evidence_map — an evidence item with multiple subtopics within one
+# dimension (e.g. multiple taxonomy concepts in one scheme) must appear in every
+# grid cell/cluster it belongs to, not just the first.
+# ---------------------------------------------------------------------------
+
+
+def _mapping_dimension(
+    name: str, *subtopic_names: str
+) -> MappingDimensionWithSubTopics:
+    return MappingDimensionWithSubTopics(
+        name=name,
+        description="",
+        subtopics=[DimensionSubTopic(name=n, description="") for n in subtopic_names],
+    )
+
+
+def test_print_evidence_map_fans_out_multi_value_coordinate():
+    dimensions = (
+        _mapping_dimension("Theme", "Access", "Equity"),
+        _mapping_dimension("Design", "RCT", "Cohort"),
+        _mapping_dimension("Region", "East Africa"),
+    )
+    evidence_map = EvidenceMap(
+        mapped_evidence=[
+            MappedEvidence(
+                evidence=Evidence(destiny_id=uuid.uuid4(), title="Multi-tagged paper"),
+                coordinate={
+                    "Theme": ["Access", "Equity"],
+                    "Design": ["RCT"],
+                    "Region": ["East Africa"],
+                },
+            )
+        ],
+        dimensions=dimensions,
+    )
+
+    ui = TerminalUI()
+    with ui.console.capture() as capture:
+        ui.print_evidence_map(evidence_map)
+    output = capture.get()
+
+    # row_dim/col_dim are picked by fewest subtopics: Region (1) then Theme (2), so
+    # Design becomes the cluster dimension. The item's two Theme values ("Access",
+    # "Equity") must both place it in the grid — i.e. its index appears twice.
+    assert output.count("1") >= 2

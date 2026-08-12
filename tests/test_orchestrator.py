@@ -469,6 +469,7 @@ def test_generate_evidence_map_skips_failed_batch_items():
 
     assert len(result) == 1
     assert result[0].evidence == mapped
+    assert result[0].coordinate == {"d1": ["s1"], "d2": ["s2"], "d3": ["s3"]}
 
 
 # ---------------------------------------------------------------------------
@@ -543,7 +544,7 @@ def test_run_returns_evidence_map_when_all_stages_succeed():
         mapped_evidence=[
             {
                 "evidence": only_evidence,
-                "coordinate": {"d1": "s1", "d2": "s2", "d3": "s3"},
+                "coordinate": {"d1": ["s1"], "d2": ["s2"], "d3": ["s3"]},
             }
         ],
         dimensions=dimensions,

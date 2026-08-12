@@ -584,7 +584,7 @@ class ResearchMappingOrchestrator:
                 coordinate=dict(
                     zip(
                         dimension_names,
-                        (getattr(prediction, field) for field in subtopic_fields),
+                        ([getattr(prediction, field)] for field in subtopic_fields),
                     )
                 ),
             )

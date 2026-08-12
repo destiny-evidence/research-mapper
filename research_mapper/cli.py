@@ -128,12 +128,8 @@ def main() -> None:
         complete_message="[green]✓[/green] Initialisation Successful!",
     )
 
+    community = _select_community(tui)
     search_modes = _select_search_modes(tui)
-    community = (
-        _select_community(tui)
-        if SearchMode.TAXONOMY in search_modes
-        else RepoCommunity.HPV
-    )
 
     query = args.query or tui.prompt_user("How can I help?")
     logger.info("Running Research Mapping Agent for query: %s", query)

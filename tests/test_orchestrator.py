@@ -41,7 +41,9 @@ def test_retrieve_evidence_deduplicates_evidence():
         return_value=[mock_prediction, mock_prediction]
     )
 
-    result = agent._retrieve_evidence(UserQuery(query="test"), search_queries)
+    result = agent._retrieve_evidence(
+        UserQuery(query="test"), search_queries, taxonomy.RepoCommunity.HPV
+    )
 
     assert len(result) == 1
 
@@ -254,7 +256,9 @@ def test_gather_all_evidence_defaults_to_sparse_only():
         UserQuery(query="test"), None, taxonomy.RepoCommunity.HPV
     )
 
-    agent._gather_evidence_by_queries.assert_called_once_with(UserQuery(query="test"))
+    agent._gather_evidence_by_queries.assert_called_once_with(
+        UserQuery(query="test"), taxonomy.RepoCommunity.HPV
+    )
     agent._gather_evidence_by_concepts.assert_not_called()
 
 
@@ -267,7 +271,9 @@ def test_gather_all_evidence_sparse_only():
         UserQuery(query="test"), {SearchMode.SPARSE}, taxonomy.RepoCommunity.HPV
     )
 
-    agent._gather_evidence_by_queries.assert_called_once_with(UserQuery(query="test"))
+    agent._gather_evidence_by_queries.assert_called_once_with(
+        UserQuery(query="test"), taxonomy.RepoCommunity.HPV
+    )
     agent._gather_evidence_by_concepts.assert_not_called()
 
 
@@ -373,7 +379,9 @@ def test_gather_all_evidence_taxonomy_unsatisfiable_with_sparse_continues():
         taxonomy.RepoCommunity.HPV,
     )
 
-    agent._gather_evidence_by_queries.assert_called_once_with(UserQuery(query="test"))
+    agent._gather_evidence_by_queries.assert_called_once_with(
+        UserQuery(query="test"), taxonomy.RepoCommunity.HPV
+    )
     assert result == [only_sparse]
 
 
@@ -396,7 +404,9 @@ def test_retrieve_evidence_skips_failed_batch_items():
     ok_prediction = MagicMock(evidence=[ok_evidence], reasoning="reasoning")
     agent.evidence_retriever.batch = MagicMock(return_value=[ok_prediction, None])
 
-    result = agent._retrieve_evidence(UserQuery(query="test"), search_queries)
+    result = agent._retrieve_evidence(
+        UserQuery(query="test"), search_queries, taxonomy.RepoCommunity.HPV
+    )
 
     assert result == [ok_evidence]
 

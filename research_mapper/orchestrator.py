@@ -155,7 +155,9 @@ class ResearchMappingOrchestrator:
                         f"taxonomy ({exc}).[/yellow]"
                     )
         if SearchMode.SPARSE in search_modes:
-            evidence_sets.append(self._gather_evidence_by_queries(user_query))
+            evidence_sets.append(
+                self._gather_evidence_by_queries(user_query, community)
+            )
         evidence = list(set(chain.from_iterable(evidence_sets)))
         if self.tui and len(search_modes) > 1:
             self.tui.print_info(
@@ -163,15 +165,18 @@ class ResearchMappingOrchestrator:
             )
         return evidence
 
-    def _gather_evidence_by_queries(self, user_query: UserQuery) -> list[Evidence]:
+    def _gather_evidence_by_queries(
+        self, user_query: UserQuery, community: taxonomy.RepoCommunity
+    ) -> list[Evidence]:
         """
         Generates search queries, validates them by the user, and retrieves evidence for each.
         :param user_query: the user query to gather evidence for
+        :param community: the repository community to scope the search to
         :return: a collection of potentially relevant evidence
         """
         search_queries = self._generate_search_queries(user_query)
         search_queries = self._filter_search_queries(search_queries)
-        evidence = self._retrieve_evidence(user_query, search_queries)
+        evidence = self._retrieve_evidence(user_query, search_queries, community)
         if self.tui:
             self.tui.print_info(
                 f"{len(evidence)} pieces of evidence retrieved. Moving onto screening."
@@ -210,13 +215,17 @@ class ResearchMappingOrchestrator:
         )
 
     def _retrieve_evidence(
-        self, user_query: UserQuery, search_queries: list[LuceneQuery]
+        self,
+        user_query: UserQuery,
+        search_queries: list[LuceneQuery],
+        community: taxonomy.RepoCommunity,
     ) -> list[Evidence]:
         """
         Dispatches subagents for each search query to retrieve evidence from the DESTINY
         repository, in parallel.
         :param user_query: the original user query, for context
         :param search_queries: the search queries to retrieve evidence for
+        :param community: the repository community to scope the search to
         :return: a set of unique Evidence objects
         """
         if self.tui:
@@ -225,9 +234,9 @@ class ResearchMappingOrchestrator:
                 f"{'y' if len(search_queries) == 1 else 'ies'}..."
             )
         examples = [
-            dspy.Example(user_query=user_query, search_query=search_query).with_inputs(
-                "user_query", "search_query"
-            )
+            dspy.Example(
+                user_query=user_query, search_query=search_query, community=community
+            ).with_inputs("user_query", "search_query", "community")
             for search_query in search_queries
         ]
         results = self.evidence_retriever.batch(examples, num_threads=MAX_CONCURRENCY)

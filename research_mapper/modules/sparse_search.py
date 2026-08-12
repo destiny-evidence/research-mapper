@@ -8,6 +8,7 @@ from research_mapper.signatures.sparse_search import (
     UserQueryToLuceneSearchQueries,
     GatherEvidenceFromSearchQuery,
 )
+from research_mapper.taxonomy import RepoCommunity
 from research_mapper.tools.sparse_search import SearchReferencesTool
 
 logger = logging.getLogger(__name__)
@@ -40,16 +41,20 @@ class EvidenceRetriever(dspy.Module):
     """
 
     def forward(
-        self, user_query: UserQuery, search_query: LuceneQuery
+        self,
+        user_query: UserQuery,
+        search_query: LuceneQuery,
+        community: RepoCommunity,
     ) -> dspy.Prediction:
         """
         Retrieves Evidence for a single search query.
         :param user_query: the original user query, for context
         :param search_query: the search query to retrieve evidence for
+        :param community: the repository community to scope the search to
         :return: a Prediction wrapping the retrieved evidence, alongside the subagent's
             search_summary, stopping_reason, and reasoning
         """
-        tool = SearchReferencesTool(search_query)
+        tool = SearchReferencesTool(search_query, community)
         subagent = dspy.ReAct(
             signature=GatherEvidenceFromSearchQuery,
             tools=[tool.search_references],

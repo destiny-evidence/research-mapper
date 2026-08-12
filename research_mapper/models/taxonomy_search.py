@@ -1,10 +1,6 @@
-from typing import Annotated
+from pydantic import BaseModel, Field
 
-from pydantic import Field, BaseModel
-
-from research_mapper.models.common import Evidence
-
-IRI = Annotated[str, Field(pattern=r"^https?://")]
+from research_mapper.models.common import IRI, Evidence
 
 
 class Concept(BaseModel):

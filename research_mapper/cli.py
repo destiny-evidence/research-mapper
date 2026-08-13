@@ -106,7 +106,7 @@ def _configure_logging() -> Path | None:
     # These libraries' own DEBUG output is wire-level noise (TCP/TLS framing, full LLM
     # request/response dumps) that dwarfs our own logging without helping trace app bugs —
     # capping them at WARNING keeps the file log focused while still surfacing real errors.
-    for noisy_logger in ("dspy", "httpcore", "openai", "asyncio"):
+    for noisy_logger in ("dspy", "httpcore", "openai", "asyncio", "LiteLLM"):
         logging.getLogger(noisy_logger).setLevel(logging.WARNING)
     return configure_file_logging()
 

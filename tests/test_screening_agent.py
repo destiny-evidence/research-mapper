@@ -62,9 +62,12 @@ def test_evidence_screener_with_constructed_evidence():
 
 @pytest.mark.integration
 def test_evidence_screener_end_to_end_live():
+    from research_mapper.taxonomy import RepoCommunity
     from research_mapper.tools.sparse_search import search_references
 
-    evidence = search_references(LuceneQuery(query="climate AND health"))
+    evidence = search_references(
+        LuceneQuery(query="climate AND health"), community=RepoCommunity.HPV
+    )
     assert evidence, "Expected search to return at least one result"
 
     query = UserQuery(

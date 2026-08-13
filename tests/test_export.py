@@ -8,8 +8,9 @@ import rispy
 from destiny_sdk.enhancements import Pagination, PublicationVenue, PublicationVenueType
 from destiny_sdk.identifiers import DOIIdentifier, PubMedIdentifier
 
-from research_mapper.export import export_evidence_to_ris
+from research_mapper.export import export_evidence_to_ris, mapped_evidence_to_ris_entry
 from research_mapper.models.common import Evidence
+from research_mapper.models.mapping import MappedEvidence
 
 
 def _make_evidence(**kwargs) -> Evidence:
@@ -133,3 +134,15 @@ def test_optional_fields_absent_when_none():
     assert "journal_name" not in entry
     assert "doi" not in entry
     assert "urls" not in entry
+
+
+def test_mapped_evidence_flattens_multi_value_coordinate_into_separate_keywords():
+    """A dimension with multiple subtopics (e.g. an evidence item annotated with
+    multiple taxonomy concepts in one scheme) must produce one keyword per subtopic,
+    not one keyword per dimension."""
+    item = MappedEvidence(
+        evidence=_make_evidence(),
+        coordinate={"Theme": ["Access", "Equity"], "Design": ["RCT"]},
+    )
+    entry = mapped_evidence_to_ris_entry(item)
+    assert entry["keywords"] == ["Theme: Access", "Theme: Equity", "Design: RCT"]

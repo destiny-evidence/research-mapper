@@ -15,7 +15,7 @@ from research_mapper.models.mapping import (
 )
 from research_mapper.models.screening import ScreeningCriterion
 from research_mapper.models.sparse_search import LuceneQuery
-from research_mapper.models.taxonomy_search import ConceptFilterGroup
+from research_mapper.models.taxonomy_search import Concept, ConceptFilterGroup
 from research_mapper.modules.screening import CriteriaGenerator, EvidenceScreener
 from research_mapper.modules.sparse_search import (
     EvidenceRetriever,
@@ -26,6 +26,7 @@ from research_mapper.modules.mapping import (
     EvidenceMapper,
     SubtopicGenerator,
 )
+from research_mapper.modules.taxonomy_mapping import TaxonomySchemeDimensionGenerator
 from research_mapper.modules.taxonomy_search import (
     ConceptEvidenceRetriever,
     TaxonomyConceptFilterGenerator,
@@ -40,6 +41,17 @@ T = TypeVar("T")
 class SearchMode(StrEnum):
     SPARSE = auto()
     TAXONOMY = auto()
+
+
+class MappingMode(StrEnum):
+    SUGGESTED = auto()
+    TAXONOMY = auto()
+
+
+_MAPPING_MODE_LABELS = {
+    MappingMode.SUGGESTED: "LLM-suggested mapping dimensions",
+    MappingMode.TAXONOMY: "Taxonomy scheme mapping dimensions",
+}
 
 
 class UnsatisfiableQueryError(Exception):
@@ -71,6 +83,7 @@ class ResearchMappingOrchestrator:
         self.dimension_generator = DimensionGenerator()
         self.subtopic_generator = SubtopicGenerator()
         self.evidence_mapper = EvidenceMapper()
+        self.taxonomy_scheme_dimension_generator = TaxonomySchemeDimensionGenerator()
 
     def _drop_batch_failures(
         self, items: Sequence[T], results: Sequence[Any | None], noun_singular: str
@@ -121,7 +134,13 @@ class ResearchMappingOrchestrator:
             msg = "All retrieved evidence was excluded during screening."
             raise NoEvidenceToActOnError(msg)
 
-        evidence_map = self._map_evidence(user_query, filtered_evidence)
+        # Asked here, immediately before mapping, rather than upfront alongside search
+        # mode/community — search or screening may leave nothing to map, at which point
+        # this question would have been asked (and answered) for nothing.
+        mapping_mode = self._select_mapping_mode()
+        evidence_map = self._map_evidence(
+            user_query, filtered_evidence, mapping_mode, community
+        )
         if not evidence_map.mapped_evidence:
             msg = "No evidence could be mapped."
             raise NoEvidenceToActOnError(msg)
@@ -155,7 +174,9 @@ class ResearchMappingOrchestrator:
                         f"taxonomy ({exc}).[/yellow]"
                     )
         if SearchMode.SPARSE in search_modes:
-            evidence_sets.append(self._gather_evidence_by_queries(user_query))
+            evidence_sets.append(
+                self._gather_evidence_by_queries(user_query, community)
+            )
         evidence = list(set(chain.from_iterable(evidence_sets)))
         if self.tui and len(search_modes) > 1:
             self.tui.print_info(
@@ -163,15 +184,18 @@ class ResearchMappingOrchestrator:
             )
         return evidence
 
-    def _gather_evidence_by_queries(self, user_query: UserQuery) -> list[Evidence]:
+    def _gather_evidence_by_queries(
+        self, user_query: UserQuery, community: taxonomy.RepoCommunity
+    ) -> list[Evidence]:
         """
         Generates search queries, validates them by the user, and retrieves evidence for each.
         :param user_query: the user query to gather evidence for
+        :param community: the repository community to scope the search to
         :return: a collection of potentially relevant evidence
         """
         search_queries = self._generate_search_queries(user_query)
         search_queries = self._filter_search_queries(search_queries)
-        evidence = self._retrieve_evidence(user_query, search_queries)
+        evidence = self._retrieve_evidence(user_query, search_queries, community)
         if self.tui:
             self.tui.print_info(
                 f"{len(evidence)} pieces of evidence retrieved. Moving onto screening."
@@ -210,13 +234,17 @@ class ResearchMappingOrchestrator:
         )
 
     def _retrieve_evidence(
-        self, user_query: UserQuery, search_queries: list[LuceneQuery]
+        self,
+        user_query: UserQuery,
+        search_queries: list[LuceneQuery],
+        community: taxonomy.RepoCommunity,
     ) -> list[Evidence]:
         """
         Dispatches subagents for each search query to retrieve evidence from the DESTINY
         repository, in parallel.
         :param user_query: the original user query, for context
         :param search_queries: the search queries to retrieve evidence for
+        :param community: the repository community to scope the search to
         :return: a set of unique Evidence objects
         """
         if self.tui:
@@ -225,9 +253,9 @@ class ResearchMappingOrchestrator:
                 f"{'y' if len(search_queries) == 1 else 'ies'}..."
             )
         examples = [
-            dspy.Example(user_query=user_query, search_query=search_query).with_inputs(
-                "user_query", "search_query"
-            )
+            dspy.Example(
+                user_query=user_query, search_query=search_query, community=community
+            ).with_inputs("user_query", "search_query", "community")
             for search_query in search_queries
         ]
         results = self.evidence_retriever.batch(examples, num_threads=MAX_CONCURRENCY)
@@ -393,7 +421,47 @@ class ResearchMappingOrchestrator:
             if prediction.include
         ]
 
+    def _select_mapping_mode(self) -> MappingMode:
+        """
+        Prompts the user (when a UI is available) to choose how to map the screened
+        evidence: along free-form LLM-suggested dimensions, or along the taxonomy's own
+        schemes. Accepts the default (SUGGESTED) if not.
+        :return: the chosen mapping mode
+        """
+        if self.tui is None:
+            return MappingMode.SUGGESTED
+        return self.tui.select_one(
+            list(MappingMode),
+            label=lambda mode: _MAPPING_MODE_LABELS[mode],
+            title="How would you like to map evidence?",
+        )
+
     def _map_evidence(
+        self,
+        user_query: UserQuery,
+        filtered_evidence: list[Evidence],
+        mapping_mode: MappingMode,
+        community: taxonomy.RepoCommunity,
+    ) -> EvidenceMap:
+        """
+        Maps evidence to an EvidenceMap, via whichever mapping mode was chosen.
+        :param user_query: the user query the evidence is being mapped for
+        :param filtered_evidence: the screened evidence to map
+        :param mapping_mode: whether to map along free-form LLM-suggested dimensions,
+            or the taxonomy's own schemes
+        :param community: the repository community to draw taxonomy schemes from, when
+            mapping via taxonomy schemes
+        :return: an EvidenceMap of the screened evidence
+        """
+        if mapping_mode == MappingMode.TAXONOMY:
+            return self._map_evidence_via_taxonomy(
+                user_query, filtered_evidence, community
+            )
+        return self._map_evidence_via_suggested_dimensions(
+            user_query, filtered_evidence
+        )
+
+    def _map_evidence_via_suggested_dimensions(
         self, user_query: UserQuery, filtered_evidence: list[Evidence]
     ) -> EvidenceMap:
         """
@@ -417,6 +485,116 @@ class ResearchMappingOrchestrator:
         return EvidenceMap(
             mapped_evidence=mapping, dimensions=final_dims_with_subtopics
         )
+
+    def _schemes_represented_in_evidence(
+        self,
+        evidence: list[Evidence],
+        iri_to_concept: dict[str, Concept],
+    ) -> set[str]:
+        """
+        Finds which taxonomy schemes are actually represented among the given
+        evidence's known concepts — a scheme with zero representation would be useless
+        as a mapping dimension anyway, so candidates are restricted to this set rather
+        than every scheme the taxonomy happens to define.
+        :param evidence: the evidence to inspect known concepts on
+        :param iri_to_concept: every taxonomy concept, keyed by its IRI
+        :return: the set of scheme names represented in the evidence
+        """
+        return {
+            iri_to_concept[iri].scheme
+            for item in evidence
+            for iri in item.known_concepts
+            if iri in iri_to_concept
+        }
+
+    def _map_evidence_via_taxonomy(
+        self,
+        user_query: UserQuery,
+        filtered_evidence: list[Evidence],
+        community: taxonomy.RepoCommunity,
+    ) -> EvidenceMap:
+        """
+        Maps evidence directly from its already-known taxonomy concept annotations,
+        along 3 taxonomy schemes chosen from the union of schemes represented in the
+        evidence being mapped. No LLM fallback is used for evidence that isn't
+        annotated against every chosen scheme — it's dropped and reported instead of
+        forcing an LLM guess onto evidence DESTINY never actually coded.
+        :param user_query: the user query the evidence is being mapped for
+        :param filtered_evidence: the screened evidence to map
+        :param community: the repository community to draw taxonomy schemes from
+        :return: an EvidenceMap of the evidence that could be mapped
+        """
+        vocab = taxonomy.get_taxonomy(community)
+        indexed = taxonomy.build_concept_index(vocab)
+        iri_to_concept = {
+            indexed.local_ref_to_iri[concept.local_ref]: concept
+            for concept in indexed.concepts
+        }
+
+        available_schemes = self._schemes_represented_in_evidence(
+            filtered_evidence, iri_to_concept
+        )
+        if len(available_schemes) < 3:
+            if self.tui:
+                self.tui.print_info(
+                    "[yellow]Fewer than 3 taxonomy schemes are represented in this "
+                    "evidence — falling back to suggested mapping dimensions.[/yellow]"
+                )
+            return self._map_evidence_via_suggested_dimensions(
+                user_query, filtered_evidence
+            )
+
+        prediction = self.taxonomy_scheme_dimension_generator(
+            user_query=user_query,
+            indexed_vocab=indexed,
+            available_schemes=sorted(available_schemes),
+        )
+        dimensions = (
+            prediction.dimension1,
+            prediction.dimension2,
+            prediction.dimension3,
+        )
+        if self.tui:
+            self.tui.print_reasoning("Taxonomy scheme dimensions", prediction.reasoning)
+            self.tui.print_table(
+                dimensions,
+                label=lambda dim: (
+                    f"[bold]{dim.name}[/bold] ({len(dim.subtopics)} concepts)"
+                ),
+                title="Taxonomy scheme mapping dimensions",
+            )
+
+        mapped_evidence = []
+        dropped_count = 0
+        for item in filtered_evidence:
+            coordinate: dict[str, list[str]] = {}
+            for dim in dimensions:
+                matches = list(
+                    dict.fromkeys(
+                        iri_to_concept[iri].label
+                        for iri in item.known_concepts
+                        if iri in iri_to_concept
+                        and iri_to_concept[iri].scheme == dim.name
+                    )
+                )
+                if not matches:
+                    break
+                coordinate[dim.name] = matches
+            else:
+                mapped_evidence.append(
+                    MappedEvidence(evidence=item, coordinate=coordinate)
+                )
+                continue
+            dropped_count += 1
+
+        if self.tui:
+            self.tui.print_info(
+                f"{len(mapped_evidence)} piece(s) of evidence mapped via taxonomy "
+                f"schemes; {dropped_count} dropped — not annotated against all of "
+                f"the chosen schemes."
+            )
+
+        return EvidenceMap(mapped_evidence=mapped_evidence, dimensions=dimensions)
 
     def _generate_suggested_dimensions(
         self, user_query: UserQuery
@@ -584,7 +762,7 @@ class ResearchMappingOrchestrator:
                 coordinate=dict(
                     zip(
                         dimension_names,
-                        (getattr(prediction, field) for field in subtopic_fields),
+                        ([getattr(prediction, field)] for field in subtopic_fields),
                     )
                 ),
             )

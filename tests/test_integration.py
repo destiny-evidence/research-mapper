@@ -15,6 +15,7 @@ import pytest
 from research_mapper.models.common import Evidence, UserQuery
 from research_mapper.models.mapping import MappedEvidence
 from research_mapper.models.sparse_search import LuceneQuery
+from research_mapper.taxonomy import RepoCommunity
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -32,7 +33,7 @@ def test_search_references_tool_live():
     from research_mapper.tools.sparse_search import search_references
 
     query = LuceneQuery(query="climate AND health")
-    results = search_references(query=query)
+    results = search_references(query=query, community=RepoCommunity.HPV)
 
     assert isinstance(results, list)
     assert len(results) > 0, "Expected at least one result for a broad query"
@@ -46,7 +47,9 @@ def test_search_references_tool_live_with_year_filter():
     from research_mapper.tools.sparse_search import search_references
 
     query = LuceneQuery(query="heat AND mortality")
-    results = search_references(query=query, start_year=2020, end_year=2024)
+    results = search_references(
+        query=query, community=RepoCommunity.HPV, start_year=2020, end_year=2024
+    )
 
     assert isinstance(results, list)
     for item in results:
@@ -61,8 +64,8 @@ def test_search_references_tool_live_pagination():
     from research_mapper.tools.sparse_search import search_references
 
     query = LuceneQuery(query="climate AND health")
-    page1 = search_references(query=query, page=1)
-    page2 = search_references(query=query, page=2)
+    page1 = search_references(query=query, community=RepoCommunity.HPV, page=1)
+    page2 = search_references(query=query, community=RepoCommunity.HPV, page=2)
 
     ids_page1 = {item.destiny_id for item in page1}
     ids_page2 = {item.destiny_id for item in page2}

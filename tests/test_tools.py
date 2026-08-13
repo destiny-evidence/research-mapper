@@ -26,7 +26,7 @@ def test_search_references_returns_evidence(mock_destiny_client, mock_reference)
         return_value=mock_destiny_client,
     ):
         query = LuceneQuery(query="climate AND health")
-        result = search_references(query=query)
+        result = search_references(query=query, community=RepoCommunity.HPV)
 
     assert len(result) == 1
     assert isinstance(result[0], Evidence)
@@ -39,14 +39,19 @@ def test_search_references_passes_args(mock_destiny_client):
     ):
         query = LuceneQuery(query="climate AND health")
         search_references(
-            query=query, start_year=2020, end_year=2024, sort="-year", page=2
+            query=query,
+            community=RepoCommunity.HPV,
+            start_year=2020,
+            end_year=2024,
+            sort="-year",
+            page=2,
         )
 
     mock_destiny_client.search.assert_called_once_with(
         query="climate AND health",
         start_year=2020,
         end_year=2024,
-        annotations=None,
+        annotations=[AnnotationFilter(scheme="domain-inclusion", label="hpv")],
         sort="-year",
         page=2,
     )
@@ -58,13 +63,34 @@ def test_search_references_default_args(mock_destiny_client):
         return_value=mock_destiny_client,
     ):
         query = LuceneQuery(query="simple")
-        search_references(query=query)
+        search_references(query=query, community=RepoCommunity.HPV)
 
     mock_destiny_client.search.assert_called_once_with(
         query="simple",
         start_year=None,
         end_year=None,
-        annotations=None,
+        annotations=[AnnotationFilter(scheme="domain-inclusion", label="hpv")],
+        sort=None,
+        page=1,
+    )
+
+
+def test_search_references_scopes_by_community(mock_destiny_client):
+    with patch(
+        "research_mapper.tools.sparse_search.get_destiny_client",
+        return_value=mock_destiny_client,
+    ):
+        search_references(
+            query=LuceneQuery(query="simple"), community=RepoCommunity.ESEA
+        )
+
+    mock_destiny_client.search.assert_called_once_with(
+        query="simple",
+        start_year=None,
+        end_year=None,
+        annotations=[
+            AnnotationFilter(scheme="domain-inclusion", label="jacobs-education")
+        ],
         sort=None,
         page=1,
     )
@@ -76,7 +102,9 @@ def test_search_references_empty_results(mock_destiny_client):
         "research_mapper.tools.sparse_search.get_destiny_client",
         return_value=mock_destiny_client,
     ):
-        result = search_references(query=LuceneQuery(query="climate AND health"))
+        result = search_references(
+            query=LuceneQuery(query="climate AND health"), community=RepoCommunity.HPV
+        )
 
     assert result == []
 
@@ -90,14 +118,14 @@ def test_search_references_tool_drops_query_param():
     import inspect
 
     query = LuceneQuery(query="climate AND health")
-    tool = SearchReferencesTool(query)
+    tool = SearchReferencesTool(query, RepoCommunity.HPV)
 
     assert "query" not in inspect.signature(tool.search_references).parameters
 
 
 def test_search_references_tool_binds_query(mock_destiny_client):
     query = LuceneQuery(query="climate AND health")
-    tool = SearchReferencesTool(query)
+    tool = SearchReferencesTool(query, RepoCommunity.HPV)
 
     with patch(
         "research_mapper.tools.sparse_search.get_destiny_client",
@@ -109,7 +137,7 @@ def test_search_references_tool_binds_query(mock_destiny_client):
         query="climate AND health",
         start_year=2020,
         end_year=2024,
-        annotations=None,
+        annotations=[AnnotationFilter(scheme="domain-inclusion", label="hpv")],
         sort=None,
         page=1,
     )
@@ -117,7 +145,7 @@ def test_search_references_tool_binds_query(mock_destiny_client):
 
 def test_search_references_tool_default_args(mock_destiny_client):
     query = LuceneQuery(query="flood")
-    tool = SearchReferencesTool(query)
+    tool = SearchReferencesTool(query, RepoCommunity.HPV)
 
     with patch(
         "research_mapper.tools.sparse_search.get_destiny_client",
@@ -129,7 +157,7 @@ def test_search_references_tool_default_args(mock_destiny_client):
         query="flood",
         start_year=None,
         end_year=None,
-        annotations=None,
+        annotations=[AnnotationFilter(scheme="domain-inclusion", label="hpv")],
         sort=None,
         page=1,
     )
@@ -139,7 +167,7 @@ def test_search_references_tool_accumulates_retrieved(
     mock_destiny_client, mock_reference
 ):
     query = LuceneQuery(query="climate AND health")
-    tool = SearchReferencesTool(query)
+    tool = SearchReferencesTool(query, RepoCommunity.HPV)
 
     with patch(
         "research_mapper.tools.sparse_search.get_destiny_client",

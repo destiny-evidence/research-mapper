@@ -187,8 +187,9 @@ class TerminalUI:
 
         grid: dict[tuple[str, str], list[int]] = {}
         for index, item in enumerate(mapped_evidence, start=1):
-            key = (item.coordinate[row_dim.name], item.coordinate[col_dim.name])
-            grid.setdefault(key, []).append(index)
+            for row_val in item.coordinate[row_dim.name]:
+                for col_val in item.coordinate[col_dim.name]:
+                    grid.setdefault((row_val, col_val), []).append(index)
 
         with self.full_width():
             table = Table(title=f"{row_dim.name} × {col_dim.name}")
@@ -211,7 +212,7 @@ class TerminalUI:
                 items = [
                     (index, item)
                     for index, item in enumerate(mapped_evidence, start=1)
-                    if item.coordinate[cluster_dim.name] == cluster_subtopic.name
+                    if cluster_subtopic.name in item.coordinate[cluster_dim.name]
                 ]
                 if not items:
                     continue

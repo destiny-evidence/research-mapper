@@ -1,7 +1,11 @@
+from typing import Annotated
+
 from destiny_sdk.core import UUID
 from destiny_sdk.enhancements import Pagination, PublicationVenue
 from destiny_sdk.identifiers import ExternalIdentifier
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+IRI = Annotated[str, Field(pattern=r"^https?://")]
 
 
 class UserQuery(BaseModel):
@@ -20,6 +24,7 @@ class Evidence(BaseModel):
     publisher: str | None = None
     publication_venue: PublicationVenue | None = None
     pagination: Pagination | None = None
+    known_concepts: list[IRI] = []
 
     def __hash__(self) -> int:
         return hash(

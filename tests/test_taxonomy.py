@@ -10,6 +10,16 @@ from research_mapper.taxonomy import (
     get_taxonomy,
 )
 
+
+@pytest.fixture(autouse=True)
+def _clear_taxonomy_cache():
+    """get_taxonomy is lru_cache'd; tests mock httpx.get differently per case, so the
+    cache must be cleared before (and after) each test to avoid leaking results."""
+    get_taxonomy.cache_clear()
+    yield
+    get_taxonomy.cache_clear()
+
+
 _CONTEXT = {
     "skos": "http://www.w3.org/2004/02/skos/core#",
     "dct": "http://purl.org/dc/terms/",

@@ -26,11 +26,13 @@ class MappingDimensionWithSubTopics(MappingDimension):
 class MappedEvidence(BaseModel):
     """
     A piece of Evidence paired with its coordinate in a map, where `coordinate` maps each mapping
-    dimension's name to the name of the subtopic the evidence belongs to within that dimension.
+    dimension's name to the name(s) of the subtopic(s) the evidence belongs to within that
+    dimension — usually one, but an evidence item annotated with multiple concepts within a
+    single taxonomy scheme legitimately belongs to more than one subtopic there.
     """
 
     evidence: Evidence
-    coordinate: dict[str, str]
+    coordinate: dict[str, list[str]]
 
 
 class EvidenceMap(BaseModel):

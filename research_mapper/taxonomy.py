@@ -2,6 +2,7 @@
 
 import logging
 from enum import StrEnum, auto
+from functools import lru_cache
 
 import httpx
 from pyld import jsonld
@@ -35,9 +36,13 @@ class TaxonomyFetchError(Exception):
     """Raised when a taxonomy/vocabulary JSON-LD document can't be fetched or parsed."""
 
 
+@lru_cache
 def get_taxonomy(community: RepoCommunity) -> dict:
     """
-    Fetches the raw vocabulary JSON-LD document for a repository community.
+    Fetches the raw vocabulary JSON-LD document for a repository community. Cached —
+    called at both concept-filter-generation and (taxonomy-scheme) mapping stages
+    within a single run, and there's no reason to re-fetch the same community's
+    vocabulary twice.
     :param community: the repository community to fetch the taxonomy for
     :return: the raw, parsed vocabulary JSON-LD document
     """

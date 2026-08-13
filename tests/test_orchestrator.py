@@ -18,6 +18,7 @@ from research_mapper.models.taxonomy_search import (
     IndexedVocab,
 )
 from research_mapper.orchestrator import (
+    MappingMode,
     NoEvidenceToActOnError,
     ResearchMappingOrchestrator,
     SearchMode,
@@ -566,3 +567,216 @@ def test_run_returns_evidence_map_when_all_stages_succeed():
     result = agent.run(UserQuery(query="test"))
 
     assert result == expected_map
+
+
+# ---------------------------------------------------------------------------
+# _map_evidence — dispatches to the taxonomy-scheme or suggested-dimensions path by
+# mapping_mode; _map_evidence_via_taxonomy maps evidence directly from its known
+# taxonomy concepts, dropping (and reporting on) evidence that isn't annotated
+# against every chosen scheme, with no LLM fallback.
+# ---------------------------------------------------------------------------
+
+
+def _taxonomy_indexed_vocab() -> IndexedVocab:
+    concepts = [
+        Concept(local_ref="C0", scheme="Country", label="Kenya"),
+        Concept(local_ref="C1", scheme="Country", label="Uganda"),
+        Concept(local_ref="C2", scheme="Study Design", label="RCT"),
+        Concept(local_ref="C3", scheme="Study Design", label="Cohort"),
+        Concept(local_ref="C4", scheme="Outcome", label="Mortality"),
+        Concept(local_ref="C5", scheme="Outcome", label="Morbidity"),
+    ]
+    local_ref_to_iri = {
+        c.local_ref: f"https://vocab.example.org/{c.local_ref}" for c in concepts
+    }
+    return IndexedVocab(concepts=concepts, local_ref_to_iri=local_ref_to_iri)
+
+
+def test_map_evidence_dispatches_to_taxonomy_path():
+    agent = ResearchMappingOrchestrator()
+    agent._map_evidence_via_taxonomy = MagicMock(return_value="taxonomy_result")
+    agent._map_evidence_via_suggested_dimensions = MagicMock()
+
+    result = agent._map_evidence(
+        UserQuery(query="test"), [], MappingMode.TAXONOMY, taxonomy.RepoCommunity.HPV
+    )
+
+    assert result == "taxonomy_result"
+    agent._map_evidence_via_taxonomy.assert_called_once_with(
+        UserQuery(query="test"), [], taxonomy.RepoCommunity.HPV
+    )
+    agent._map_evidence_via_suggested_dimensions.assert_not_called()
+
+
+def test_map_evidence_dispatches_to_suggested_dimensions_path_by_default():
+    agent = ResearchMappingOrchestrator()
+    agent._map_evidence_via_taxonomy = MagicMock()
+    agent._map_evidence_via_suggested_dimensions = MagicMock(
+        return_value="suggested_result"
+    )
+
+    result = agent._map_evidence(
+        UserQuery(query="test"), [], MappingMode.SUGGESTED, taxonomy.RepoCommunity.HPV
+    )
+
+    assert result == "suggested_result"
+    agent._map_evidence_via_taxonomy.assert_not_called()
+
+
+def test_map_evidence_via_taxonomy_falls_back_when_fewer_than_3_schemes_represented():
+    """Only 'Country' is represented in the evidence's known concepts — fewer than the
+    3 schemes needed for taxonomy-scheme mapping, so it falls back to suggested
+    dimensions instead of failing outright."""
+    mock_tui = MagicMock()
+    agent = ResearchMappingOrchestrator(tui=mock_tui)
+    evidence = [
+        Evidence(
+            destiny_id=uuid.uuid4(),
+            known_concepts=["https://vocab.example.org/C0"],
+        )
+    ]
+    agent._map_evidence_via_suggested_dimensions = MagicMock(
+        return_value="fallback_result"
+    )
+
+    with (
+        patch.object(taxonomy, "get_taxonomy", return_value={}),
+        patch.object(
+            taxonomy, "build_concept_index", return_value=_taxonomy_indexed_vocab()
+        ),
+    ):
+        result = agent._map_evidence_via_taxonomy(
+            UserQuery(query="test"), evidence, taxonomy.RepoCommunity.HPV
+        )
+
+    assert result == "fallback_result"
+    agent._map_evidence_via_suggested_dimensions.assert_called_once_with(
+        UserQuery(query="test"), evidence
+    )
+    mock_tui.print_info.assert_any_call(
+        "[yellow]Fewer than 3 taxonomy schemes are represented in this "
+        "evidence — falling back to suggested mapping dimensions.[/yellow]"
+    )
+
+
+def test_map_evidence_via_taxonomy_maps_drops_and_reports():
+    mock_tui = MagicMock()
+    agent = ResearchMappingOrchestrator(tui=mock_tui)
+    indexed = _taxonomy_indexed_vocab()
+
+    fully_annotated = Evidence(
+        destiny_id=uuid.uuid4(),
+        known_concepts=[
+            "https://vocab.example.org/C0",  # Kenya - Country
+            "https://vocab.example.org/C2",  # RCT - Study Design
+            "https://vocab.example.org/C4",  # Mortality - Outcome
+        ],
+    )
+    multi_concept = Evidence(
+        destiny_id=uuid.uuid4(),
+        known_concepts=[
+            "https://vocab.example.org/C0",  # Kenya - Country
+            "https://vocab.example.org/C1",  # Uganda - Country (2nd match, same dim)
+            "https://vocab.example.org/C3",  # Cohort - Study Design
+            "https://vocab.example.org/C5",  # Morbidity - Outcome
+        ],
+    )
+    unannotated = Evidence(
+        destiny_id=uuid.uuid4(),
+        known_concepts=["https://vocab.example.org/C0"],  # missing Study Design/Outcome
+    )
+
+    dimensions = (
+        MappingDimensionWithSubTopics(name="Country", description="", subtopics=[]),
+        MappingDimensionWithSubTopics(
+            name="Study Design", description="", subtopics=[]
+        ),
+        MappingDimensionWithSubTopics(name="Outcome", description="", subtopics=[]),
+    )
+    prediction = MagicMock(
+        dimension1=dimensions[0],
+        dimension2=dimensions[1],
+        dimension3=dimensions[2],
+        reasoning="some reasoning",
+    )
+    agent.taxonomy_scheme_dimension_generator = MagicMock(return_value=prediction)
+
+    with (
+        patch.object(taxonomy, "get_taxonomy", return_value={}),
+        patch.object(taxonomy, "build_concept_index", return_value=indexed),
+    ):
+        result = agent._map_evidence_via_taxonomy(
+            UserQuery(query="test"),
+            [fully_annotated, multi_concept, unannotated],
+            taxonomy.RepoCommunity.HPV,
+        )
+
+    assert len(result.mapped_evidence) == 2
+    mapped_by_id = {m.evidence.destiny_id: m for m in result.mapped_evidence}
+    assert mapped_by_id[fully_annotated.destiny_id].coordinate == {
+        "Country": ["Kenya"],
+        "Study Design": ["RCT"],
+        "Outcome": ["Mortality"],
+    }
+    assert mapped_by_id[multi_concept.destiny_id].coordinate == {
+        "Country": ["Kenya", "Uganda"],
+        "Study Design": ["Cohort"],
+        "Outcome": ["Morbidity"],
+    }
+    assert unannotated.destiny_id not in mapped_by_id
+    mock_tui.print_info.assert_any_call(
+        "2 piece(s) of evidence mapped via taxonomy schemes; 1 dropped — not "
+        "annotated against all of the chosen schemes."
+    )
+
+
+def test_run_raises_when_taxonomy_mapping_drops_all_evidence():
+    """
+    Regression test: if every piece of screened evidence gets dropped during taxonomy
+    mapping (none annotated against all 3 chosen schemes), run() must still raise
+    NoEvidenceToActOnError rather than returning/rendering an empty map — the same
+    generic empty-mapped_evidence guard used for the suggested-dimensions path.
+    """
+    mock_tui = MagicMock()
+    agent = ResearchMappingOrchestrator(tui=mock_tui)
+    indexed = _taxonomy_indexed_vocab()
+
+    # Each item only carries a concept from a single scheme — the union across items
+    # covers all 3 schemes (so taxonomy mapping proceeds), but no single item is
+    # annotated against every chosen scheme, so all 3 are dropped.
+    only_country = Evidence(
+        destiny_id=uuid.uuid4(), known_concepts=["https://vocab.example.org/C0"]
+    )
+    only_study_design = Evidence(
+        destiny_id=uuid.uuid4(), known_concepts=["https://vocab.example.org/C2"]
+    )
+    only_outcome = Evidence(
+        destiny_id=uuid.uuid4(), known_concepts=["https://vocab.example.org/C4"]
+    )
+    evidence = [only_country, only_study_design, only_outcome]
+
+    agent._gather_all_evidence = MagicMock(return_value=evidence)
+    agent._screen_evidence = MagicMock(return_value=evidence)
+    agent._select_mapping_mode = MagicMock(return_value=MappingMode.TAXONOMY)
+
+    dimensions = (
+        MappingDimensionWithSubTopics(name="Country", description="", subtopics=[]),
+        MappingDimensionWithSubTopics(
+            name="Study Design", description="", subtopics=[]
+        ),
+        MappingDimensionWithSubTopics(name="Outcome", description="", subtopics=[]),
+    )
+    prediction = MagicMock(
+        dimension1=dimensions[0],
+        dimension2=dimensions[1],
+        dimension3=dimensions[2],
+        reasoning="some reasoning",
+    )
+    agent.taxonomy_scheme_dimension_generator = MagicMock(return_value=prediction)
+
+    with (
+        patch.object(taxonomy, "get_taxonomy", return_value={}),
+        patch.object(taxonomy, "build_concept_index", return_value=indexed),
+        pytest.raises(NoEvidenceToActOnError, match="No evidence could be mapped"),
+    ):
+        agent.run(UserQuery(query="test"))

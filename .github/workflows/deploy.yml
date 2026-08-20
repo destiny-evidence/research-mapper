@@ -2,7 +2,8 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    # drop `infra` before merging
+    branches: [main, infra]
   workflow_dispatch:
 
 permissions:
@@ -13,10 +14,13 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: staging
+    env:
+      IMAGE: ${{ vars.REGISTRY_SERVER }}/${{ vars.APP_NAME }}:${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: azure/login@v2
+      - name: Az CLI login
+        uses: azure/login@v2.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
@@ -24,15 +28,15 @@ jobs:
 
       - name: Build and push image
         run: |
-          az acr login --name "${{ vars.REGISTRY_NAME }}"
-          image="${{ vars.REGISTRY_SERVER }}/research-mapper:${{ github.sha }}"
-          docker build --platform linux/amd64 -t "$image" .
-          docker push "$image"
-          echo "IMAGE=$image" >> "$GITHUB_ENV"
+          az acr login --name ${{ vars.REGISTRY_NAME }}
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
 
-      - name: Deploy to container app
-        run: |
-          az containerapp update \
-            --name "${{ vars.CONTAINER_APP_NAME }}" \
-            --resource-group "${{ vars.RESOURCE_GROUP }}" \
-            --image "$IMAGE"
+      - name: Deploy built image to the container app
+        uses: Azure/container-apps-deploy-action@v1
+        with:
+          acrName: ${{ vars.REGISTRY_NAME }}
+          containerAppName: ${{ vars.CONTAINER_APP_NAME }}
+          resourceGroup: ${{ vars.RESOURCE_GROUP }}
+          containerAppEnvironment: ${{ vars.CONTAINER_APP_ENV }}
+          imageToDeploy: ${{ env.IMAGE }}

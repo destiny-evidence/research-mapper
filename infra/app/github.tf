@@ -31,6 +31,18 @@ resource "azurerm_role_assignment" "github_actions_container_app" {
   role_definition_name = "Contributor"
 }
 
+resource "azurerm_role_assignment" "github_actions_container_app_environment" {
+  principal_id         = azuread_service_principal.github_actions.object_id
+  scope                = azurerm_container_app_environment.this.id
+  role_definition_name = "Contributor"
+}
+
+resource "azurerm_role_assignment" "github_actions_resource_group_reader" {
+  principal_id         = azuread_service_principal.github_actions.object_id
+  scope                = azurerm_resource_group.this.id
+  role_definition_name = "Reader"
+}
+
 resource "github_repository_environment" "this" {
   repository  = var.app_name
   environment = var.environment
@@ -43,8 +55,10 @@ locals {
     AZURE_SUBSCRIPTION_ID = data.azurerm_subscription.current.subscription_id
     REGISTRY_NAME         = data.azurerm_container_registry.this.name
     REGISTRY_SERVER       = data.azurerm_container_registry.this.login_server
+    APP_NAME              = var.app_name
     RESOURCE_GROUP        = azurerm_resource_group.this.name
     CONTAINER_APP_NAME    = azurerm_container_app.this.name
+    CONTAINER_APP_ENV     = azurerm_container_app_environment.this.name
   }
 }
 

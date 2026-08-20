@@ -39,6 +39,7 @@ resource "azurerm_container_app_environment" "this" {
   name                       = local.name
   location                   = azurerm_resource_group.this.location
   resource_group_name        = azurerm_resource_group.this.name
+  logs_destination           = "log-analytics"
   log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
   infrastructure_subnet_id   = azurerm_subnet.app.id
   tags                       = local.minimum_resource_tags
@@ -74,7 +75,7 @@ resource "azurerm_container_app" "this" {
   ingress {
     external_enabled           = true
     allow_insecure_connections = false
-    target_port                = 7681
+    target_port                = 8080
     transport                  = "auto"
 
     traffic_weight {

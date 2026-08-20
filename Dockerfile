@@ -21,6 +21,6 @@ COPY entrypoint.sh ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-default-groups --no-editable
 
-EXPOSE 7681
-CMD ["ttyd", "--writable", "--port", "7681", "--terminal-type", "xterm-256color", \
-     "-t", "titleFixed=research-mapper (TEMPORARY DEMO)", "/app/entrypoint.sh"]
+EXPOSE 8080
+CMD ["ttyd", "--writable", "--port", "8080", "--terminal-type", "xterm-256color", \
+     "-t", "titleFixed=research-mapper", "/app/entrypoint.sh"]

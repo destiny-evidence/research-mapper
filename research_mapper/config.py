@@ -86,7 +86,7 @@ def get_destiny_client() -> OAuthClient:
     return OAuthClient(auth=auth, env=env)
 
 
-def _check_db() -> None:
+if os.getenv("MAPPER_DESTINY_ENV") == "staging":
     """Temporary proof of connection"""
     token = ManagedIdentityCredential(
         client_id=os.environ["AZURE_CLIENT_ID"]
@@ -103,6 +103,3 @@ def _check_db() -> None:
         connection.cursor() as cursor,
     ):
         cursor.execute("SELECT version()")
-
-
-_check_db()

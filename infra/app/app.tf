@@ -43,6 +43,11 @@ resource "azurerm_container_app_environment" "this" {
   log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
   infrastructure_subnet_id   = azurerm_subnet.app.id
   tags                       = local.minimum_resource_tags
+
+  workload_profile {
+    name                  = "Consumption"
+    workload_profile_type = "Consumption"
+  }
 }
 
 resource "azurerm_container_app" "this" {
@@ -50,6 +55,7 @@ resource "azurerm_container_app" "this" {
   resource_group_name          = azurerm_resource_group.this.name
   container_app_environment_id = azurerm_container_app_environment.this.id
   revision_mode                = "Single"
+  workload_profile_name        = "Consumption"
   tags                         = local.minimum_resource_tags
 
   identity {

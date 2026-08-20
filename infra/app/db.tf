@@ -1,6 +1,3 @@
-# Cheapest burstable tier, no HA, no geo-redundancy. Reachable only from the
-# vnet, and only by Entra identities -- password auth is off entirely.
-
 resource "azurerm_postgresql_flexible_server" "this" {
   name                          = local.name
   resource_group_name           = azurerm_resource_group.this.name
@@ -17,14 +14,16 @@ resource "azurerm_postgresql_flexible_server" "this" {
   authentication {
     active_directory_auth_enabled = true
     password_auth_enabled         = false
+    tenant_id                     = data.azurerm_subscription.current.tenant_id
   }
 
   depends_on = [azurerm_private_dns_zone_virtual_network_link.db]
+
+  lifecycle {
+    ignore_changes = [zone]
+  }
 }
 
-# Making the app's identity the server administrator means it can connect with
-# no in-database user provisioning -- which would otherwise need a bootstrap
-# job inside the vnet, since the server isn't reachable from Terraform.
 resource "azurerm_postgresql_flexible_server_active_directory_administrator" "app" {
   server_name         = azurerm_postgresql_flexible_server.this.name
   resource_group_name = azurerm_resource_group.this.name

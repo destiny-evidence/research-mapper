@@ -28,6 +28,10 @@ resource "azurerm_subnet" "db" {
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = ["10.0.2.0/24"]
 
+  service_endpoint {
+    service = "Microsoft.Storage"
+  }
+
   delegation {
     name = "fs"
     service_delegation {
@@ -40,7 +44,6 @@ resource "azurerm_subnet" "db" {
 resource "azurerm_private_dns_zone" "db" {
   name                = "${var.app_name}.postgres.database.azure.com"
   resource_group_name = azurerm_resource_group.this.name
-  tags                = local.minimum_resource_tags
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "db" {

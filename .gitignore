@@ -10,3 +10,8 @@ wheels/
 .venv
 /.idea
 /.env
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*

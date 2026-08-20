@@ -4,7 +4,9 @@ from functools import lru_cache
 from pathlib import Path
 
 import dspy
-from destiny_sdk.client import OAuthClient
+import psycopg
+from azure.identity import ManagedIdentityCredential
+from destiny_sdk.client import OAuthClient, OAuthMiddleware
 from dotenv import load_dotenv, find_dotenv
 
 logger = logging.getLogger(__name__)
@@ -67,12 +69,39 @@ def configure_dspy() -> None:
 
 @lru_cache(maxsize=1)
 def get_destiny_client() -> OAuthClient:
-    logger.info("Initialising Destiny OAuth client")
-    client = OAuthClient(
-        base_url=os.environ.get("MAPPER_DESTINY_BASE_URL"),
-        env=os.environ.get("MAPPER_DESTINY_ENV", "production"),
-    )
-    logger.debug("Triggering eagerly OAuth token fetch via health check")
-    client.get_client().get("/v1/system/healthcheck/")
-    logger.info("Destiny client authenticated and healthy")
-    return client
+    """Builds an authenticated DESTINY repository client."""
+    client_id = os.environ.get("AZURE_CLIENT_ID")
+    application_id = os.environ.get("MAPPER_DESTINY_APPLICATION_ID")
+    env = os.environ.get("MAPPER_DESTINY_ENV", "production")
+
+    auth = None
+    if client_id and application_id:
+        logger.info("Authenticating to Destiny with managed identity")
+        auth = OAuthMiddleware(
+            azure_client_id=client_id,
+            azure_application_id=application_id,
+            use_managed_identity=True,
+        )
+
+    return OAuthClient(auth=auth, env=env)
+
+
+if os.getenv("MAPPER_DESTINY_ENV") == "staging":
+    """Temporary proof of connection"""
+    token = ManagedIdentityCredential(
+        client_id=os.environ["AZURE_CLIENT_ID"]
+    ).get_token("https://ossrdbms-aad.database.windows.net/.default")
+
+    with (
+        psycopg.connect(
+            host=os.environ["MAPPER_DB_HOST"],
+            dbname=os.environ["MAPPER_DB_NAME"],
+            user=os.environ["MAPPER_DB_USER"],
+            password=token.token,
+            sslmode="require",
+        ) as connection,
+        connection.cursor() as cursor,
+    ):
+        cursor.execute("SELECT version()")
+
+    logger.info("Successfully connected to the database with managed identity!")

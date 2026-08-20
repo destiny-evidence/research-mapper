@@ -103,3 +103,5 @@ if os.getenv("MAPPER_DESTINY_ENV") == "staging":
         connection.cursor() as cursor,
     ):
         cursor.execute("SELECT version()")
+
+    logger.info("Successfully connected to the database with managed identity!")

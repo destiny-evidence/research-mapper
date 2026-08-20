@@ -5,11 +5,13 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "azure-identity>=1.19.0",
     "destiny-sdk>=0.13.0",
     "dspy>=3.1.3",
     "httpx>=0.28.1",
     "luqum>=1.0.0",
     "pydantic>=2.12.5",
+    "psycopg[binary]>=3.2.0",
     "pyld>=3.1.0",
     "rich>=14.3.3",
     "rispy>=0.10.0",

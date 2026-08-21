@@ -10,6 +10,4 @@ cat <<'BANNER'
   ############################################################
 
 BANNER
-alembic upgrade head
-
 exec research-mapper

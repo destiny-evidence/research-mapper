@@ -155,3 +155,64 @@ resource "azurerm_container_app" "this" {
     ignore_changes = [template[0].container[0].image]
   }
 }
+
+resource "azurerm_container_app_job" "migrate" {
+  name                         = "db-migrator-${var.environment}"
+  resource_group_name          = azurerm_resource_group.this.name
+  location                     = azurerm_resource_group.this.location
+  container_app_environment_id = azurerm_container_app_environment.this.id
+  workload_profile_name        = "Consumption"
+  replica_timeout_in_seconds   = 600
+  replica_retry_limit          = 1
+  tags                         = local.minimum_resource_tags
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.app.id]
+  }
+
+  registry {
+    server   = data.azurerm_container_registry.this.login_server
+    identity = azurerm_user_assigned_identity.app.id
+  }
+
+  manual_trigger_config {
+    parallelism              = 1
+    replica_completion_count = 1
+  }
+
+  template {
+    container {
+      name    = "migrate"
+      image   = "mcr.microsoft.com/k8se/quickstart:latest"
+      cpu     = 0.5
+      memory  = "1Gi"
+      command = ["alembic", "upgrade", "head"]
+
+      env {
+        name  = "AZURE_CLIENT_ID"
+        value = azurerm_user_assigned_identity.app.client_id
+      }
+
+      env {
+        name  = "MAPPER_DB_HOST"
+        value = azurerm_postgresql_flexible_server.this.fqdn
+      }
+
+      env {
+        name  = "MAPPER_DB_NAME"
+        value = azurerm_postgresql_flexible_server_database.this.name
+      }
+
+      env {
+        name  = "MAPPER_DB_USER"
+        value = azurerm_user_assigned_identity.app.name
+      }
+    }
+  }
+
+  # The deploy workflow, not Terraform, owns which image tag is live.
+  lifecycle {
+    ignore_changes = [template[0].container[0].image]
+  }
+}

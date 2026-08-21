@@ -4,10 +4,11 @@ from functools import lru_cache
 from pathlib import Path
 
 import dspy
-import psycopg
-from azure.identity import ManagedIdentityCredential
 from destiny_sdk.client import OAuthClient, OAuthMiddleware
 from dotenv import load_dotenv, find_dotenv
+from sqlalchemy import text
+
+from research_mapper.db.session import db_manager
 
 logger = logging.getLogger(__name__)
 
@@ -86,22 +87,15 @@ def get_destiny_client() -> OAuthClient:
     return OAuthClient(auth=auth, env=env)
 
 
+def init_database() -> None:
+    """Initializes the database session manager from environment variables."""
+    db_manager.init()
+
+
 if os.getenv("MAPPER_DESTINY_ENV") == "staging":
     """Temporary proof of connection"""
-    token = ManagedIdentityCredential(
-        client_id=os.environ["AZURE_CLIENT_ID"]
-    ).get_token("https://ossrdbms-aad.database.windows.net/.default")
-
-    with (
-        psycopg.connect(
-            host=os.environ["MAPPER_DB_HOST"],
-            dbname=os.environ["MAPPER_DB_NAME"],
-            user=os.environ["MAPPER_DB_USER"],
-            password=token.token,
-            sslmode="require",
-        ) as connection,
-        connection.cursor() as cursor,
-    ):
-        cursor.execute("SELECT version()")
+    init_database()
+    with db_manager.session() as session:
+        session.execute(text("SELECT version()"))
 
     logger.info("Successfully connected to the database with managed identity!")

@@ -154,7 +154,7 @@ def run() -> None:
     log_path = _configure_logging()
     try:
         main()
-    except (KeyboardInterrupt, EOFError):
+    except KeyboardInterrupt, EOFError:
         print("\nExiting...")
         sys.exit(130)
     except NoEvidenceToActOnError as exc:

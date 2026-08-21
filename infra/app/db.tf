@@ -2,7 +2,7 @@ resource "azurerm_postgresql_flexible_server" "this" {
   name                          = local.name
   resource_group_name           = azurerm_resource_group.this.name
   location                      = azurerm_resource_group.this.location
-  version                       = "16"
+  version                       = "18"
   sku_name                      = "B_Standard_B1ms"
   storage_mb                    = 32768
   backup_retention_days         = 7

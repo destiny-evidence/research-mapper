@@ -1,4 +1,4 @@
-from research_mapper.workflow.context import NeedsInput
+from research_mapper.engine.context import NeedsInput
 
 
 def test_needs_input_inherits_base_exception():

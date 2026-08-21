@@ -41,3 +41,4 @@ build-backend = "hatchling.build"
 markers = [
     "integration: end-to-end tests requiring live .env credentials",
 ]
+pythonpath = ["tests"]

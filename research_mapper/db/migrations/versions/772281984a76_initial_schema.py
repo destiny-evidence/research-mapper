@@ -12,7 +12,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-from research_mapper.workflow import queue
+from research_mapper.engine import queue
 
 # revision identifiers, used by Alembic.
 revision: str = "772281984a76"

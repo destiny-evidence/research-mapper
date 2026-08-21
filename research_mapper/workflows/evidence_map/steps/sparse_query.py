@@ -4,10 +4,10 @@ from typing import ClassVar
 from pydantic import BaseModel
 
 from research_mapper.models.common import UserQuery
-from research_mapper.research.pipeline import SparseQueryGenerator
-from research_mapper.workflow.context import StepContext
-from research_mapper.workflow.registry import Step, register
-from research_mapper.workflow.views import AskSpec
+from research_mapper.workflows.evidence_map.pipeline import SparseQueryGenerator
+from research_mapper.engine.context import StepContext
+from research_mapper.engine.registry import Step, register
+from research_mapper.engine.views import AskSpec
 
 
 SUGGESTED = "suggested_search_queries"

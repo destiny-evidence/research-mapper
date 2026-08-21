@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from research_mapper.db.base import Base
-from research_mapper.research.enums import SessionReferenceStage
+from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
 
 
 class SessionReference(Base):

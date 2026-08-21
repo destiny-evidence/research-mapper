@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from research_mapper.research.enums import SessionReferenceStage
+from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
 
 
 @dataclass(frozen=True, slots=True)

@@ -188,8 +188,6 @@ resource "azurerm_container_app_job" "migrate" {
   }
 }
 
-# The worker shares nothing with the API but the database. It gets its own
-# container so a fan-out of LLM calls can't starve request serving.
 resource "azurerm_container_app" "worker" {
   name                         = "${local.name}-worker"
   resource_group_name          = azurerm_resource_group.this.name

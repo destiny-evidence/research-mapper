@@ -17,8 +17,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from research_mapper.db.base import Base
 from research_mapper.db.types import PydanticJSONB
-from research_mapper.workflow.enums import DecisionType, OperationStatus
-from research_mapper.workflow.views import Progress
+from research_mapper.engine.enums import DecisionType, OperationStatus
+from research_mapper.engine.views import Progress
 
 
 class User(Base):

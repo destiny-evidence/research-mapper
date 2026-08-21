@@ -10,6 +10,21 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      db:
+        image: postgres:18
+        env:
+          POSTGRES_USER: research_mapper
+          POSTGRES_PASSWORD: research_mapper
+          POSTGRES_DB: research_mapper
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U research_mapper"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -27,6 +42,15 @@ jobs:
 
       - name: Run ruff lint
         run: uv run ruff check .
+
+      - name: Check the engine does not depend on a workflow
+        run: |
+          ! grep -rn "research_mapper.workflows" research_mapper/engine/
+
+      - name: Run type checks
+        run: |
+          uv run mypy research_mapper/db research_mapper/engine \
+            research_mapper/workflows research_mapper/commands.py
 
       - name: Run unit tests
         run: uv run pytest -m "not integration" --tb=short

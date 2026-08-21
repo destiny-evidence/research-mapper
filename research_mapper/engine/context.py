@@ -8,8 +8,8 @@ from sqlalchemy import Select, select, update
 from sqlalchemy.orm import joinedload
 
 from research_mapper.db.session import SessionFactory
-from research_mapper.workflow.views import ArtifactView, AskSpec, Progress
-from research_mapper.workflow.models import (
+from research_mapper.engine.views import ArtifactView, AskSpec, Progress
+from research_mapper.engine.models import (
     Artifact,
     Decision,
     Operation,

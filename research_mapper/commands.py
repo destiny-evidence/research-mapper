@@ -8,18 +8,18 @@ from sqlalchemy.engine import CursorResult
 
 from research_mapper.config import configure_dspy, init_database
 from research_mapper.db.session import SessionFactory, db_manager
-from research_mapper.research.context import ResearchContext
-from research_mapper.workflow import queue, runner
+from research_mapper.workflows.evidence_map.context import EvidenceMapContext
+from research_mapper.engine import queue, runner
 
 # Steps register themselves on import, so the registry is empty without this.
-import research_mapper.research.steps  # noqa: E402, F401
+import research_mapper.workflows.evidence_map.steps  # noqa: E402, F401
 
 HEARTBEAT_TIMEOUT = timedelta(minutes=45)
 DEQUEUE_TIMEOUT = timedelta(seconds=5)
 
 
-def _context(operation_id: UUID, session_factory: SessionFactory) -> ResearchContext:
-    return ResearchContext(operation_id, session_factory)
+def _context(operation_id: UUID, session_factory: SessionFactory) -> EvidenceMapContext:
+    return EvidenceMapContext(operation_id, session_factory)
 
 
 async def _worker() -> None:

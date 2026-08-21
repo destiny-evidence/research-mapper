@@ -4,15 +4,15 @@ from uuid import UUID
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 
-from research_mapper.research.enums import SessionReferenceStage
-from research_mapper.research.models import SessionReference
-from research_mapper.research.views import (
+from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
+from research_mapper.workflows.evidence_map.models import SessionReference
+from research_mapper.workflows.evidence_map.views import (
     CoordinateRow,
     ReferenceView,
     RefRow,
     ScreeningRow,
 )
-from research_mapper.workflow.context import StepContext
+from research_mapper.engine.context import StepContext
 
 
 def _by_agent(**fields: object) -> dict:
@@ -20,7 +20,7 @@ def _by_agent(**fields: object) -> dict:
     return {**fields, "by": "agent", "at": datetime.now(UTC).isoformat()}
 
 
-class ResearchContext(StepContext):
+class EvidenceMapContext(StepContext):
     def _update(self, destiny_id: UUID, **values: object):
         """Build an update of one of this session's references."""
         return (

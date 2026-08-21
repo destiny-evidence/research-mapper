@@ -5,10 +5,10 @@ from uuid import UUID
 from sqlalchemy import select, update
 
 from research_mapper.db.session import SessionFactory
-from research_mapper.workflow import registry
-from research_mapper.workflow.context import NeedsInput, StepContext
-from research_mapper.workflow.enums import OperationStatus
-from research_mapper.workflow.models import Decision, Operation, ResearchSession
+from research_mapper.engine import registry
+from research_mapper.engine.context import NeedsInput, StepContext
+from research_mapper.engine.enums import OperationStatus
+from research_mapper.engine.models import Decision, Operation, ResearchSession
 
 logger = logging.getLogger(__name__)
 

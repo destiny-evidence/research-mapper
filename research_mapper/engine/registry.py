@@ -4,7 +4,7 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
-from research_mapper.workflow.context import StepContext
+from research_mapper.engine.context import StepContext
 
 STEP_T = builtins.type["Step[Any]"]
 REGISTRY: dict[str, STEP_T] = {}

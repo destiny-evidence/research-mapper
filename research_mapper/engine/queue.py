@@ -14,14 +14,12 @@ ENTRYPOINT = "operation"
 async def connect() -> psycopg.AsyncConnection:
     """Open a connection for pgqueuer, taking a fresh credential as we go."""
     settings = db_settings()
-    conninfo = psycopg.conninfo.make_conninfo(
-        user=settings.user,
-        host=settings.host,
-        dbname=settings.db_name,
+    options = "" if settings.password else "?sslmode=require"
+    return await psycopg.AsyncConnection.connect(
+        f"postgresql://{settings.user}@{settings.host}/{settings.db_name}{options}",
         password=db_password(settings),
-        sslmode="require",
+        autocommit=True,
     )
-    return await psycopg.AsyncConnection.connect(conninfo, autocommit=True)
 
 
 async def queries() -> tuple[Queries, psycopg.AsyncConnection]:
@@ -31,13 +29,14 @@ async def queries() -> tuple[Queries, psycopg.AsyncConnection]:
 
 
 async def enqueue(operation_id: UUID) -> None:
-    """Queue an operation for a worker to pick up."""
+    """Queue an operation for a worker to pick up, ignoring one already queued."""
     repository, connection = await queries()
     try:
         await repository.enqueue(
             ENTRYPOINT,
             str(operation_id).encode(),
             dedupe_key=str(operation_id),
+            on_conflict="skip",
         )
     finally:
         await connection.close()

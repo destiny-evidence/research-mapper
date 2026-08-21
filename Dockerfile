@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.10 /uv /uvx /bin/
 
@@ -17,7 +17,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-default-groups
 
 COPY research_mapper ./research_mapper
-COPY entrypoint.sh ./
+COPY alembic.ini entrypoint.sh ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-default-groups --no-editable
 

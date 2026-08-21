@@ -59,6 +59,16 @@ class StepContext:
         """The id of the research session this operation belongs to."""
         return self.research_session.id
 
+    @property
+    def operation_type(self) -> str:
+        """The registered type of the operation being run."""
+        return self._operation.type
+
+    @property
+    def params(self) -> dict:
+        """The parameters this operation was created with."""
+        return self._operation.params
+
     def _select_latest_artifact(self, artifact_type: str) -> Select[tuple[Artifact]]:
         """Select the highest-versioned artifact of a type in this session."""
         return (

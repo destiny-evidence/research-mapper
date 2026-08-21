@@ -187,7 +187,7 @@ resource "azurerm_container_app_job" "migrate" {
       image   = "mcr.microsoft.com/k8se/quickstart:latest"
       cpu     = 0.5
       memory  = "1Gi"
-      command = ["alembic", "upgrade", "head"]
+      command = ["python", "-m", "research_mapper", "migrate"]
 
       env {
         name  = "AZURE_CLIENT_ID"

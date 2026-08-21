@@ -6,7 +6,6 @@ from pathlib import Path
 import dspy
 from destiny_sdk.client import OAuthClient, OAuthMiddleware
 from dotenv import load_dotenv, find_dotenv
-from pydantic import SecretStr
 from sqlalchemy import text
 
 from research_mapper.db.session import db_manager
@@ -90,13 +89,7 @@ def get_destiny_client() -> OAuthClient:
 
 def init_database() -> None:
     """Initializes the database session manager from environment variables."""
-    password = os.environ.get("MAPPER_DB_PASSWORD")
-    db_manager.init(
-        user=os.environ["MAPPER_DB_USER"],
-        host=os.environ["MAPPER_DB_HOST"],
-        db_name=os.environ["MAPPER_DB_NAME"],
-        password=SecretStr(password) if password else None,
-    )
+    db_manager.init()
 
 
 if os.getenv("MAPPER_DESTINY_ENV") == "staging":

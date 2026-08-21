@@ -24,4 +24,3 @@ class Progress(BaseModel):
 class ArtifactView:
     version: int
     payload: dict
-

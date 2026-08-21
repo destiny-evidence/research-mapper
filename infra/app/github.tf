@@ -66,6 +66,7 @@ locals {
     CONTAINER_APP_NAME    = azurerm_container_app.this.name
     ENVIRONMENT_NAME      = var.environment
     CONTAINER_APP_ENV     = azurerm_container_app_environment.this.name
+    MIGRATE_JOB_NAME      = azurerm_container_app_job.migrate.name
   }
 }
 

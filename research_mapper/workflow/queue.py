@@ -44,13 +44,18 @@ async def enqueue(operation_id: UUID) -> None:
 
 
 def install_ddl(create_schema: bool = False) -> str:
-    """The DDL that creates pgqueuer's schema, for an Alembic migration to run."""
+    """The DDL that creates pgqueuer's schema."""
     return qb.QueryBuilderEnvironment().build_install_query(create_schema=create_schema)
 
 
 def upgrade_ddl() -> list[str]:
-    """The statements that migrate pgqueuer's schema, for an Alembic migration to run."""
+    """The statements that migrate an older pgqueuer schema to this version."""
     return list(qb.QueryBuilderEnvironment().build_upgrade_queries())
+
+
+def uninstall_ddl() -> str:
+    """The DDL that drops pgqueuer's schema."""
+    return qb.QueryBuilderEnvironment().build_uninstall_query()
 
 
 async def queue_manager() -> QueueManager:

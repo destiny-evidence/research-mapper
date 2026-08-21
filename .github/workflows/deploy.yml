@@ -42,6 +42,15 @@ jobs:
           containerAppEnvironment: ${{ vars.CONTAINER_APP_ENV }}
           imageToDeploy: ${{ env.IMAGE }}
 
+      - name: Deploy built image to the worker
+        uses: Azure/cli@v2.0.0
+        with:
+          inlineScript: |
+            az containerapp update \
+              --name ${{ vars.WORKER_APP_NAME }} \
+              --resource-group ${{ vars.RESOURCE_GROUP }} \
+              --image ${{ env.IMAGE }}
+
   migrate-database:
     runs-on: ubuntu-latest
     needs: [deploy]

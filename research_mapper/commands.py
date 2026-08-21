@@ -11,6 +11,9 @@ from research_mapper.db.session import SessionFactory, db_manager
 from research_mapper.research.context import ResearchContext
 from research_mapper.workflow import queue, runner
 
+# Steps register themselves on import, so the registry is empty without this.
+import research_mapper.research.steps  # noqa: E402, F401
+
 HEARTBEAT_TIMEOUT = timedelta(minutes=45)
 DEQUEUE_TIMEOUT = timedelta(seconds=5)
 
@@ -20,8 +23,6 @@ def _context(operation_id: UUID, session_factory: SessionFactory) -> ResearchCon
 
 
 async def _worker() -> None:
-    import research_mapper.research.steps  # noqa: F401
-
     manager = await queue.queue_manager()
 
     @manager.entrypoint(queue.ENTRYPOINT, concurrency_limit=1, on_failure="hold")

@@ -6,7 +6,8 @@ from pydantic import BaseModel
 
 from research_mapper.workflow.context import StepContext
 
-REGISTRY: dict[str, builtins.type["Step[Any]"]] = {}
+STEP_T = builtins.type["Step[Any]"]
+REGISTRY: dict[str, STEP_T] = {}
 
 
 class Step[P: BaseModel](ABC):
@@ -20,7 +21,7 @@ class Step[P: BaseModel](ABC):
     def run(self, ctx: StepContext, params: P) -> dict: ...
 
 
-def register(step: builtins.type["Step[Any]"]) -> builtins.type["Step[Any]"]:
+def register(step: STEP_T) -> STEP_T:
     """Make a step runnable by its operation type."""
     operation_type = getattr(step, "type", None)
     if not isinstance(operation_type, str) or not operation_type:
@@ -33,7 +34,7 @@ def register(step: builtins.type["Step[Any]"]) -> builtins.type["Step[Any]"]:
     return step
 
 
-def get(operation_type: str) -> builtins.type["Step[Any]"]:
+def get(operation_type: str) -> STEP_T:
     """Return the step registered for an operation type."""
     step = REGISTRY.get(operation_type)
     if step is None:

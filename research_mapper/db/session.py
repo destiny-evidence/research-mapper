@@ -1,5 +1,5 @@
-import contextlib
-from collections.abc import Generator
+from contextlib import AbstractContextManager, contextmanager
+from collections.abc import Callable, Generator
 from typing import Any
 
 from azure.identity import DefaultAzureCredential
@@ -54,7 +54,7 @@ class DatabaseSessionManager:
             ) -> None:
                 cparams["password"] = self._azure_credentials.get_token(_DB_SCOPE).token
 
-        self._sessionmaker = sessionmaker(bind=self._engine)
+        self._sessionmaker = sessionmaker(bind=self._engine, expire_on_commit=False)
 
     @property
     def engine(self) -> Engine:
@@ -72,7 +72,7 @@ class DatabaseSessionManager:
         self._engine = None
         self._sessionmaker = None
 
-    @contextlib.contextmanager
+    @contextmanager
     def session(self) -> Generator[Session, None, None]:
         """Yield a database session."""
         if self._sessionmaker is None:
@@ -85,7 +85,7 @@ class DatabaseSessionManager:
                 session.rollback()
                 raise
 
-    @contextlib.contextmanager
+    @contextmanager
     def connect(self) -> Generator[Connection, None, None]:
         """Yield a database connection."""
         if self._engine is None:
@@ -105,3 +105,6 @@ db_manager = DatabaseSessionManager()
 def get_session() -> Generator[Session, None, None]:
     with db_manager.session() as session:
         yield session
+
+
+SessionFactory = Callable[[], AbstractContextManager[Session]]

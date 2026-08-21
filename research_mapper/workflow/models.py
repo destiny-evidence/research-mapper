@@ -13,10 +13,12 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from research_mapper.db.base import Base
+from research_mapper.db.types import PydanticJSONB
 from research_mapper.workflow.enums import DecisionType, OperationStatus
+from research_mapper.workflow.views import Progress
 
 
 class User(Base):
@@ -68,10 +70,14 @@ class Operation(Base):
     attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     result: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
     error: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
-    progress: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    progress: Mapped[Progress] = mapped_column(
+        PydanticJSONB(Progress), nullable=False, default=Progress()
+    )
     created_by_id: Mapped[UUID] = mapped_column(
         SQL_UUID(as_uuid=True), ForeignKey(User.id), nullable=False
     )
+
+    research_session: Mapped[ResearchSession] = relationship(lazy="raise_on_sql")
 
     __table_args__ = (
         Index("ix_operations_session_created", research_session_id, "id"),

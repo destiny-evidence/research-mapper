@@ -49,7 +49,13 @@ class ResumableReAct(dspy.ReAct):
         trajectory = dict(step.trajectory) if step is not None else {}
 
         if step is not None:
-            trajectory[f"observation_{step.idx}"] = self._execute(step)
+            # A caller may have already supplied this step's observation (see
+            # Step.with_observation) — e.g. a human's answer to a clarifying
+            # question no tool could produce on its own. Only call the tool
+            # for real if nothing's there yet.
+            observation_key = f"observation_{step.idx}"
+            if observation_key not in trajectory:
+                trajectory[observation_key] = self._execute(step)
             if step.tool_name == "finish" or step.idx + 1 >= max_iters:
                 return self._extract(trajectory, **input_args)
 

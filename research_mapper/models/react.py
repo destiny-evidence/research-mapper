@@ -25,3 +25,20 @@ class Step(BaseModel):
     thought: str
     tool_name: str
     tool_args: dict[str, Any]
+
+    def with_observation(self, observation: Any) -> "Step":
+        """
+        Returns a copy of this Step with `observation` already supplied for its own
+        not-yet-executed tool call, resume() sees it and uses it instead of actually
+        calling the tool. This is how a caller answers on a tool's behalf (e.g. a
+        clarifying question only a human can answer) without the tool itself needing
+        any caller-specific state or wiring.
+        """
+        return self.model_copy(
+            update={
+                "trajectory": {
+                    **self.trajectory,
+                    f"observation_{self.idx}": observation,
+                }
+            }
+        )

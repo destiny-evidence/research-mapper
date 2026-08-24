@@ -16,7 +16,7 @@ def make_session(db, user, question="Does X affect Y?") -> ResearchSession:
         user_id=user.id,
         workflow="evidence_map",
         question=question,
-        community="climate",
+        community="hpv",
     )
     db.add(session)
     db.commit()

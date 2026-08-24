@@ -14,6 +14,8 @@ class RefRow:
 class ReferenceView:
     destiny_id: UUID
     stage: SessionReferenceStage
+    screening: dict | None
+    coordinate: dict | None
 
 
 @dataclass(frozen=True, slots=True)

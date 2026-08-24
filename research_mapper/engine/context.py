@@ -3,13 +3,14 @@ from collections.abc import Collection
 from functools import cached_property
 from uuid import UUID
 
-from sqlalchemy import Select, select, update
-from sqlalchemy.orm import joinedload
+from sqlalchemy import select, update
+from sqlalchemy.orm import Session, joinedload
 
 from research_mapper.db.session import SessionFactory
 from research_mapper.engine.views import ArtifactView, AskSpec, Progress
 from research_mapper.engine.models import (
     Artifact,
+    CurrentArtifact,
     Decision,
     Operation,
     ResearchSession,
@@ -68,22 +69,18 @@ class StepContext:
         """The parameters this operation was created with."""
         return self._operation.params
 
-    def _select_latest_artifact(self, artifact_type: str) -> Select[tuple[Artifact]]:
-        """Select the highest-versioned artifact of a type in this session."""
-        return (
-            select(Artifact)
-            .where(Artifact.research_session_id == self.research_session_id)
-            .where(Artifact.type == artifact_type)
-            .order_by(Artifact.version.desc())
-            .limit(1)
-        )
+    def _current(self, db: Session, artifact_type: str) -> Artifact | None:
+        """The current version of an artifact type in this session, if any."""
+        return db.execute(
+            select(CurrentArtifact)
+            .where(CurrentArtifact.research_session_id == self.research_session_id)
+            .where(CurrentArtifact.type == artifact_type)
+        ).scalar_one_or_none()
 
     def get_artifact(self, artifact_type: str) -> ArtifactView | None:
         """Return the current artifact of a type, or None if there is none yet."""
         with self._sf() as db:
-            artifact = db.execute(
-                self._select_latest_artifact(artifact_type)
-            ).scalar_one_or_none()
+            artifact = self._current(db, artifact_type)
             if artifact is None:
                 return None
             return ArtifactView(version=artifact.version, payload=artifact.payload)
@@ -91,9 +88,7 @@ class StepContext:
     def put_artifact(self, artifact_type: str, payload: dict) -> int:
         """Write the next version of an artifact and return its version number."""
         with self._sf() as db:
-            current = db.execute(
-                self._select_latest_artifact(artifact_type)
-            ).scalar_one_or_none()
+            current = self._current(db, artifact_type)
             version = current.version + 1 if current else 1
             db.add(
                 Artifact(

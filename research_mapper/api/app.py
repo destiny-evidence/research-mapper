@@ -21,6 +21,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(title="research-mapper", lifespan=lifespan)
 app.include_router(sessions.router)
 app.include_router(operations.router)
+for workflow_router in workflows.routers():
+    app.include_router(workflow_router)
 
 
 @app.get("/healthz", tags=["ops"])

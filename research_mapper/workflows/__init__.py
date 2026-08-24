@@ -1,4 +1,10 @@
+from typing import TYPE_CHECKING
+
 from research_mapper.engine.registry import Step, register
+
+if TYPE_CHECKING:
+    from fastapi import APIRouter
+
 from research_mapper.workflows.evidence_map.steps import STEPS
 
 WORKFLOWS: dict[str, list[type[Step]]] = {"evidence_map": STEPS}
@@ -9,6 +15,12 @@ def load() -> None:
     for steps in WORKFLOWS.values():
         for step in steps:
             register(step)
+
+
+def routers() -> list["APIRouter"]:
+    from research_mapper.workflows.evidence_map import routes
+
+    return [routes.router]
 
 
 def names() -> list[str]:

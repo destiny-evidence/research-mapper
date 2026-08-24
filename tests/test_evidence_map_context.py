@@ -71,6 +71,22 @@ def test_mark_failed_touches_only_the_ids_given(db, ctx):
     assert stored(db, TWO).stage == SessionReferenceStage.GATHERED
 
 
+def test_references_carry_the_verdicts_a_later_step_needs(db, ctx):
+    """screen_evidence and generate_map resume by skipping rows that already have one."""
+    ctx.record_references([RefRow(ONE, {}), RefRow(TWO, {})])
+    ctx.set_screening(
+        [ScreeningRow(ONE, include=True, reasoning="on topic", criteria_version=1)]
+    )
+    ctx.set_coordinates([CoordinateRow(ONE, {"sector": ["energy"]}, "clear", 2)])
+
+    by_id = {row.destiny_id: row for row in ctx.references()}
+
+    assert by_id[ONE].screening["include"] is True
+    assert by_id[ONE].coordinate == {"sector": ["energy"]}
+    assert by_id[TWO].screening is None
+    assert by_id[TWO].coordinate is None
+
+
 def test_references_can_be_filtered_by_stage(ctx):
     ctx.record_references([RefRow(ONE, {}), RefRow(TWO, {})])
     ctx.mark_failed([TWO])

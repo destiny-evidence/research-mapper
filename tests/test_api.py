@@ -12,7 +12,7 @@ from research_mapper.engine.context import StepContext
 from research_mapper.engine.registry import Step, register
 from research_mapper.engine.views import AskSpec
 
-SESSION = {"workflow": "evidence_map", "question": "q", "community": "climate"}
+SESSION = {"workflow": "evidence_map", "question": "q", "community": "hpv"}
 SUGGESTED = "suggested_queries"
 CHOSEN = "queries"
 ONE = {"query": "a"}

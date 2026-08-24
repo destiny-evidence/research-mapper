@@ -20,7 +20,7 @@ class SparseQueryParams(BaseModel):
     regenerate: bool = False
 
 
-class EnhanceSparseQuery(Step[SparseQueryParams]):
+class EnhanceSparseQuery(Step[SparseQueryParams, StepContext]):
     """Suggest Lucene queries for the session question and keep the user's picks."""
 
     type: ClassVar[str] = "enhance_sparse_query"

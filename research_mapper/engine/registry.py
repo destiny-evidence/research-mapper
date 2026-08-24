@@ -6,19 +6,23 @@ from pydantic import BaseModel
 
 from research_mapper.engine.context import StepContext
 
-STEP_T = builtins.type["Step[Any]"]
+STEP_T = builtins.type["Step[Any, Any]"]
 REGISTRY: dict[str, STEP_T] = {}
 
 
-class Step[P: BaseModel](ABC):
-    """One unit of durable work, run by the worker against a StepContext."""
+class Step[P: BaseModel, C: StepContext](ABC):
+    """One unit of durable work, run by the worker against a StepContext.
+
+    `C` is the context the step needs: `StepContext` if it only touches session,
+    artifacts and decisions, or a subclass if it writes a workflow's own state.
+    """
 
     type: ClassVar[str]
     mutates_state: ClassVar[bool] = True
     Params: ClassVar[builtins.type[BaseModel]]
 
     @abstractmethod
-    def run(self, ctx: StepContext, params: P) -> dict: ...
+    def run(self, ctx: C, params: P) -> dict: ...
 
 
 def register(step: STEP_T) -> STEP_T:

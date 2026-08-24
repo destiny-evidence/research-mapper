@@ -163,7 +163,7 @@ def test_create_operation_takes_mutates_state_from_the_step(
     """The column drives the version bump, so the class value has to reach it."""
     user, session = scenario
 
-    class Reads(Step[Params]):
+    class Reads(Step[Params, StepContext]):
         type = "reads"
         mutates_state = False
         Params = Params
@@ -187,7 +187,7 @@ def test_create_operation_persists_validated_params(
     class Sized(BaseModel):
         limit: int = 10
 
-    class Takes(Step[Sized]):
+    class Takes(Step[Sized, StepContext]):
         type = "takes"
         Params = Sized
 
@@ -211,7 +211,7 @@ def test_create_operation_rejects_bad_input_before_writing_anything(
     class Sized(BaseModel):
         limit: int
 
-    class Needs(Step[Sized]):
+    class Needs(Step[Sized, StepContext]):
         type = "needs"
         Params = Sized
 

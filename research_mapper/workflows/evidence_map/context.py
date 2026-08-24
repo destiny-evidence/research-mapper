@@ -55,15 +55,24 @@ class EvidenceMapContext(StepContext):
         self, stage: SessionReferenceStage | None = None
     ) -> list[ReferenceView]:
         """Return this session's references, optionally only those at one stage."""
-        statement = select(SessionReference.destiny_id, SessionReference.stage).where(
-            SessionReference.research_session_id == self.research_session_id
-        )
+        statement = select(
+            SessionReference.destiny_id,
+            SessionReference.stage,
+            SessionReference.screening,
+            SessionReference.coordinate,
+        ).where(SessionReference.research_session_id == self.research_session_id)
         if stage is not None:
             statement = statement.where(SessionReference.stage == stage)
         with self._sf() as db:
             rows = db.execute(statement).all()
         return [
-            ReferenceView(destiny_id=row.destiny_id, stage=row.stage) for row in rows
+            ReferenceView(
+                destiny_id=row.destiny_id,
+                stage=row.stage,
+                screening=row.screening,
+                coordinate=row.coordinate,
+            )
+            for row in rows
         ]
 
     def set_screening(self, rows: list[ScreeningRow]) -> None:

@@ -38,6 +38,10 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[[tool.mypy.overrides]]
+module = ["dspy.*", "litellm.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 markers = [
     "integration: end-to-end tests requiring live .env credentials",

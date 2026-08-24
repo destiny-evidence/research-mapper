@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from research_mapper import workflows
 from research_mapper.api.deps import CurrentUser, DbSession, Factory, SessionOr404
@@ -14,7 +14,12 @@ from research_mapper.api.schemas import (
     SessionSummary,
 )
 from research_mapper.engine import runner
-from research_mapper.engine.models import Artifact, Decision, Operation, ResearchSession
+from research_mapper.engine.models import (
+    CurrentArtifact,
+    Decision,
+    Operation,
+    ResearchSession,
+)
 
 router = APIRouter(tags=["sessions"])
 
@@ -51,9 +56,9 @@ def list_sessions(db: DbSession) -> list[SessionSummary]:
 def read_session(db: DbSession, research_session: SessionOr404) -> SessionDetail:
     """A session with the current version of each artifact it holds."""
     artifacts = db.execute(
-        select(Artifact.type, func.max(Artifact.version))
-        .where(Artifact.research_session_id == research_session.id)
-        .group_by(Artifact.type)
+        select(CurrentArtifact.type, CurrentArtifact.version).where(
+            CurrentArtifact.research_session_id == research_session.id
+        )
     ).all()
     return SessionDetail(
         **SessionSummary.model_validate(research_session).model_dump(),
@@ -111,11 +116,9 @@ def read_artifact(
 ) -> ArtifactOut:
     """The current version of one artifact — how results are read back out."""
     artifact = db.execute(
-        select(Artifact)
-        .where(Artifact.research_session_id == research_session.id)
-        .where(Artifact.type == artifact_type)
-        .order_by(Artifact.version.desc())
-        .limit(1)
+        select(CurrentArtifact)
+        .where(CurrentArtifact.research_session_id == research_session.id)
+        .where(CurrentArtifact.type == artifact_type)
     ).scalar_one_or_none()
     if artifact is None:
         raise HTTPException(404, f"no {artifact_type} artifact yet")

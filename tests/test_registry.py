@@ -50,7 +50,7 @@ def test_get_unknown_type_raises():
 
 
 def test_step_cannot_be_instantiated_without_run():
-    class Incomplete(Step[Params]):
+    class Incomplete(Step[Params, StepContext]):
         type = "incomplete"
 
     with pytest.raises(TypeError):

@@ -4,13 +4,14 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from research_mapper.engine.enums import DecisionType, OperationStatus
+from research_mapper.taxonomy import RepoCommunity
 from research_mapper.engine.views import Progress
 
 
 class CreateSession(BaseModel):
     workflow: str
     question: str
-    community: str
+    community: RepoCommunity
     params: dict = {}
 
 

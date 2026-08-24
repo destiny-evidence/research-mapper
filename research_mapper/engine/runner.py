@@ -87,15 +87,17 @@ def _block(
         db.commit()
 
 
-def _fail(session_factory: SessionFactory, operation_id: UUID, error: str) -> None:
-    """Mark an operation failed and record why."""
+def _fail(
+    session_factory: SessionFactory, operation_id: UUID, error: Exception
+) -> None:
+    """Mark an operation failed and record what it raised."""
     with session_factory() as db:
         db.execute(
             update(Operation)
             .where(Operation.id == operation_id)
             .values(
                 status=OperationStatus.FAILED,
-                error={"message": error},
+                error={"type": type(error).__name__, "message": str(error)},
                 attempt=Operation.attempt + 1,
             )
         )
@@ -116,9 +118,9 @@ def run_operation(
     except NeedsInput:
         logger.info("operation %s awaiting input", operation_id)
         _block(session_factory, operation_id, ctx)
-    except Exception:
+    except Exception as exc:
         logger.exception("operation %s failed", operation_id)
-        _fail(session_factory, operation_id, "step raised")
+        _fail(session_factory, operation_id, exc)
         raise
     else:
         _finish(session_factory, operation_id, result)

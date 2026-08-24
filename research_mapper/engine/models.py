@@ -12,8 +12,9 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, aliased, mapped_column, relationship
 
 from research_mapper.db.base import Base
 from research_mapper.db.types import PydanticJSONB
@@ -155,3 +156,13 @@ class Artifact(Base):
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
     __table_args__ = (UniqueConstraint(research_session_id, type, version),)
+
+
+_latest_artifacts = (
+    select(Artifact)
+    .distinct(Artifact.research_session_id, Artifact.type)
+    .order_by(Artifact.research_session_id, Artifact.type, Artifact.version.desc())
+    .subquery()
+)
+
+CurrentArtifact = aliased(Artifact, _latest_artifacts)

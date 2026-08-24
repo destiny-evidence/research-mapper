@@ -69,7 +69,12 @@ def configure_dspy() -> None:
 
 @lru_cache(maxsize=1)
 def get_destiny_client() -> OAuthClient:
-    """Builds an authenticated DESTINY repository client."""
+    """
+    Builds an authenticated DESTINY repository client, eagerly triggering the
+    OAuth handshake now rather than deferring it to the first search/lookup —
+    a bad credential or unreachable DESTINY instance should fail loudly at
+    startup, not silently wait to surface on a user's first request.
+    """
     client_id = os.environ.get("AZURE_CLIENT_ID")
     application_id = os.environ.get("MAPPER_DESTINY_APPLICATION_ID")
     env = os.environ.get("MAPPER_DESTINY_ENV", "production")
@@ -83,11 +88,20 @@ def get_destiny_client() -> OAuthClient:
             use_managed_identity=True,
         )
 
-    return OAuthClient(auth=auth, env=env)
+    client = OAuthClient(auth=auth, env=env)
+    logger.debug("Triggering eagerly OAuth token fetch via health check")
+    client.get_client().get("/v1/system/healthcheck/")
+    logger.info("Destiny client authenticated and healthy")
+    return client
 
 
-if os.getenv("MAPPER_DESTINY_ENV") == "staging":
-    """Temporary proof of connection"""
+def check_database_connection() -> None:
+    """
+    Confirms the app can reach Postgres using its managed identity. Called
+    explicitly at startup (see cli.py's initialise()) so a misconfigured or
+    unreachable database fails loudly then, not silently on whatever the
+    first thing to actually need it later happens to be.
+    """
     token = ManagedIdentityCredential(
         client_id=os.environ["AZURE_CLIENT_ID"]
     ).get_token("https://ossrdbms-aad.database.windows.net/.default")

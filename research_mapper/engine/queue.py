@@ -30,15 +30,10 @@ async def queries() -> tuple[Queries, psycopg.AsyncConnection]:
 
 
 async def enqueue(operation_id: UUID) -> None:
-    """Queue an operation for a worker to pick up, ignoring one already queued."""
+    """Queue an operation for a worker to pick up."""
     repository, connection = await queries()
     try:
-        await repository.enqueue(
-            ENTRYPOINT,
-            str(operation_id).encode(),
-            dedupe_key=str(operation_id),
-            on_conflict="skip",
-        )
+        await repository.enqueue(ENTRYPOINT, str(operation_id).encode())
     finally:
         await connection.close()
 

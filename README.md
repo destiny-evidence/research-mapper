@@ -60,6 +60,19 @@ uv sync
 uv run research-mapper
 ```
 
+### The API and worker
+
+`compose.yaml` brings up Postgres, applies the migrations, and runs both the API (`:8080`) and the
+operation worker:
+
+```bash
+docker compose up --build
+```
+
+Credentials come from `./.env` — a container cannot see variables you only exported in your shell.
+`MAPPER_API_PORT` moves the published API port. For the API alone, without an LLM or DESTINY, see
+[demo/](demo/).
+
 ## License
 
 [Apache License 2.0](LICENSE)

@@ -4,7 +4,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from factories import make_operation, make_session, make_user
-from research_mapper.engine import registry, runner
+from research_mapper.engine import queue, registry, runner
 from research_mapper.engine.answers import InvalidAnswer
 from research_mapper.engine.context import StepContext
 from research_mapper.engine.enums import OperationStatus
@@ -265,6 +265,23 @@ def test_answering_the_last_open_decision_resumes_the_operation(
     assert all(row.answered_at is not None for row in db.query(Decision).all())
 
 
+def test_a_resume_is_delivered_even_while_the_parking_job_is_still_in_the_queue(
+    db, scenario, session_factory, queued
+):
+    """The job that parked the operation is still in flight; the resume must still land."""
+    user, session = scenario
+    step("asks", lambda self, ctx, params: {"picked": ctx.ask("pick", SPEC)})
+    operation = make_operation(db, session, user, type="asks")
+    run(operation, session_factory)
+    queue.enqueue_sync(operation.id)
+    assert queued() == [str(operation.id)]
+
+    runner.answer_decisions(operation.id, {"pick": [ONE]}, session_factory)
+
+    assert queued() == [str(operation.id)] * 2
+    assert reload(db, operation).status == OperationStatus.PENDING
+
+
 def test_an_already_answered_decision_cannot_be_answered_again(
     db, scenario, session_factory, queued
 ):
@@ -281,6 +298,28 @@ def test_an_already_answered_decision_cannot_be_answered_again(
     with pytest.raises(LookupError):
         runner.answer_decisions(operation.id, {"pick": [TWO]}, session_factory)
     assert reload(db, operation).status == OperationStatus.COMPLETE
+
+
+def test_a_retry_is_delivered_even_while_the_failed_job_is_still_in_the_queue(
+    db, scenario, session_factory, queued
+):
+    """`_fail` commits from inside the entrypoint, so the job it failed is still in flight."""
+    user, session = scenario
+
+    def body(self, ctx, params):
+        raise RuntimeError("boom")
+
+    step("boom", body)
+    operation = make_operation(db, session, user, type="boom")
+    with pytest.raises(RuntimeError):
+        run(operation, session_factory)
+    queue.enqueue_sync(operation.id)
+    assert queued() == [str(operation.id)]
+
+    runner.retry_operation(operation.id, session_factory)
+
+    assert queued() == [str(operation.id)] * 2
+    assert reload(db, operation).status == OperationStatus.PENDING
 
 
 def test_retry_requeues_a_failed_operation(db, scenario, session_factory, queued):
@@ -307,6 +346,20 @@ def test_retry_requeues_a_failed_operation(db, scenario, session_factory, queued
     assert reload(db, operation).status == OperationStatus.COMPLETE
     assert reload(db, operation).error is None, "a retry must clear the stale error"
     assert reload(db, operation).attempt == 1
+
+
+def test_a_second_retry_does_not_queue_a_second_job(
+    db, scenario, session_factory, queued
+):
+    """Clicking twice must not run the operation twice; the conditional update is the guard."""
+    user, session = scenario
+    operation = make_operation(db, session, user, status=OperationStatus.FAILED)
+
+    runner.retry_operation(operation.id, session_factory)
+    with pytest.raises(ValueError):
+        runner.retry_operation(operation.id, session_factory)
+
+    assert queued() == [str(operation.id)]
 
 
 def test_retry_refuses_an_operation_that_is_not_failed(

@@ -195,13 +195,19 @@ def answer_decisions(
 def retry_operation(operation_id: UUID, session_factory: SessionFactory) -> None:
     """Put a failed operation back on the queue."""
     with session_factory() as db:
-        operation = db.get(Operation, operation_id)
-        if operation is None:
-            msg = f"no operation {operation_id}"
-            raise LookupError(msg)
-        if operation.status != OperationStatus.FAILED:
+        requeued = db.execute(
+            update(Operation)
+            .where(Operation.id == operation_id)
+            .where(Operation.status == OperationStatus.FAILED)
+            .values(status=OperationStatus.PENDING)
+            .returning(Operation.id)
+        ).scalar_one_or_none()
+        if requeued is None:
+            operation = db.get(Operation, operation_id)
+            if operation is None:
+                msg = f"no operation {operation_id}"
+                raise LookupError(msg)
             msg = f"operation {operation_id} is {operation.status}, not failed"
             raise ValueError(msg)
-        operation.status = OperationStatus.PENDING
         db.commit()
     queue.enqueue_sync(operation_id)

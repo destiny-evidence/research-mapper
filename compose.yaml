@@ -1,3 +1,20 @@
+x-app: &app
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: research-mapper:local
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    MAPPER_DB_HOST: db:5432
+    MAPPER_DB_NAME: research_mapper
+    MAPPER_DB_USER: research_mapper
+    MAPPER_DB_PASSWORD: research_mapper
+  depends_on:
+    db:
+      condition: service_healthy
+
 services:
   db:
     image: postgres:18
@@ -14,6 +31,26 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  migrate:
+    <<: *app
+    command: ["python", "-m", "research_mapper", "migrate"]
+
+  api:
+    <<: *app
+    command: ["python", "-m", "research_mapper", "api"]
+    ports:
+      - "${MAPPER_API_PORT:-8080}:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    command: ["python", "-m", "research_mapper", "worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   db-data:

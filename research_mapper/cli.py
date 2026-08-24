@@ -1,11 +1,9 @@
 import argparse
 import logging
-import os
 import sys
 from pathlib import Path
 
 from research_mapper.config import (
-    check_database_connection,
     configure_dspy,
     get_destiny_client,
     load_environment,
@@ -43,8 +41,6 @@ def initialise(env_file: str | None) -> None:
     load_environment(env_file)
     get_destiny_client()
     logger.info("Destiny client ready")
-    if os.environ.get("MAPPER_DESTINY_ENV") == "staging":
-        check_database_connection()
     configure_dspy()
 
 

@@ -1,0 +1,74 @@
+# The whole demo in one command: database, API, worker and UI, with the LLM and DESTINY
+# replaced by canned data. Nothing here talks to the outside world.
+#
+#   docker compose -f demo/compose.yaml up --build     ->  http://127.0.0.1:3000
+#
+# The image holds a snapshot of research_mapper, so rebuild after changing workflow code.
+# demo/ itself is mounted, so the UI and the stubs are editable without a rebuild.
+
+x-app: &app
+  build:
+    context: ..
+    dockerfile: Dockerfile
+  image: research-mapper:local
+  volumes:
+    - ./:/app/demo:ro
+  environment:
+    MAPPER_DB_HOST: db:5432
+    MAPPER_DB_NAME: research_mapper
+    MAPPER_DB_USER: research_mapper
+    MAPPER_DB_PASSWORD: research_mapper
+    DEMO_DELAY: ${DEMO_DELAY:-0.3}
+  depends_on:
+    db:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: research_mapper
+      POSTGRES_PASSWORD: research_mapper
+      POSTGRES_DB: research_mapper
+    ports:
+      - "${DEMO_DB_PORT:-5434}:5432"
+    volumes:
+      - demo-db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U research_mapper -d research_mapper"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    <<: *app
+    command: ["python", "-m", "research_mapper", "migrate"]
+
+  api:
+    <<: *app
+    command: ["python", "demo/offline.py", "api", "--host", "0.0.0.0"]
+    ports:
+      - "${DEMO_API_PORT:-8090}:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    command: ["python", "demo/offline.py", "worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  ui:
+    <<: *app
+    command:
+      ["python", "demo/serve.py", "--host", "0.0.0.0", "--api", "http://api:8080"]
+    ports:
+      - "${DEMO_UI_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_started
+
+volumes:
+  demo-db-data:

@@ -121,6 +121,7 @@ def test_get_destiny_client_triggers_auth_eagerly(monkeypatch):
 def test_get_destiny_client_uses_managed_identity_when_configured(monkeypatch):
     monkeypatch.setenv("AZURE_CLIENT_ID", "client-id")
     monkeypatch.setenv("MAPPER_DESTINY_APPLICATION_ID", "app-id")
+    monkeypatch.delenv("MAPPER_DESTINY_ENV", raising=False)
 
     with (
         patch("research_mapper.config.OAuthClient") as mock_oauth_client,

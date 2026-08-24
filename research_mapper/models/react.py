@@ -3,18 +3,25 @@ from typing import Any
 from pydantic import BaseModel
 
 
-class Suspended(BaseModel):
+class Step(BaseModel):
     """
-    Returned instead of a `dspy.Prediction` when the loop reaches a tool
-    named in `suspend_on` — the tool is *not* called. The caller is expected
-    to persist `trajectory` and `idx`, obtain an answer for `tool_name`/
-    `tool_args` out of band (e.g. from a human, on a different process, after
-    an arbitrary delay), and later call `resume()` with it.
+    One agent-proposed action, not yet executed — the tool hasn't run and no
+    observation exists for it yet. The caller inspects (and can log, stream,
+    or veto) `tool_name`/`tool_args`, optionally edits `trajectory` (e.g. to
+    correct an earlier observation, or roll it back), and then calls
+    `resume(step, ...)` to actually run the tool and advance to whatever the
+    agent proposes next.
+
+    Built from plain, serializable data (a dict and an int) rather than a
+    live suspended frame — the way a Python generator would hold one — so a
+    `Step` can be persisted, handed to a different process, and resumed
+    arbitrarily later.
     """
 
     model_config = {"arbitrary_types_allowed": True}
 
     trajectory: dict[str, Any]
     idx: int
+    thought: str
     tool_name: str
     tool_args: dict[str, Any]

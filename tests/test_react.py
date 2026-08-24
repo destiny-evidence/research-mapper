@@ -1,15 +1,9 @@
 from unittest.mock import MagicMock
 
 import dspy
-import pytest
 
+from research_mapper.models.react import Step
 from research_mapper.modules.react import ResumableReAct
-from research_mapper.models.react import Suspended
-
-
-def ask_user(question: str) -> str:
-    """Ask the user a question."""
-    raise AssertionError("suspend_on tools must never actually be called")
 
 
 def search(query: str) -> str:
@@ -18,12 +12,7 @@ def search(query: str) -> str:
 
 
 def make_agent(max_iters: int = 10) -> ResumableReAct:
-    return ResumableReAct(
-        "query -> answer",
-        tools=[ask_user, search],
-        suspend_on={"ask_user"},
-        max_iters=max_iters,
-    )
+    return ResumableReAct("query -> answer", tools=[search], max_iters=max_iters)
 
 
 def next_pred(
@@ -34,19 +23,43 @@ def next_pred(
     )
 
 
-def test_constructor_rejects_unknown_suspend_on_tool():
-    with pytest.raises(ValueError, match="ask_someone"):
-        ResumableReAct(
-            "query -> answer", tools=[ask_user, search], suspend_on={"ask_someone"}
-        )
+def test_start_proposes_the_first_step_without_executing_its_tool():
+    agent = make_agent()
+    agent.react = MagicMock(return_value=next_pred("search", {"query": "hpv"}))
+    agent.tools["search"].func = MagicMock(
+        side_effect=AssertionError("must not run before resume() approves it")
+    )
+
+    step = agent.start(query="q")
+
+    assert isinstance(step, Step)
+    assert step.idx == 0
+    assert step.tool_name == "search"
+    assert step.tool_args == {"query": "hpv"}
+    assert "observation_0" not in step.trajectory
 
 
-def test_finishes_normally_without_suspending():
+def test_resume_executes_the_approved_tool_and_proposes_the_next_step():
+    agent = make_agent()
+    agent.react = MagicMock(return_value=next_pred("search", {"query": "hpv"}))
+    step = agent.start(query="q")
+
+    agent.react = MagicMock(return_value=next_pred("finish", {}))
+    result = agent.resume(step, query="q")
+
+    assert isinstance(result, Step)
+    assert result.idx == 1
+    assert result.tool_name == "finish"
+    assert result.trajectory["observation_0"] == "results for hpv"
+
+
+def test_resume_on_finish_runs_it_and_returns_the_final_prediction():
     agent = make_agent()
     agent.react = MagicMock(return_value=next_pred("finish", {}))
-    agent.extract = MagicMock(return_value=dspy.Prediction(answer="done"))
+    step = agent.start(query="q")
 
-    result = agent(query="q")
+    agent.extract = MagicMock(return_value=dspy.Prediction(answer="done"))
+    result = agent.resume(step, query="q")
 
     assert isinstance(result, dspy.Prediction)
     assert result.answer == "done"
@@ -54,7 +67,7 @@ def test_finishes_normally_without_suspending():
     assert "observation_0" in result.trajectory
 
 
-def test_non_suspend_tool_executes_and_loop_continues():
+def test_forward_drives_every_step_to_completion_without_pausing():
     agent = make_agent()
     agent.react = MagicMock(
         side_effect=[
@@ -66,88 +79,51 @@ def test_non_suspend_tool_executes_and_loop_continues():
 
     result = agent(query="q")
 
+    assert isinstance(result, dspy.Prediction)
     assert result.trajectory["observation_0"] == "results for hpv"
     assert result.trajectory["tool_name_1"] == "finish"
 
 
-def test_suspends_on_configured_tool_without_calling_it():
+def test_caller_can_edit_the_trajectory_before_resuming():
+    """The whole point of surfacing every step: a caller can correct/rewrite
+    trajectory contents before letting the run continue, with no special
+    support needed beyond Step carrying a plain, mutable dict."""
     agent = make_agent()
-    agent.react = MagicMock(
-        return_value=next_pred("ask_user", {"question": "which scheme?"})
-    )
-    agent.extract = MagicMock()
-
-    result = agent(query="q")
-
-    assert isinstance(result, Suspended)
-    assert result.idx == 0
-    assert result.tool_name == "ask_user"
-    assert result.tool_args == {"question": "which scheme?"}
-    assert result.trajectory["tool_name_0"] == "ask_user"
-    assert "observation_0" not in result.trajectory
-    agent.extract.assert_not_called()
-
-
-def test_resume_splices_in_the_answer_and_can_finish():
-    agent = make_agent()
-    agent.react = MagicMock(
-        return_value=next_pred("ask_user", {"question": "which scheme?"})
-    )
-    suspended = agent(query="q")
-    assert isinstance(suspended, Suspended)
+    agent.react = MagicMock(return_value=next_pred("search", {"query": "hpv"}))
+    step = agent.start(query="q")
 
     agent.react = MagicMock(return_value=next_pred("finish", {}))
     agent.extract = MagicMock(return_value=dspy.Prediction(answer="done"))
 
-    result = agent.resume(
-        suspended.trajectory, suspended.idx, "domain-inclusion", query="q"
+    edited = step.model_copy(
+        update={"trajectory": {**step.trajectory, "thought_0": "corrected by caller"}}
     )
+    result = agent.resume(edited, query="q")
 
-    assert isinstance(result, dspy.Prediction)
-    assert result.trajectory["observation_0"] == "domain-inclusion"
-    assert result.trajectory["tool_name_1"] == "finish"
-
-
-def test_resume_can_suspend_again_for_a_second_question():
-    agent = make_agent()
-    agent.react = MagicMock(
-        return_value=next_pred("ask_user", {"question": "which scheme?"})
-    )
-    first = agent(query="q")
-
-    agent.react = MagicMock(
-        return_value=next_pred("ask_user", {"question": "which concept?"})
-    )
-    second = agent.resume(first.trajectory, first.idx, "domain-inclusion", query="q")
-
-    assert isinstance(second, Suspended)
-    assert second.idx == 1
-    assert second.trajectory["observation_0"] == "domain-inclusion"
-    assert "observation_1" not in second.trajectory
+    assert result.trajectory["thought_0"] == "corrected by caller"
 
 
 def test_resume_keeps_counting_toward_the_original_max_iters():
-    """A suspend-then-resume must not reset the iteration budget — resuming
-    from idx 0 of a max_iters=2 run only has 1 further iteration to spend,
-    same as an uninterrupted run would."""
+    """Stepping through a run must not lose track of the iteration budget —
+    a max_iters=2 run only ever proposes idx 0 and 1, however many times the
+    caller pauses between them."""
     agent = make_agent(max_iters=2)
-    agent.react = MagicMock(
-        return_value=next_pred("ask_user", {"question": "which scheme?"})
-    )
-    suspended = agent(query="q")
-
     agent.react = MagicMock(
         side_effect=[
             next_pred("search", {"query": "hpv"}),
-            next_pred("finish", {}),  # would only run if max_iters were reset
+            next_pred("search", {"query": "hpv again"}),
+            next_pred("finish", {}),  # would only run if max_iters were exceeded
         ]
     )
     agent.extract = MagicMock(return_value=dspy.Prediction(answer="done"))
 
-    result = agent.resume(suspended.trajectory, suspended.idx, "answer", query="q")
+    step0 = agent.start(query="q")
+    step1 = agent.resume(step0, query="q")
+    assert isinstance(step1, Step)
+    assert step1.idx == 1
+
+    result = agent.resume(step1, query="q")
 
     assert isinstance(result, dspy.Prediction)
-    # Only iteration idx=1 ran (the loop's ceiling), then fell through to extract.
-    assert "tool_name_1" in result.trajectory
     assert "tool_name_2" not in result.trajectory
-    agent.react.assert_called_once()
+    assert agent.react.call_count == 2

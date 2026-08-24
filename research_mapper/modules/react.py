@@ -1,102 +1,85 @@
 import logging
-from collections.abc import Callable
 from typing import Any
 
 import dspy
 
-from research_mapper.models.react import Suspended
+from research_mapper.models.react import Step
 
 logger = logging.getLogger(__name__)
 
 
 class ResumableReAct(dspy.ReAct):
     """
-    A `dspy.ReAct` agent that can pause instead of executing specific tools,
-    handing control back to the caller with everything needed to resume
-    later, rather than blocking until a human answers.
+    A `dspy.ReAct` agent driven one step at a time rather than run start to
+    finish in one call: every iteration's proposed action is surfaced to the
+    caller as a `Step` *before* it executes, and only runs once the caller
+    calls `resume()` on it. `forward()` (and therefore calling the module
+    directly) is a thin convenience wrapper — it does nothing `resume()`
+    doesn't already do, it just keeps approving every step without pausing
+    until the run finishes, for callers that don't want manual control.
 
     Deliberately reuses `dspy.ReAct`'s own trajectory machinery — `self.react`,
     `self.extract`, `self._call_with_potential_trajectory_truncation` — rather
-    than reimplementing it; only the iteration loop itself is overridden, to
-    add the suspend check. `_call_with_potential_trajectory_truncation` is a
+    than reimplementing it. `_call_with_potential_trajectory_truncation` is a
     "private" method of the base class, so this is coupled to dspy's current
     implementation of `ReAct.forward` — worth re-checking on a dspy upgrade.
     """
 
-    def __init__(
-        self,
-        signature: Any,
-        tools: list[Callable],
-        *,
-        suspend_on: set[str],
-        max_iters: int = 10,
-    ) -> None:
-        super().__init__(signature=signature, tools=tools, max_iters=max_iters)
-        unknown = suspend_on - set(self.tools)
-        if unknown:
-            msg = f"suspend_on names tool(s) not present in tools: {sorted(unknown)}"
-            raise ValueError(msg)
-        self.suspend_on = suspend_on
+    def forward(self, **input_args) -> dspy.Prediction:
+        result = self.resume(None, **input_args)
+        while isinstance(result, Step):
+            result = self.resume(result, **input_args)
+        return result
 
-    def forward(self, **input_args) -> dspy.Prediction | Suspended:
-        return self._run(trajectory={}, start_idx=0, **input_args)
+    def start(self, **input_args) -> Step | dspy.Prediction:
+        """Equivalent to `resume(None, **input_args)` — begins a new run."""
+        return self.resume(None, **input_args)
 
-    def resume(
-        self, trajectory: dict[str, Any], idx: int, observation: Any, **input_args
-    ) -> dspy.Prediction | Suspended:
+    def resume(self, step: Step | None, **input_args) -> Step | dspy.Prediction:
         """
-        Continues a previously suspended run.
-        :param trajectory: the trajectory `Suspended` returned when this run paused
-        :param idx: the iteration `Suspended` paused at
-        :param observation: the answer obtained for the tool call that paused the run —
-            spliced in as if the suspended tool had returned it itself
-        :param input_args: the same input arguments the original `forward()` call used
-        :return: a `dspy.Prediction` if the run now finishes, or another `Suspended`
-            if it pauses again
+        Advances a run by one iteration.
+        :param step: the previously-surfaced `Step` to approve and continue from — its
+            tool is executed here — or `None` to begin a new run
+        :param input_args: the same inputs the run was/would be started with; must match
+            across every call for a given run, same as `forward()`'s own arguments would
+        :return: the agent's next proposed `Step`, or the final `Prediction` once the
+            run finishes (the tool call proposed `finish`, or `max_iters` was reached)
         """
-        trajectory = dict(trajectory)
-        trajectory[f"observation_{idx}"] = observation
-        return self._run(trajectory=trajectory, start_idx=idx + 1, **input_args)
-
-    def _run(
-        self, trajectory: dict[str, Any], start_idx: int, **input_args
-    ) -> dspy.Prediction | Suspended:
         max_iters = input_args.pop("max_iters", self.max_iters)
-        for idx in range(start_idx, max_iters):
-            try:
-                pred = self._call_with_potential_trajectory_truncation(
-                    self.react, trajectory, **input_args
-                )
-            except ValueError:
-                logger.warning(
-                    "Ending the trajectory: agent failed to select a valid tool"
-                )
-                break
+        trajectory = dict(step.trajectory) if step is not None else {}
 
-            trajectory[f"thought_{idx}"] = pred.next_thought
-            trajectory[f"tool_name_{idx}"] = pred.next_tool_name
-            trajectory[f"tool_args_{idx}"] = pred.next_tool_args
+        if step is not None:
+            trajectory[f"observation_{step.idx}"] = self._execute(step)
+            if step.tool_name == "finish" or step.idx + 1 >= max_iters:
+                return self._extract(trajectory, **input_args)
 
-            if pred.next_tool_name in self.suspend_on:
-                return Suspended(
-                    trajectory=trajectory,
-                    idx=idx,
-                    tool_name=pred.next_tool_name,
-                    tool_args=pred.next_tool_args,
-                )
+        idx = step.idx + 1 if step is not None else 0
+        try:
+            pred = self._call_with_potential_trajectory_truncation(
+                self.react, trajectory, **input_args
+            )
+        except ValueError:
+            logger.warning("Ending the trajectory: agent failed to select a valid tool")
+            return self._extract(trajectory, **input_args)
 
-            try:
-                trajectory[f"observation_{idx}"] = self.tools[pred.next_tool_name](
-                    **pred.next_tool_args
-                )
-            except Exception as exc:  # noqa: BLE001 - mirrors dspy.ReAct's own handling
-                trajectory[f"observation_{idx}"] = (
-                    f"Execution error in {pred.next_tool_name}: {exc}"
-                )
+        trajectory[f"thought_{idx}"] = pred.next_thought
+        trajectory[f"tool_name_{idx}"] = pred.next_tool_name
+        trajectory[f"tool_args_{idx}"] = pred.next_tool_args
+        return Step(
+            trajectory=trajectory,
+            idx=idx,
+            thought=pred.next_thought,
+            tool_name=pred.next_tool_name,
+            tool_args=pred.next_tool_args,
+        )
 
-            if pred.next_tool_name == "finish":
-                break
+    def _execute(self, step: Step) -> Any:
+        try:
+            return self.tools[step.tool_name](**step.tool_args)
+        except Exception as exc:  # noqa: BLE001 - mirrors dspy.ReAct's own handling
+            return f"Execution error in {step.tool_name}: {exc}"
 
+    def _extract(self, trajectory: dict[str, Any], **input_args) -> dspy.Prediction:
         extract = self._call_with_potential_trajectory_truncation(
             self.extract, trajectory, **input_args
         )

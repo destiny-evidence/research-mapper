@@ -49,3 +49,13 @@ def test_enforces_min_and_max():
     with pytest.raises(InvalidAnswer):
         validate_answer(decision(max=1), [ONE, TWO])
     validate_answer(decision(min=1, max=2), [ONE])
+
+
+def test_an_exclusive_option_cannot_be_combined_with_another():
+    """The agent's "I'm not sure" option — a 422 instead of the TUI's re-prompt loop."""
+    exclusive = decision(exclusive=[TWO])
+
+    validate_answer(exclusive, [TWO])
+    validate_answer(exclusive, [ONE])
+    with pytest.raises(InvalidAnswer, match="on its own"):
+        validate_answer(exclusive, [ONE, TWO])

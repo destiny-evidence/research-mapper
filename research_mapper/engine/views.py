@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from typing import Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer
 
 
 class AskSpec(BaseModel):
@@ -18,6 +18,15 @@ class Progress(BaseModel):
     total: int | None = None
     failed: int = 0
     note: str = ""
+
+
+# jsonb doesn't preserve key order, so for things like trajectories we need to
+# define our own structure
+Ordered = Annotated[
+    dict[str, Any],
+    BeforeValidator(lambda value: dict(value) if isinstance(value, list) else value),
+    PlainSerializer(lambda value: [[k, v] for k, v in value.items()], return_type=list),
+]
 
 
 @dataclass(frozen=True, slots=True)

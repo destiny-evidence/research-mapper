@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from research_mapper.engine.views import ArtifactSpec
+from research_mapper.engine.views import ArtifactSpec, Ordered
 from research_mapper.models.common import IRI
 from research_mapper.models.mapping import (
     MappingDimension,
@@ -26,6 +26,7 @@ class ArtifactType(StrEnum):
     SCREENING_CRITERIA = auto()
     SUGGESTED_CONCEPT_FILTERS = auto()
     CONCEPT_FILTERS = auto()
+    CONCEPT_FILTER_LOOP = auto()
     SUGGESTED_MAP_DIMENSIONS = auto()
     MAP_DIMENSIONS = auto()
     SUGGESTED_DIMENSION_SUBTOPICS = auto()
@@ -56,6 +57,13 @@ class ConceptFilters(BaseModel):
     reasoning: str = ""
 
 
+class LoopState(BaseModel):
+    """A paused ResumableReAct run: one proposed Step, ready to resume from."""
+
+    step: dict[str, Any]
+    trajectory: Ordered
+
+
 class MapDimensions(BaseModel):
     dimensions: list[MappingDimension]
     reasoning: str = ""
@@ -78,6 +86,7 @@ SUGGESTED_CONCEPT_FILTERS = ArtifactSpec(
     ArtifactType.SUGGESTED_CONCEPT_FILTERS, ConceptFilters
 )
 CONCEPT_FILTERS = ArtifactSpec(ArtifactType.CONCEPT_FILTERS, ConceptFilters)
+CONCEPT_FILTER_LOOP = ArtifactSpec(ArtifactType.CONCEPT_FILTER_LOOP, LoopState)
 SUGGESTED_MAP_DIMENSIONS = ArtifactSpec(
     ArtifactType.SUGGESTED_MAP_DIMENSIONS, MapDimensions
 )
@@ -99,6 +108,7 @@ ARTIFACTS: dict[ArtifactType, ArtifactSpec[Any]] = {
         SCREENING_CRITERIA,
         SUGGESTED_CONCEPT_FILTERS,
         CONCEPT_FILTERS,
+        CONCEPT_FILTER_LOOP,
         SUGGESTED_MAP_DIMENSIONS,
         MAP_DIMENSIONS,
         SUGGESTED_DIMENSION_SUBTOPICS,

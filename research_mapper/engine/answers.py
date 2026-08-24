@@ -22,6 +22,11 @@ def validate_answer(decision: Decision, answer: list[dict]) -> None:
         msg = f"pick at most {maximum}"
         raise InvalidAnswer(msg)
 
+    exclusive = decision.constraints.get("exclusive", [])
+    if len(answer) > 1 and any(item in exclusive for item in answer):
+        msg = "that option has to be chosen on its own"
+        raise InvalidAnswer(msg)
+
     if not decision.constraints.get("allow_new"):
         offered = [option["value"] for option in decision.options]
         if unoffered := [item for item in answer if item not in offered]:

@@ -3,7 +3,10 @@ from unittest.mock import MagicMock
 from research_mapper.models.common import UserQuery
 from research_mapper.models.react import Step
 from research_mapper.models.taxonomy_search import ClarificationOptions
-from research_mapper.modules.taxonomy_search import TaxonomyConceptFilterGenerator
+from research_mapper.modules.taxonomy_search import (
+    TaxonomyConceptFilterGenerator,
+    build_concept_filter_agent,
+)
 
 _UNSURE = "I'm not sure / none of these"
 
@@ -207,3 +210,11 @@ def test_ask_for_clarification_only_registered_as_a_tool_when_ui_given():
 
     with_ui = TaxonomyConceptFilterGenerator(ui=MagicMock())
     assert "ask_for_clarification" in with_ui.agent.tools
+
+
+def test_the_agent_can_be_built_to_ask_without_a_terminal():
+    """A worker answers ask_for_clarification by persisting the Step, not by prompting."""
+    assert "ask_for_clarification" in build_concept_filter_agent().tools
+    assert (
+        "ask_for_clarification" not in build_concept_filter_agent(can_ask=False).tools
+    )

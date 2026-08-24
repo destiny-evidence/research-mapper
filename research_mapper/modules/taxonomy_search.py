@@ -26,6 +26,25 @@ logger = logging.getLogger(__name__)
 
 _UNSURE_OPTION = "I'm not sure / none of these"
 
+MAX_ITERS = 10
+
+
+def build_concept_filter_agent(*, can_ask: bool = True) -> ResumableReAct:
+    """The configured concept-filter loop, with no opinion about who drives it.
+
+    `can_ask` registers `ask_for_clarification`, which only makes sense where
+    something can answer it: a TUI prompt, or a caller persisting the Step and
+    resuming with `with_observation` once a human has replied.
+    """
+    tools = [mark_unsatisfiable]
+    if can_ask:
+        tools.append(ask_for_clarification)
+    return ResumableReAct(
+        signature=TaxonomyConceptFiltersFromUserQuery,
+        tools=tools,
+        max_iters=MAX_ITERS,
+    )
+
 
 class TaxonomyConceptFilterGenerator(dspy.Module):
     """
@@ -38,14 +57,7 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
 
     def __init__(self, ui: TerminalUI | None = None) -> None:
         self.ui = ui
-        tools = [mark_unsatisfiable]
-        if ui is not None:
-            tools.append(ask_for_clarification)
-        self.agent = ResumableReAct(
-            signature=TaxonomyConceptFiltersFromUserQuery,
-            tools=tools,
-            max_iters=10,
-        )
+        self.agent = build_concept_filter_agent(can_ask=ui is not None)
 
     def forward(
         self, user_query: UserQuery, taxonomy_concepts: list[Concept]

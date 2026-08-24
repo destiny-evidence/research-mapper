@@ -29,6 +29,10 @@ PAYLOADS: dict[ArtifactType, dict] = {
         ],
     },
     ArtifactType.CONCEPT_FILTERS: {"community": "hpv", "groups": []},
+    ArtifactType.CONCEPT_FILTER_LOOP: {
+        "step": {"idx": 0, "thought": "t", "tool_name": "ask", "tool_args": {}},
+        "trajectory": [["thought_0", "t"], ["tool_name_0", "ask"]],
+    },
     ArtifactType.SUGGESTED_MAP_DIMENSIONS: {
         "dimensions": [{"name": "Setting", "description": "where"}]
     },

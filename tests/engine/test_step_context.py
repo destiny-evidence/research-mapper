@@ -5,7 +5,7 @@ from factories import make_operation, make_session, make_user
 from research_mapper.engine.context import NeedsInput, StepContext
 from research_mapper.engine.enums import DecisionType
 from research_mapper.engine.models import Decision, Operation, ResearchSession
-from research_mapper.engine.views import ArtifactSpec, AskSpec, Progress
+from research_mapper.engine.views import ArtifactSpec, AskSpec, Ordered, Progress
 
 ONE = {"query": "a"}
 TWO = {"query": "b"}
@@ -169,3 +169,33 @@ def test_needs_input_inherits_base_exception():
     assert issubclass(NeedsInput, BaseException) and not issubclass(
         NeedsInput, Exception
     )
+
+
+class Loop(BaseModel):
+    trajectory: Ordered
+
+
+LOOP = ArtifactSpec("loop", Loop)
+
+
+def test_an_ordered_mapping_keeps_its_key_order_through_jsonb(ctx):
+    """jsonb sorts object keys; ReAct truncates by insertion order. Hence the array."""
+    trajectory = {}
+    for i in range(3):
+        trajectory |= {
+            f"thought_{i}": "t",
+            f"tool_name_{i}": "ask",
+            f"tool_args_{i}": {},
+            f"observation_{i}": ["a"],
+        }
+
+    ctx.write_artifact(LOOP, Loop(trajectory=trajectory))
+    stored = (
+        ctx.read_artifact(LOOP)
+        if hasattr(ctx, "read_artifact")
+        else ctx.get_artifact(LOOP)
+    )
+
+    assert stored is not None
+    assert list(stored.trajectory) == list(trajectory)
+    assert stored.trajectory == trajectory

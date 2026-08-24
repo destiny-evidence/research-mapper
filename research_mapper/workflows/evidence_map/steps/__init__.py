@@ -1,4 +1,7 @@
 from research_mapper.engine.registry import Step
+from research_mapper.workflows.evidence_map.steps.concept_filters import (
+    GenerateConceptFilters,
+)
 from research_mapper.workflows.evidence_map.steps.mapping import (
     GenerateMap,
     GenerateMapDimensions,
@@ -16,6 +19,7 @@ from research_mapper.workflows.evidence_map.steps.sparse_query import EnhanceSpa
 
 STEPS: list[type[Step]] = [
     EnhanceSparseQuery,
+    GenerateConceptFilters,
     RetrieveSparseEvidence,
     RetrieveConceptEvidence,
     GenerateScreeningCriteria,

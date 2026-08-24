@@ -84,8 +84,10 @@ def test_configure_dspy_warns_on_an_empty_response_but_still_configures(response
     ):
         mock_dspy.LM.return_value = MagicMock(return_value=response)
 
-        with pytest.raises(AssertionError):
-            configure_dspy()
+        configure_dspy()
+
+        mock_logger.warning.assert_called_once()
+        mock_dspy.configure.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

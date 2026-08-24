@@ -70,7 +70,12 @@ def configure_dspy() -> None:
 
 @lru_cache(maxsize=1)
 def get_destiny_client() -> OAuthClient:
-    """Builds an authenticated DESTINY repository client."""
+    """
+    Builds an authenticated DESTINY repository client, eagerly triggering the
+    OAuth handshake now rather than deferring it to the first search/lookup —
+    a bad credential or unreachable DESTINY instance should fail loudly at
+    startup, not silently wait to surface on a user's first request.
+    """
     client_id = os.environ.get("AZURE_CLIENT_ID")
     application_id = os.environ.get("MAPPER_DESTINY_APPLICATION_ID")
     env = os.environ.get("MAPPER_DESTINY_ENV", "production")
@@ -84,7 +89,11 @@ def get_destiny_client() -> OAuthClient:
             use_managed_identity=True,
         )
 
-    return OAuthClient(auth=auth, env=env)
+    client = OAuthClient(auth=auth, env=env)
+    logger.debug("Triggering eagerly OAuth token fetch via health check")
+    client.get_client().get("/v1/system/healthcheck/")
+    logger.info("Destiny client authenticated and healthy")
+    return client
 
 
 def init_database() -> None:

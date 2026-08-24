@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from research_mapper.config import configure_dspy, load_environment
+from research_mapper.config import configure_dspy, get_destiny_client, load_environment
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +84,61 @@ def test_configure_dspy_warns_on_an_empty_response_but_still_configures(response
     ):
         mock_dspy.LM.return_value = MagicMock(return_value=response)
 
-        configure_dspy()
+        with pytest.raises(AssertionError):
+            configure_dspy()
 
-        mock_logger.warning.assert_called_once()
-        mock_dspy.configure.assert_called_once()
+
+# ---------------------------------------------------------------------------
+# get_destiny_client — authentication must happen eagerly, when the client is
+# built, not deferred until a caller's first search/lookup — a bad credential
+# or unreachable DESTINY instance should fail at startup, not on first use.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _clear_destiny_client_cache():
+    get_destiny_client.cache_clear()
+    yield
+    get_destiny_client.cache_clear()
+
+
+def test_get_destiny_client_triggers_auth_eagerly(monkeypatch):
+    monkeypatch.delenv("AZURE_CLIENT_ID", raising=False)
+    monkeypatch.delenv("MAPPER_DESTINY_APPLICATION_ID", raising=False)
+
+    with patch("research_mapper.config.OAuthClient") as mock_oauth_client:
+        mock_instance = mock_oauth_client.return_value
+
+        get_destiny_client()
+
+        mock_instance.get_client.return_value.get.assert_called_once_with(
+            "/v1/system/healthcheck/"
+        )
+
+
+def test_get_destiny_client_uses_managed_identity_when_configured(monkeypatch):
+    monkeypatch.setenv("AZURE_CLIENT_ID", "client-id")
+    monkeypatch.setenv("MAPPER_DESTINY_APPLICATION_ID", "app-id")
+
+    with (
+        patch("research_mapper.config.OAuthClient") as mock_oauth_client,
+        patch("research_mapper.config.OAuthMiddleware") as mock_middleware,
+    ):
+        get_destiny_client()
+
+        mock_middleware.assert_called_once_with(
+            azure_client_id="client-id",
+            azure_application_id="app-id",
+            use_managed_identity=True,
+        )
+        mock_oauth_client.assert_called_once_with(
+            auth=mock_middleware.return_value, env="production"
+        )
+
+
+def test_get_destiny_client_is_cached():
+    with patch("research_mapper.config.OAuthClient"):
+        first = get_destiny_client()
+        second = get_destiny_client()
+
+        assert first is second

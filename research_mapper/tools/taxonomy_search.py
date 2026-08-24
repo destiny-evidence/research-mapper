@@ -10,51 +10,30 @@ from research_mapper.models.taxonomy_search import (
     ConceptSearchPage,
 )
 from research_mapper.taxonomy import COMMUNITY_ANNOTATION_LABELS, RepoCommunity
-from research_mapper.ui.tui import TerminalUI
 
 logger = logging.getLogger(__name__)
 
-_UNSURE_OPTION = "I'm not sure / none of these"
+
+def ask_for_clarification(request: ClarificationOptions) -> list[str]:
+    """Ask the user a clarifying question — including to disambiguate between
+    conflicting interpretations — giving them a fixed set of concrete options to
+    choose one or more from. An "I'm not sure" option is always added automatically."""
+    # This must never actually execute: a ResumableReAct caller sees the proposed
+    # Step (and its `request`) before resume() would call this, does its own
+    # prompting, and supplies the answer via Step.with_observation() — see
+    # modules/taxonomy_search.py. This only exists to give the agent a name,
+    # docstring, and argument schema to reason about and call.
+    msg = "ask_for_clarification must never execute — the caller always supplies the answer"
+    raise AssertionError(msg)
 
 
-class ConceptFilterGenerationTools:
-    def __init__(self, ui: TerminalUI) -> None:
-        self.ui = ui
-
-    def ask_for_clarification(self, request: ClarificationOptions) -> list[str]:
-        """Ask the user a clarifying question — including to disambiguate between
-        conflicting interpretations — giving them a fixed set of concrete options to
-        choose one or more from. An "I'm not sure" option is always added automatically."""
-        options = [*request.options, _UNSURE_OPTION]
-        self.ui.print_info(request.question)
-        while True:
-            selected = self.ui.select_from_list(options, default=[len(options)])
-            if _UNSURE_OPTION in selected and len(selected) > 1:
-                self.ui.print_info(
-                    f'[red]"{_UNSURE_OPTION}" can\'t be combined with other '
-                    "options — try again.[/red]"
-                )
-                continue
-            return selected
-
-
-class UnsatisfiabilityTool:
-    """
-    Lets the concept-filter-generation agent flag that the user's (clarified) intent
-    cannot be expressed with the available taxonomy concepts. `reason` is accumulated
-    for the caller to inspect after the agent finishes, regardless of what filter_groups
-    the agent's own output field also produced.
-    """
-
-    def __init__(self) -> None:
-        self.reason: str | None = None
-
-    def mark_unsatisfiable(self, reason: str) -> str:
-        """Call this if the user's clarified intent genuinely cannot be expressed using
-        the available taxonomy concepts — e.g. no concept exists for a required part of
-        the query, even after asking clarifying questions. Provide a brief reason."""
-        self.reason = reason
-        return "Noted. You may now finish."
+def mark_unsatisfiable(reason: str) -> str:
+    """Call this if the user's clarified intent genuinely cannot be expressed using
+    the available taxonomy concepts — e.g. no concept exists for a required part of
+    the query, even after asking clarifying questions. Provide a brief reason."""
+    # `reason` is already visible to the caller via the proposed Step's tool_args,
+    # before this ever runs — nothing needs to be captured or remembered here.
+    return "Noted. You may now finish."
 
 
 def retrieve_evidence_by_concepts(

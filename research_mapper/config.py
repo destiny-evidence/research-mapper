@@ -62,7 +62,8 @@ def configure_dspy() -> None:
     )
     logger.debug("Running LLM sanity check")
     result = lm("Say: 'hello world'", temperature=0.0)
-    assert result and result[0], result
+    if not result or not result[0]:
+        logger.warning("LLM sanity check returned nothing: %s", result)
     dspy.configure(lm=lm)
     logger.info("DSPy configured successfully!")
 

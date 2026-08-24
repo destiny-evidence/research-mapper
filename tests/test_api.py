@@ -12,6 +12,7 @@ from research_mapper.engine.context import StepContext
 from research_mapper.engine.registry import Step, register
 from research_mapper.engine.views import AskSpec
 
+SESSION = {"workflow": "evidence_map", "question": "q", "community": "climate"}
 SUGGESTED = "suggested_queries"
 CHOSEN = "queries"
 ONE = {"query": "a"}
@@ -76,14 +77,12 @@ def work(session_factory) -> None:
 
 
 def test_healthz_needs_no_database(client):
-    assert client.get("/healthz/").json() == {"status": "ok"}
+    assert client.get("/healthz").json() == {"status": "ok"}
 
 
 def test_the_whole_flow_over_http(client, session_factory, queued):
     """The acceptance test, minus killing the container between steps."""
-    created = client.post(
-        "/sessions", json={"question": "Does X affect Y?", "community": "climate"}
-    )
+    created = client.post("/sessions", json=SESSION | {"question": "Does X affect Y?"})
     assert created.status_code == 201
     session_id = created.json()["id"]
 
@@ -131,18 +130,14 @@ def test_the_whole_flow_over_http(client, session_factory, queued):
 
 
 def test_an_unknown_operation_type_is_a_400(client):
-    session_id = client.post(
-        "/sessions", json={"question": "q", "community": "climate"}
-    ).json()["id"]
+    session_id = client.post("/sessions", json=SESSION).json()["id"]
 
     reply = client.post(f"/sessions/{session_id}/operations/", json={"type": "nope"})
     assert reply.status_code == 400
 
 
 def test_a_bad_answer_is_a_422(client, session_factory):
-    session_id = client.post(
-        "/sessions", json={"question": "q", "community": "climate"}
-    ).json()["id"]
+    session_id = client.post("/sessions", json=SESSION).json()["id"]
     operation_id = client.post(
         f"/sessions/{session_id}/operations/", json={"type": "drafts"}
     ).json()["id"]
@@ -165,7 +160,15 @@ def test_missing_things_are_404(client):
     assert client.get(f"/sessions/{missing}").status_code == 404
     assert client.get(f"/operations/{missing}").status_code == 404
 
-    session_id = client.post(
-        "/sessions/", json={"question": "q", "community": "climate"}
-    ).json()["id"]
+    session_id = client.post("/sessions/", json=SESSION).json()["id"]
     assert client.get(f"/sessions/{session_id}/artifacts/nothing/").status_code == 404
+
+
+def test_a_session_must_declare_a_known_workflow(client):
+    """The column is only worth having if a typo can't create an unrunnable session."""
+    reply = client.post("/sessions/", json=SESSION | {"workflow": "evidence-map"})
+    assert reply.status_code == 400
+
+    created = client.post("/sessions/", json=SESSION)
+    assert created.status_code == 201
+    assert created.json()["workflow"] == "evidence_map"

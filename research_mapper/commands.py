@@ -14,7 +14,7 @@ from research_mapper.workflows.evidence_map.context import EvidenceMapContext
 from research_mapper.engine import queue, runner
 from research_mapper import workflows
 
-HEARTBEAT_TIMEOUT = timedelta(seconds=30)
+HEARTBEAT_TIMEOUT = timedelta(minutes=45)
 DEQUEUE_TIMEOUT = timedelta(seconds=5)
 MAX_RETRIES = 1
 

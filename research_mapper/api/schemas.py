@@ -8,6 +8,7 @@ from research_mapper.engine.views import Progress
 
 
 class CreateSession(BaseModel):
+    workflow: str
     question: str
     community: str
     params: dict = {}
@@ -17,6 +18,7 @@ class SessionSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    workflow: str
     question: str
     community: str
     head_version_number: int

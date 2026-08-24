@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 
+from research_mapper import workflows
 from research_mapper.api.deps import CurrentUser, DbSession, Factory, SessionOr404
 from research_mapper.api.schemas import (
     ArtifactOut,
@@ -23,8 +24,11 @@ def create_session(
     body: CreateSession, db: DbSession, user: CurrentUser
 ) -> SessionSummary:
     """Start a research session."""
+    if body.workflow not in workflows.names():
+        raise HTTPException(400, f"unknown workflow: {body.workflow}")
     research_session = ResearchSession(
         user_id=user.id,
+        workflow=body.workflow,
         question=body.question,
         community=body.community,
         params=body.params,

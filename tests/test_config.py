@@ -75,9 +75,16 @@ def test_configure_dspy_accepts_any_non_empty_response(response):
         mock_dspy.configure.assert_called_once()
 
 
-def test_configure_dspy_rejects_empty_response():
-    with patch("research_mapper.config.dspy") as mock_dspy:
-        mock_dspy.LM.return_value = MagicMock(return_value=[""])
+@pytest.mark.parametrize("response", [[], [""], [None]])
+def test_configure_dspy_warns_on_an_empty_response_but_still_configures(response):
+    """A useless reply is worth a warning, not a worker that will not boot."""
+    with (
+        patch("research_mapper.config.dspy") as mock_dspy,
+        patch("research_mapper.config.logger") as mock_logger,
+    ):
+        mock_dspy.LM.return_value = MagicMock(return_value=response)
 
-        with pytest.raises(AssertionError):
-            configure_dspy()
+        configure_dspy()
+
+        mock_logger.warning.assert_called_once()
+        mock_dspy.configure.assert_called_once()

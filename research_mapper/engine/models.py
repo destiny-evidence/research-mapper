@@ -40,6 +40,7 @@ class ResearchSession(Base):
     community: Mapped[str] = mapped_column(String, nullable=False)
     params: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     head_version_number: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    workflow: Mapped[str] = mapped_column(String, nullable=False)
     workflow_version: Mapped[str] = mapped_column(String, nullable=False, default="v1")
 
 

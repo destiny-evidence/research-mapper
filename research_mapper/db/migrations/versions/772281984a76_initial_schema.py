@@ -51,6 +51,7 @@ def upgrade() -> None:
         sa.Column("community", sa.String(), nullable=False),
         sa.Column("params", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("head_version_number", sa.Integer(), nullable=False),
+        sa.Column("workflow", sa.String(), nullable=False),
         sa.Column("workflow_version", sa.String(), nullable=False),
         sa.Column("id", sa.UUID(), server_default=sa.text("uuidv7()"), nullable=False),
         sa.Column(

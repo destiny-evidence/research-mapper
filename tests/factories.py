@@ -12,7 +12,12 @@ def make_user(db, subject="user-1") -> User:
 
 def make_session(db, user, question="Does X affect Y?") -> ResearchSession:
     """Persist a research session owned by a user."""
-    session = ResearchSession(user_id=user.id, question=question, community="climate")
+    session = ResearchSession(
+        user_id=user.id,
+        workflow="evidence_map",
+        question=question,
+        community="climate",
+    )
     db.add(session)
     db.commit()
     return session

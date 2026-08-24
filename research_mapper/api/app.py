@@ -23,7 +23,7 @@ app.include_router(sessions.router)
 app.include_router(operations.router)
 
 
-@app.get("/healthz/", tags=["ops"])
+@app.get("/healthz", tags=["ops"])
 def healthz() -> dict[str, str]:
     """Liveness. Deliberately touches nothing."""
     return {"status": "ok"}

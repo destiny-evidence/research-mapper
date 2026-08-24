@@ -62,6 +62,8 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
             user_query=user_query, taxonomy_concepts=taxonomy_concepts
         )
         while isinstance(result, Step):
+            if self.ui is not None:
+                self.ui.print_reasoning(f"Step {result.idx}", result.thought)
             if result.tool_name == "mark_unsatisfiable":
                 unsatisfiable_reason = result.tool_args["reason"]
             elif result.tool_name == "ask_for_clarification" and self.ui is not None:
@@ -69,8 +71,6 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
                     ClarificationOptions(**result.tool_args["request"])
                 )
                 result = result.with_observation(answer)
-            elif self.ui is not None:
-                self.ui.print_reasoning(f"Step {result.idx}", result.thought)
             result = self.agent.resume(
                 result, user_query=user_query, taxonomy_concepts=taxonomy_concepts
             )

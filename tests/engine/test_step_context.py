@@ -106,3 +106,10 @@ def current_progress(db, operation) -> Progress:
     reloaded = db.get(Operation, operation.id)
     assert reloaded is not None
     return reloaded.progress
+
+
+def test_needs_input_inherits_base_exception():
+    """NeedsInput must inherit BaseException as ReAct interrupts Exception propagation"""
+    assert issubclass(NeedsInput, BaseException) and not issubclass(
+        NeedsInput, Exception
+    )

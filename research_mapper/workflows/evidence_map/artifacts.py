@@ -16,6 +16,9 @@ from research_mapper.models.sparse_search import LuceneQuery
 from research_mapper.taxonomy import RepoCommunity
 
 
+DIMENSION_COUNT = 3
+
+
 class ArtifactType(StrEnum):
     SUGGESTED_SEARCH_QUERIES = auto()
     SEARCH_QUERIES = auto()
@@ -23,7 +26,9 @@ class ArtifactType(StrEnum):
     SCREENING_CRITERIA = auto()
     SUGGESTED_CONCEPT_FILTERS = auto()
     CONCEPT_FILTERS = auto()
-    SUGGESTED_DIMENSIONS = auto()
+    SUGGESTED_MAP_DIMENSIONS = auto()
+    MAP_DIMENSIONS = auto()
+    SUGGESTED_DIMENSION_SUBTOPICS = auto()
     DIMENSIONS = auto()
 
 
@@ -51,7 +56,7 @@ class ConceptFilters(BaseModel):
     reasoning: str = ""
 
 
-class SuggestedDimensions(BaseModel):
+class MapDimensions(BaseModel):
     dimensions: list[MappingDimension]
     reasoning: str = ""
 
@@ -73,8 +78,12 @@ SUGGESTED_CONCEPT_FILTERS = ArtifactSpec(
     ArtifactType.SUGGESTED_CONCEPT_FILTERS, ConceptFilters
 )
 CONCEPT_FILTERS = ArtifactSpec(ArtifactType.CONCEPT_FILTERS, ConceptFilters)
-SUGGESTED_DIMENSIONS = ArtifactSpec(
-    ArtifactType.SUGGESTED_DIMENSIONS, SuggestedDimensions
+SUGGESTED_MAP_DIMENSIONS = ArtifactSpec(
+    ArtifactType.SUGGESTED_MAP_DIMENSIONS, MapDimensions
+)
+MAP_DIMENSIONS = ArtifactSpec(ArtifactType.MAP_DIMENSIONS, MapDimensions)
+SUGGESTED_DIMENSION_SUBTOPICS = ArtifactSpec(
+    ArtifactType.SUGGESTED_DIMENSION_SUBTOPICS, Dimensions
 )
 DIMENSIONS = ArtifactSpec(ArtifactType.DIMENSIONS, Dimensions)
 
@@ -90,7 +99,9 @@ ARTIFACTS: dict[ArtifactType, ArtifactSpec[Any]] = {
         SCREENING_CRITERIA,
         SUGGESTED_CONCEPT_FILTERS,
         CONCEPT_FILTERS,
-        SUGGESTED_DIMENSIONS,
+        SUGGESTED_MAP_DIMENSIONS,
+        MAP_DIMENSIONS,
+        SUGGESTED_DIMENSION_SUBTOPICS,
         DIMENSIONS,
     )
 }

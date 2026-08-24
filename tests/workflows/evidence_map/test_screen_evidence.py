@@ -143,7 +143,7 @@ def test_a_rerun_only_screens_what_is_left_and_progress_includes_the_rest(
 ):
     """The resumption case: two of five already screened, so report 3/5 -> 5/5.
 
-    `screened` is the session total; `included` counts only this run's verdicts.
+    Both counts are session-wide, so they stay comparable across a resumed run.
     """
     for destiny_id in IDS:
         make_reference(db, session, destiny_id)
@@ -162,7 +162,7 @@ def test_a_rerun_only_screens_what_is_left_and_progress_includes_the_rest(
     pages(monkeypatch, 3, 2)
     monkeypatch.setattr(screening.EvidenceScreener, "__call__", fake_call)
 
-    assert run(ctx) == {"screened": 5, "included": 3, "failed": 0}
+    assert run(ctx) == {"screened": 5, "included": 5, "failed": 0}
     assert seen == set(IDS[2:]), "already-screened references must not rescreen"
     assert current_progress(db, ctx) == Progress(
         done=5, total=5, note="screening evidence"

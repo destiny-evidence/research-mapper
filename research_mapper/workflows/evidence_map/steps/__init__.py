@@ -1,4 +1,9 @@
 from research_mapper.engine.registry import Step
+from research_mapper.workflows.evidence_map.steps.mapping import (
+    GenerateMap,
+    GenerateMapDimensions,
+    GenerateMapSubtopics,
+)
 from research_mapper.workflows.evidence_map.steps.retrieve import (
     RetrieveConceptEvidence,
     RetrieveSparseEvidence,
@@ -15,4 +20,7 @@ STEPS: list[type[Step]] = [
     RetrieveConceptEvidence,
     GenerateScreeningCriteria,
     ScreenEvidence,
+    GenerateMapDimensions,
+    GenerateMapSubtopics,
+    GenerateMap,
 ]

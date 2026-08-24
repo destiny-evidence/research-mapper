@@ -29,8 +29,20 @@ PAYLOADS: dict[ArtifactType, dict] = {
         ],
     },
     ArtifactType.CONCEPT_FILTERS: {"community": "hpv", "groups": []},
-    ArtifactType.SUGGESTED_DIMENSIONS: {
+    ArtifactType.SUGGESTED_MAP_DIMENSIONS: {
         "dimensions": [{"name": "Setting", "description": "where"}]
+    },
+    ArtifactType.MAP_DIMENSIONS: {
+        "dimensions": [{"name": "Setting", "description": "where"}]
+    },
+    ArtifactType.SUGGESTED_DIMENSION_SUBTOPICS: {
+        "dimensions": [
+            {
+                "name": "Setting",
+                "description": "where",
+                "subtopics": [{"name": "School", "description": "in schools"}],
+            }
+        ]
     },
     ArtifactType.DIMENSIONS: {
         "dimensions": [

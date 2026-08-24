@@ -15,8 +15,6 @@ from research_mapper.workflows.evidence_map.models import SessionReference
 
 router = APIRouter(tags=["evidence map"])
 
-DIMENSION_COUNT = 3
-
 
 def _coordinates(db: Session, session_id: UUID) -> dict[UUID, dict[str, list[str]]]:
     rows = db.execute(
@@ -47,10 +45,8 @@ def read_map(db: DbSession, research_session: SessionOr404) -> EvidenceMap:
         raise HTTPException(404, "this session has no map yet")
 
     dimensions = artifacts.Dimensions.model_validate(artifact.payload).dimensions
-    if len(dimensions) != DIMENSION_COUNT:
-        msg = (
-            f"a map needs {DIMENSION_COUNT} dimensions, this one has {len(dimensions)}"
-        )
+    if len(dimensions) != artifacts.DIMENSION_COUNT:
+        msg = f"a map needs {artifacts.DIMENSION_COUNT} dimensions, this one has {len(dimensions)}"
         raise HTTPException(500, msg)
     first, second, third = dimensions
 

@@ -1,6 +1,7 @@
 import pytest
 from pydantic import BaseModel
 
+from research_mapper import workflows
 from research_mapper.engine import registry
 from research_mapper.engine.context import StepContext
 from research_mapper.engine.registry import Step, register
@@ -12,11 +13,11 @@ class Params(BaseModel):
 
 @pytest.fixture(autouse=True)
 def clean_registry():
-    """Keep tests from leaking step registrations into each other."""
-    original = dict(registry.REGISTRY)
+    """Drop only what this test registered; imports are cached and never re-run."""
+    before = set(registry.REGISTRY)
     yield
-    registry.REGISTRY.clear()
-    registry.REGISTRY.update(original)
+    for operation_type in set(registry.REGISTRY) - before:
+        del registry.REGISTRY[operation_type]
 
 
 def build(**namespace) -> type[Step]:
@@ -56,10 +57,16 @@ def test_step_cannot_be_instantiated_without_run():
         Incomplete()
 
 
-def test_importing_commands_populates_the_registry():
-    """The worker and the API both rely on this import side effect."""
-    import research_mapper.commands  # noqa: F401
+def test_load_populates_the_registry():
+    """The worker and the API both call this instead of a magic import."""
+    workflows.load()
 
     assert "enhance_sparse_query" in registry.known_types()
     assert issubclass(registry.get("enhance_sparse_query"), Step)
     assert StepContext
+
+
+def test_registering_the_same_step_twice_is_a_no_op():
+    """load() is called by both entry points and must tolerate being repeated."""
+    step = build(type="thing")
+    assert register(step) is register(step)

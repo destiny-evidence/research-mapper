@@ -30,10 +30,11 @@ class Params(BaseModel):
 
 @pytest.fixture(autouse=True)
 def clean_registry():
-    original = dict(registry.REGISTRY)
+    """Drop only what this test registered; imports are cached and never re-run."""
+    before = set(registry.REGISTRY)
     yield
-    registry.REGISTRY.clear()
-    registry.REGISTRY.update(original)
+    for operation_type in set(registry.REGISTRY) - before:
+        del registry.REGISTRY[operation_type]
 
 
 @pytest.fixture
@@ -244,34 +245,34 @@ def test_answering_the_last_open_decision_resumes_the_operation(
     run(operation, session_factory)
     assert reload(db, operation).status == OperationStatus.AWAITING_INPUT
 
-    first, second = db.query(Decision).order_by(Decision.key).all()
-
-    assert runner.answer_decision(first.id, [ONE], session_factory) is None
+    assert runner.answer_decisions(operation.id, {"a": [ONE]}, session_factory) is None
     assert reload(db, operation).status == OperationStatus.AWAITING_INPUT
     assert queued() == []
 
-    assert runner.answer_decision(second.id, [TWO], session_factory) == operation.id
+    resumed = runner.answer_decisions(operation.id, {"b": [TWO]}, session_factory)
+    assert resumed == operation.id
     assert reload(db, operation).status == OperationStatus.PENDING
     assert queued() == [str(operation.id)]
 
     db.expire_all()
-    assert db.get(Decision, first.id).answered_at is not None
+    assert all(row.answered_at is not None for row in db.query(Decision).all())
 
 
-def test_answering_a_decision_on_a_finished_operation_does_not_requeue(
+def test_an_already_answered_decision_cannot_be_answered_again(
     db, scenario, session_factory, queued
 ):
+    """Re-answering is a client error, not a silent rerun of a finished operation."""
     user, session = scenario
     step("asks", lambda self, ctx, params: {"picked": ctx.ask("pick", SPEC)})
     operation = make_operation(db, session, user, type="asks")
     run(operation, session_factory)
-    decision = db.query(Decision).one()
 
-    runner.answer_decision(decision.id, [ONE], session_factory)
+    runner.answer_decisions(operation.id, {"pick": [ONE]}, session_factory)
     run(operation, session_factory)
     assert reload(db, operation).status == OperationStatus.COMPLETE
 
-    assert runner.answer_decision(decision.id, [TWO], session_factory) is None
+    with pytest.raises(LookupError):
+        runner.answer_decisions(operation.id, {"pick": [TWO]}, session_factory)
     assert reload(db, operation).status == OperationStatus.COMPLETE
 
 
@@ -334,7 +335,9 @@ def test_an_invalid_answer_is_rejected_without_touching_the_operation(
     decision = db.query(Decision).one()
 
     with pytest.raises(InvalidAnswer):
-        runner.answer_decision(decision.id, [{"query": "invented"}], session_factory)
+        runner.answer_decisions(
+            operation.id, {"pick": [{"query": "invented"}]}, session_factory
+        )
 
     db.expire_all()
     assert db.get(Decision, decision.id).answer is None

@@ -148,30 +148,38 @@ def create_operation(
     return operation.id
 
 
-def answer_decision(
-    decision_id: UUID, answer: list[dict], session_factory: SessionFactory
+def answer_decisions(
+    operation_id: UUID,
+    answers: dict[str, list[dict]],
+    session_factory: SessionFactory,
 ) -> UUID | None:
-    """Record an answer and requeue the operation if it was the last one open."""
+    """Answer an operation's decisions in one go, requeueing it when none remain open."""
+    if not answers:
+        msg = "no answers given"
+        raise LookupError(msg)
     with session_factory() as db:
-        decision = db.get(Decision, decision_id)
-        if decision is None:
-            msg = f"no decision {decision_id}"
+        open_decisions = {
+            decision.key: decision
+            for decision in db.execute(
+                select(Decision)
+                .where(Decision.operation_id == operation_id)
+                .where(Decision.answer.is_(None))
+            ).scalars()
+        }
+        if unknown := answers.keys() - open_decisions.keys():
+            msg = f"no open decision for {sorted(unknown)}"
             raise LookupError(msg)
-        validate_answer(decision, answer)
-        decision.answer = answer
-        decision.answered_at = datetime.now(UTC)
-        db.flush()
-        still_open = db.execute(
-            select(Decision.id)
-            .where(Decision.operation_id == decision.operation_id)
-            .where(Decision.answer.is_(None))
-            .limit(1)
-        ).one_or_none()
+        for key, answer in answers.items():
+            validate_answer(open_decisions[key], answer)
+        answered_at = datetime.now(UTC)
+        for key, answer in answers.items():
+            open_decisions[key].answer = answer
+            open_decisions[key].answered_at = answered_at
         resumed = None
-        if not still_open:
+        if not open_decisions.keys() - answers.keys():
             resumed = db.execute(
                 update(Operation)
-                .where(Operation.id == decision.operation_id)
+                .where(Operation.id == operation_id)
                 .where(Operation.status == OperationStatus.AWAITING_INPUT)
                 .values(status=OperationStatus.PENDING)
                 .returning(Operation.id)

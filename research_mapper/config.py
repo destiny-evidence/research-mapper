@@ -6,7 +6,6 @@ from pathlib import Path
 import dspy
 from destiny_sdk.client import OAuthClient, OAuthMiddleware
 from dotenv import load_dotenv, find_dotenv
-from sqlalchemy import text
 
 from research_mapper.db.session import db_manager
 
@@ -90,3 +89,8 @@ def get_destiny_client() -> OAuthClient:
 def init_database() -> None:
     """Initializes the database session manager from environment variables."""
     db_manager.init()
+
+
+def close_database() -> None:
+    """Closes the database session manager."""
+    db_manager.close()

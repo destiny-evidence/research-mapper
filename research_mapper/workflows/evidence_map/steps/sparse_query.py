@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from research_mapper.models.common import UserQuery
 from research_mapper.workflows.evidence_map.pipeline import SparseQueryGenerator
 from research_mapper.engine.context import StepContext
-from research_mapper.engine.registry import Step, register
+from research_mapper.engine.registry import Step
 from research_mapper.engine.views import AskSpec
 
 
@@ -20,7 +20,6 @@ class SparseQueryParams(BaseModel):
     regenerate: bool = False
 
 
-@register
 class EnhanceSparseQuery(Step[SparseQueryParams]):
     """Suggest Lucene queries for the session question and keep the user's picks."""
 

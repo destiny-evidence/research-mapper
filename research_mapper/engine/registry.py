@@ -27,7 +27,10 @@ def register(step: STEP_T) -> STEP_T:
     if not isinstance(operation_type, str) or not operation_type:
         msg = f"{step.__name__} needs a non-empty str `type`"
         raise TypeError(msg)
-    if operation_type in REGISTRY:
+    registered = REGISTRY.get(operation_type)
+    if registered is step:
+        return step
+    if registered is not None:
         msg = f"operation type {operation_type!r} is already registered"
         raise TypeError(msg)
     REGISTRY[operation_type] = step

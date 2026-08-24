@@ -6,14 +6,13 @@ from uuid import UUID
 from pgqueuer.executors import DatabaseRetryEntrypointExecutor
 from sqlalchemy import text
 from sqlalchemy.engine import CursorResult
+import uvicorn
 
 from research_mapper.config import configure_dspy, init_database
 from research_mapper.db.session import SessionFactory, db_manager
 from research_mapper.workflows.evidence_map.context import EvidenceMapContext
 from research_mapper.engine import queue, runner
-
-# Steps register themselves on import, so the registry is empty without this.
-import research_mapper.workflows.evidence_map.steps  # noqa: E402, F401
+from research_mapper import workflows
 
 HEARTBEAT_TIMEOUT = timedelta(seconds=30)
 DEQUEUE_TIMEOUT = timedelta(seconds=5)
@@ -25,6 +24,7 @@ def _context(operation_id: UUID, session_factory: SessionFactory) -> EvidenceMap
 
 
 async def _worker() -> None:
+    workflows.load()
     manager = await queue.queue_manager()
 
     @manager.entrypoint(
@@ -53,6 +53,12 @@ def worker() -> None:
     asyncio.run(_worker())
 
 
+def api() -> None:
+    """Serve the HTTP API."""
+
+    uvicorn.run("research_mapper.api.app:app", host="0.0.0.0", port=8080)
+
+
 def migrate() -> None:
     """Apply any outstanding migrations."""
     from alembic import command
@@ -74,6 +80,7 @@ def sql(statement: str) -> None:
 
 
 COMMANDS: dict[str, Callable[..., None]] = {
+    "api": api,
     "worker": worker,
     "migrate": migrate,
     "sql": sql,

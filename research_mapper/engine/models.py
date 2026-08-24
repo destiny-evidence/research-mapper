@@ -118,7 +118,9 @@ class Decision(Base):
     prompt: Mapped[str] = mapped_column(String, nullable=False)
     options: Mapped[list[dict]] = mapped_column(JSONB, nullable=False, default=list)
     constraints: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
-    answer: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
+    answer: Mapped[list[dict] | None] = mapped_column(
+        JSONB, nullable=True, default=None
+    )
     answered_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, default=None
     )

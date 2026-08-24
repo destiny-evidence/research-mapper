@@ -90,12 +90,3 @@ def get_destiny_client() -> OAuthClient:
 def init_database() -> None:
     """Initializes the database session manager from environment variables."""
     db_manager.init()
-
-
-if os.getenv("MAPPER_DESTINY_ENV") == "staging":
-    """Temporary proof of connection"""
-    init_database()
-    with db_manager.session() as session:
-        session.execute(text("SELECT version()"))
-
-    logger.info("Successfully connected to the database with managed identity!")

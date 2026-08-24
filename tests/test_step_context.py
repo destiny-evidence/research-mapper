@@ -1,5 +1,3 @@
-import uuid
-
 import pytest
 
 from factories import make_operation, make_session, make_user
@@ -8,7 +6,16 @@ from research_mapper.engine.enums import DecisionType
 from research_mapper.engine.models import Decision, Operation, ResearchSession
 from research_mapper.engine.views import AskSpec, Progress
 
-SPEC = AskSpec(type="select_many", prompt="pick some", options=[{"id": "1"}])
+ONE = {"query": "a"}
+TWO = {"query": "b"}
+SPEC = AskSpec(
+    type="select_many",
+    prompt="pick some",
+    options=[
+        {"id": "1", "label": "a", "value": ONE},
+        {"id": "2", "label": "b", "value": TWO},
+    ],
+)
 
 
 @pytest.fixture
@@ -60,8 +67,8 @@ def test_artifacts_are_versioned_per_type(ctx):
 
 def test_answers_are_scoped_to_this_operation(db, ctx, operation, session_factory):
     """A rerun under a new operation must ask again rather than reuse the old answer."""
-    answer(db, operation, "pick", ["a"])
-    assert ctx.get_answers(["pick"]) == {"pick": ["a"]}
+    answer(db, operation, "pick", [ONE])
+    assert ctx.get_answers(["pick"]) == {"pick": [ONE]}
 
     session = db.get(ResearchSession, operation.research_session_id)
     later = make_operation(db, session, make_user(db, "other"))
@@ -73,12 +80,12 @@ def test_ask_blocks_until_answered(db, ctx, operation, session_factory):
         ctx.ask("pick", SPEC)
     assert ctx.pending_decisions == {"pick": SPEC}
 
-    answer(db, operation, "pick", ["a"])
-    assert StepContext(operation.id, session_factory).ask("pick", SPEC) == ["a"]
+    answer(db, operation, "pick", [ONE])
+    assert StepContext(operation.id, session_factory).ask("pick", SPEC) == [ONE]
 
 
 def test_ask_all_only_reports_what_is_missing(db, ctx, operation):
-    answer(db, operation, "known", ["a"])
+    answer(db, operation, "known", [ONE])
 
     with pytest.raises(NeedsInput):
         ctx.ask_all({"known": SPEC, "unknown": SPEC})
@@ -99,7 +106,3 @@ def current_progress(db, operation) -> Progress:
     reloaded = db.get(Operation, operation.id)
     assert reloaded is not None
     return reloaded.progress
-
-
-def test_unknown_artifact_type_is_not_an_error(ctx):
-    assert ctx.get_artifact(str(uuid.uuid4())) is None

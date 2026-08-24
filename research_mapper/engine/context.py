@@ -1,7 +1,6 @@
 import time
 from collections.abc import Collection
 from functools import cached_property
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Select, select, update
@@ -108,7 +107,7 @@ class StepContext:
             db.commit()
             return version
 
-    def get_answers(self, keys: Collection[str]) -> dict[str, Any]:
+    def get_answers(self, keys: Collection[str]) -> dict[str, list[dict]]:
         """Return the answers already given for these decision keys."""
         with self._sf() as db:
             rows = db.execute(
@@ -118,11 +117,11 @@ class StepContext:
             ).all()
         return {row.key: row.answer for row in rows if row.answer is not None}
 
-    def ask(self, key: str, spec: AskSpec) -> Any:
+    def ask(self, key: str, spec: AskSpec) -> list[dict]:
         """Return the answer to one decision, or raise NeedsInput."""
         return self.ask_all({key: spec})[key]
 
-    def ask_all(self, specs: dict[str, AskSpec]) -> dict[str, Any]:
+    def ask_all(self, specs: dict[str, AskSpec]) -> dict[str, list[dict]]:
         """Return answers to every decision, or raise NeedsInput for the missing ones."""
         answered = self.get_answers(specs.keys())
         missing = specs.keys() - answered.keys()

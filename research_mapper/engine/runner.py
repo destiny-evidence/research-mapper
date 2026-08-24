@@ -1,11 +1,13 @@
 import logging
 from collections.abc import Callable
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select, update
 
 from research_mapper.db.session import SessionFactory
-from research_mapper.engine import registry
+from research_mapper.engine import queue, registry
+from research_mapper.engine.answers import validate_answer
 from research_mapper.engine.context import NeedsInput, StepContext
 from research_mapper.engine.enums import OperationStatus
 from research_mapper.engine.models import Decision, Operation, ResearchSession
@@ -16,12 +18,12 @@ ContextFactory = Callable[[UUID, SessionFactory], StepContext]
 
 
 def _mark_running(session_factory: SessionFactory, operation_id: UUID) -> None:
-    """Move an operation into the running state."""
+    """Move an operation into the running state, clearing the last attempt's error."""
     with session_factory() as db:
         db.execute(
             update(Operation)
             .where(Operation.id == operation_id)
-            .values(status=OperationStatus.RUNNING)
+            .values(status=OperationStatus.RUNNING, error=None)
         )
         db.commit()
 
@@ -108,10 +110,9 @@ def run_operation(
     """Run one operation to completion, to a decision, or to failure."""
     _mark_running(session_factory, operation_id)
     ctx = context_factory(operation_id, session_factory)
-    step_class = registry.get(ctx.operation_type)
-    step = step_class()
     try:
-        result = step.run(ctx, step_class.Params.model_validate(ctx.params))
+        step_class = registry.get(ctx.operation_type)
+        result = step_class().run(ctx, step_class.Params.model_validate(ctx.params))
     except NeedsInput:
         logger.info("operation %s awaiting input", operation_id)
         _block(session_factory, operation_id, ctx)
@@ -121,3 +122,76 @@ def run_operation(
         raise
     else:
         _finish(session_factory, operation_id, result)
+
+
+def create_operation(
+    research_session_id: UUID,
+    created_by_id: UUID,
+    operation_type: str,
+    params: dict,
+    session_factory: SessionFactory,
+) -> UUID:
+    """Validate, record and queue a new operation."""
+    step_class = registry.get(operation_type)
+    validated = step_class.Params.model_validate(params)
+    with session_factory() as db:
+        operation = Operation(
+            research_session_id=research_session_id,
+            created_by_id=created_by_id,
+            type=operation_type,
+            params=validated.model_dump(mode="json"),
+            mutates_state=step_class.mutates_state,
+        )
+        db.add(operation)
+        db.commit()
+    queue.enqueue_sync(operation.id)
+    return operation.id
+
+
+def answer_decision(
+    decision_id: UUID, answer: list[dict], session_factory: SessionFactory
+) -> UUID | None:
+    """Record an answer and requeue the operation if it was the last one open."""
+    with session_factory() as db:
+        decision = db.get(Decision, decision_id)
+        if decision is None:
+            msg = f"no decision {decision_id}"
+            raise LookupError(msg)
+        validate_answer(decision, answer)
+        decision.answer = answer
+        decision.answered_at = datetime.now(UTC)
+        db.flush()
+        still_open = db.execute(
+            select(Decision.id)
+            .where(Decision.operation_id == decision.operation_id)
+            .where(Decision.answer.is_(None))
+            .limit(1)
+        ).one_or_none()
+        resumed = None
+        if not still_open:
+            resumed = db.execute(
+                update(Operation)
+                .where(Operation.id == decision.operation_id)
+                .where(Operation.status == OperationStatus.AWAITING_INPUT)
+                .values(status=OperationStatus.PENDING)
+                .returning(Operation.id)
+            ).scalar_one_or_none()
+        db.commit()
+    if resumed:
+        queue.enqueue_sync(resumed)
+    return resumed
+
+
+def retry_operation(operation_id: UUID, session_factory: SessionFactory) -> None:
+    """Put a failed operation back on the queue."""
+    with session_factory() as db:
+        operation = db.get(Operation, operation_id)
+        if operation is None:
+            msg = f"no operation {operation_id}"
+            raise LookupError(msg)
+        if operation.status != OperationStatus.FAILED:
+            msg = f"operation {operation_id} is {operation.status}, not failed"
+            raise ValueError(msg)
+        operation.status = OperationStatus.PENDING
+        db.commit()
+    queue.enqueue_sync(operation_id)

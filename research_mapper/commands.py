@@ -3,6 +3,7 @@ from collections.abc import Callable
 from datetime import timedelta
 from uuid import UUID
 
+from pgqueuer.executors import DatabaseRetryEntrypointExecutor
 from sqlalchemy import text
 from sqlalchemy.engine import CursorResult
 
@@ -14,8 +15,9 @@ from research_mapper.engine import queue, runner
 # Steps register themselves on import, so the registry is empty without this.
 import research_mapper.workflows.evidence_map.steps  # noqa: E402, F401
 
-HEARTBEAT_TIMEOUT = timedelta(minutes=45)
+HEARTBEAT_TIMEOUT = timedelta(seconds=30)
 DEQUEUE_TIMEOUT = timedelta(seconds=5)
+MAX_RETRIES = 1
 
 
 def _context(operation_id: UUID, session_factory: SessionFactory) -> EvidenceMapContext:
@@ -25,14 +27,23 @@ def _context(operation_id: UUID, session_factory: SessionFactory) -> EvidenceMap
 async def _worker() -> None:
     manager = await queue.queue_manager()
 
-    @manager.entrypoint(queue.ENTRYPOINT, concurrency_limit=1, on_failure="hold")
+    @manager.entrypoint(
+        queue.ENTRYPOINT,
+        concurrency_limit=1,
+        on_failure="hold",
+        executor_factory=lambda parameters: DatabaseRetryEntrypointExecutor(
+            parameters, max_attempts=MAX_RETRIES
+        ),
+    )
     async def _run(job) -> None:
         operation_id = UUID(job.payload.decode())
         await asyncio.to_thread(
             runner.run_operation, operation_id, db_manager.session, _context
         )
 
-    await manager.run(dequeue_timeout=DEQUEUE_TIMEOUT)
+    await manager.run(
+        dequeue_timeout=DEQUEUE_TIMEOUT, heartbeat_timeout=HEARTBEAT_TIMEOUT
+    )
 
 
 def worker() -> None:

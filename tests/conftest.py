@@ -176,3 +176,24 @@ def db(session_factory):
     """A session for arranging and asserting, separate from the code under test."""
     with session_factory() as session:
         yield session
+
+
+@pytest.fixture
+def queued(database):
+    """Empty the queue and yield a reader over it."""
+    from sqlalchemy import text
+
+    with database() as db:
+        db.execute(text("TRUNCATE pgqueuer"))
+        db.commit()
+
+    def read() -> list[str]:
+        with database() as db:
+            return [
+                bytes(row.payload).decode()
+                for row in db.execute(
+                    text("SELECT payload FROM pgqueuer WHERE entrypoint = 'operation'")
+                ).all()
+            ]
+
+    return read

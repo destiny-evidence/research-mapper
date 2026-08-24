@@ -1,3 +1,4 @@
+import asyncio
 from uuid import UUID
 
 import psycopg
@@ -40,6 +41,11 @@ async def enqueue(operation_id: UUID) -> None:
         )
     finally:
         await connection.close()
+
+
+def enqueue_sync(operation_id: UUID) -> None:
+    """Synchronously queue an operation."""
+    asyncio.run(enqueue(operation_id))
 
 
 def install_ddl(create_schema: bool = False) -> str:

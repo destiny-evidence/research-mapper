@@ -1,17 +1,27 @@
 import builtins
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from factories import make_operation, make_session, make_user
 from research_mapper.engine import registry, runner
+from research_mapper.engine.answers import InvalidAnswer
 from research_mapper.engine.context import StepContext
 from research_mapper.engine.enums import OperationStatus
 from research_mapper.engine.models import Decision, Operation, ResearchSession
 from research_mapper.engine.registry import Step, register
 from research_mapper.engine.views import AskSpec
 
-SPEC = AskSpec(type="select_many", prompt="pick some", options=[{"id": "1"}])
+ONE = {"query": "a"}
+TWO = {"query": "b"}
+SPEC = AskSpec(
+    type="select_many",
+    prompt="pick some",
+    options=[
+        {"id": "1", "label": "a", "value": ONE},
+        {"id": "2", "label": "b", "value": TWO},
+    ],
+)
 
 
 class Params(BaseModel):
@@ -103,12 +113,12 @@ def test_an_operation_parks_on_a_question_and_resumes_from_its_artifact(
     assert (decision.key, decision.prompt) == ("pick", SPEC.prompt)
     assert decision.options == SPEC.options
 
-    decision.answer = ["a"]
+    decision.answer = [ONE]
     db.commit()
     run(operation, session_factory)
 
     assert reload(db, operation).status == OperationStatus.COMPLETE
-    assert reload(db, operation).result == {"picked": ["a"]}
+    assert reload(db, operation).result == {"picked": [ONE]}
     assert generated == [1], "the pre-question work should not have run twice"
     assert db.query(Decision).count() == 1
 
@@ -130,3 +140,203 @@ def test_a_failing_operation_records_the_attempt_and_reraises(
     assert reload(db, operation).status == OperationStatus.FAILED
     assert reload(db, operation).attempt == 1
     assert reload(db, operation).error is not None
+
+
+def test_create_operation_records_and_queues_it(db, scenario, session_factory, queued):
+    user, session = scenario
+    step("counts", lambda self, ctx, params: {})
+
+    operation_id = runner.create_operation(
+        session.id, user.id, "counts", {}, session_factory
+    )
+
+    operation = db.get(Operation, operation_id)
+    assert operation is not None
+    assert operation.status == OperationStatus.PENDING
+    assert queued() == [str(operation_id)]
+
+
+def test_create_operation_takes_mutates_state_from_the_step(
+    db, scenario, session_factory, queued
+):
+    """The column drives the version bump, so the class value has to reach it."""
+    user, session = scenario
+
+    class Reads(Step[Params]):
+        type = "reads"
+        mutates_state = False
+        Params = Params
+
+        def run(self, ctx, params):
+            return {}
+
+    register(Reads)
+    operation_id = runner.create_operation(
+        session.id, user.id, "reads", {}, session_factory
+    )
+
+    assert db.get(Operation, operation_id).mutates_state is False
+
+
+def test_create_operation_persists_validated_params(
+    db, scenario, session_factory, queued
+):
+    user, session = scenario
+
+    class Sized(BaseModel):
+        limit: int = 10
+
+    class Takes(Step[Sized]):
+        type = "takes"
+        Params = Sized
+
+        def run(self, ctx, params):
+            return {}
+
+    register(Takes)
+    operation_id = runner.create_operation(
+        session.id, user.id, "takes", {"limit": "25"}, session_factory
+    )
+
+    assert db.get(Operation, operation_id).params == {"limit": 25}
+
+
+def test_create_operation_rejects_bad_input_before_writing_anything(
+    db, scenario, session_factory, queued
+):
+    """A 422 at the boundary, rather than a red operation the worker discovers."""
+    user, session = scenario
+
+    class Sized(BaseModel):
+        limit: int
+
+    class Needs(Step[Sized]):
+        type = "needs"
+        Params = Sized
+
+        def run(self, ctx, params):
+            return {}
+
+    register(Needs)
+
+    with pytest.raises(LookupError):
+        runner.create_operation(session.id, user.id, "nope", {}, session_factory)
+    with pytest.raises(ValidationError):
+        runner.create_operation(
+            session.id, user.id, "needs", {"limit": "many"}, session_factory
+        )
+
+    assert db.query(Operation).count() == 0
+    assert queued() == []
+
+
+def test_answering_the_last_open_decision_resumes_the_operation(
+    db, scenario, session_factory, queued
+):
+    user, session = scenario
+
+    def body(self, ctx, params):
+        answers = ctx.ask_all({"a": SPEC, "b": SPEC})
+        return {"got": sorted(answers)}
+
+    step("asks", body)
+    operation = make_operation(db, session, user, type="asks")
+    run(operation, session_factory)
+    assert reload(db, operation).status == OperationStatus.AWAITING_INPUT
+
+    first, second = db.query(Decision).order_by(Decision.key).all()
+
+    assert runner.answer_decision(first.id, [ONE], session_factory) is None
+    assert reload(db, operation).status == OperationStatus.AWAITING_INPUT
+    assert queued() == []
+
+    assert runner.answer_decision(second.id, [TWO], session_factory) == operation.id
+    assert reload(db, operation).status == OperationStatus.PENDING
+    assert queued() == [str(operation.id)]
+
+    db.expire_all()
+    assert db.get(Decision, first.id).answered_at is not None
+
+
+def test_answering_a_decision_on_a_finished_operation_does_not_requeue(
+    db, scenario, session_factory, queued
+):
+    user, session = scenario
+    step("asks", lambda self, ctx, params: {"picked": ctx.ask("pick", SPEC)})
+    operation = make_operation(db, session, user, type="asks")
+    run(operation, session_factory)
+    decision = db.query(Decision).one()
+
+    runner.answer_decision(decision.id, [ONE], session_factory)
+    run(operation, session_factory)
+    assert reload(db, operation).status == OperationStatus.COMPLETE
+
+    assert runner.answer_decision(decision.id, [TWO], session_factory) is None
+    assert reload(db, operation).status == OperationStatus.COMPLETE
+
+
+def test_retry_requeues_a_failed_operation(db, scenario, session_factory, queued):
+    user, session = scenario
+    attempts = []
+
+    def body(self, ctx, params):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise RuntimeError("transient")
+        return {"ok": True}
+
+    step("flaky", body)
+    operation = make_operation(db, session, user, type="flaky")
+    with pytest.raises(RuntimeError):
+        run(operation, session_factory)
+    assert reload(db, operation).error is not None
+
+    runner.retry_operation(operation.id, session_factory)
+    assert reload(db, operation).status == OperationStatus.PENDING
+    assert queued() == [str(operation.id)]
+
+    run(operation, session_factory)
+    assert reload(db, operation).status == OperationStatus.COMPLETE
+    assert reload(db, operation).error is None, "a retry must clear the stale error"
+    assert reload(db, operation).attempt == 1
+
+
+def test_retry_refuses_an_operation_that_is_not_failed(
+    db, scenario, session_factory, queued
+):
+    """Otherwise a bricked `running` row could be requeued while its step is alive."""
+    user, session = scenario
+    operation = make_operation(db, session, user, status=OperationStatus.RUNNING)
+
+    with pytest.raises(ValueError):
+        runner.retry_operation(operation.id, session_factory)
+    assert queued() == []
+
+
+def test_an_unknown_operation_type_fails_the_operation(db, scenario, session_factory):
+    """Registry lookup lives inside the try, so a renamed step can't brick a session."""
+    user, session = scenario
+    operation = make_operation(db, session, user, type="was-renamed")
+
+    with pytest.raises(LookupError):
+        run(operation, session_factory)
+
+    assert reload(db, operation).status == OperationStatus.FAILED
+
+
+def test_an_invalid_answer_is_rejected_without_touching_the_operation(
+    db, scenario, session_factory, queued
+):
+    user, session = scenario
+    step("asks", lambda self, ctx, params: {"picked": ctx.ask("pick", SPEC)})
+    operation = make_operation(db, session, user, type="asks")
+    run(operation, session_factory)
+    decision = db.query(Decision).one()
+
+    with pytest.raises(InvalidAnswer):
+        runner.answer_decision(decision.id, [{"query": "invented"}], session_factory)
+
+    db.expire_all()
+    assert db.get(Decision, decision.id).answer is None
+    assert reload(db, operation).status == OperationStatus.AWAITING_INPUT
+    assert queued() == []

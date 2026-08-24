@@ -12,28 +12,37 @@ NO_STRAGGLER_RESUBMISSION = 0
 MAX_CONCURRENCY = 8
 
 
-class _Tracked(dspy.Module):
-    def __init__(self, inner: dspy.Module, ctx: StepContext, total: int, note: str):
-        self._inner = inner
+class ProgressTracker:
+    def __init__(self, ctx: StepContext, total: int, note: str, done: int = 0):
         self._ctx = ctx
         self._total = total
         self._note = note
-        self._done = 0
+        self._done = done
         self._failed = 0
         self._lock = threading.Lock()
 
-    def forward(self, **inputs: Any) -> dspy.Prediction:
-        """Run one item and report it, re-raising so dspy still records the failure."""
-        try:
-            prediction = self._inner(**inputs)
-        except Exception:
-            self._report(failed=True)
-            raise
-        self._report(failed=False)
-        return prediction
+    def start(self) -> None:
+        self._ctx.progress(self._done, self._total, note=self._note)
 
-    def _report(self, failed: bool) -> None:
-        """Count the item, then write outside the lock rather than across the I/O."""
+    def fan_out(
+        self,
+        module: dspy.Module,
+        examples: list[dspy.Example],
+        num_threads: int | None = None,
+    ) -> list[Any]:
+        return _Tracked(module, self).batch(
+            examples,
+            num_threads=num_threads or MAX_CONCURRENCY,
+            max_errors=len(examples) + 1,
+            timeout=NO_STRAGGLER_RESUBMISSION,
+        )
+
+    @property
+    def failed(self) -> int:
+        with self._lock:
+            return self._failed
+
+    def report(self, failed: bool) -> None:
         with self._lock:
             self._done += 1
             if failed:
@@ -42,17 +51,16 @@ class _Tracked(dspy.Module):
         self._ctx.progress(done, self._total, failed=failures, note=self._note)
 
 
-def fan_out(
-    module: dspy.Module,
-    examples: list[dspy.Example],
-    ctx: StepContext,
-    note: str,
-    num_threads: int | None = None,
-) -> list[Any]:
-    """Run a module over every example and report progress"""
-    return _Tracked(module, ctx, len(examples), note).batch(
-        examples,
-        num_threads=num_threads or MAX_CONCURRENCY,
-        max_errors=len(examples) + 1,
-        timeout=NO_STRAGGLER_RESUBMISSION,
-    )
+class _Tracked(dspy.Module):
+    def __init__(self, inner: dspy.Module, tracker: ProgressTracker):
+        self._inner = inner
+        self._tracker = tracker
+
+    def forward(self, **inputs: Any) -> dspy.Prediction:
+        try:
+            prediction = self._inner(**inputs)
+        except Exception:
+            self._tracker.report(failed=True)
+            raise
+        self._tracker.report(failed=False)
+        return prediction

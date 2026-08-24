@@ -2,7 +2,7 @@ import dspy
 import pytest
 from dspy.utils.dummies import DummyLM
 
-from research_mapper.workflows.evidence_map.fanout import fan_out
+from research_mapper.workflows.evidence_map.fanout import ProgressTracker
 
 
 class Recorder:
@@ -22,12 +22,14 @@ class Screen(dspy.Module):
         return dspy.Prediction(include="yes")
 
 
+def examples_for(papers: list[str]) -> list[dspy.Example]:
+    return [dspy.Example(paper=p).with_inputs("paper") for p in papers]
+
+
 def run(papers: list[str], ctx: Recorder, num_threads: int = 1) -> list:
-    examples = [dspy.Example(paper=p).with_inputs("paper") for p in papers]
-    with dspy.context(lm=DummyLM([{"include": "yes"}] * 20)):
-        return fan_out(
-            Screen(), examples, ctx, note="screening", num_threads=num_threads
-        )
+    tracker = ProgressTracker(ctx, len(papers), note="screening")
+    with dspy.context(lm=DummyLM([{"include": "yes"}] * 30)):
+        return tracker.fan_out(Screen(), examples_for(papers), num_threads=num_threads)
 
 
 def test_failed_items_come_back_as_none_in_order():
@@ -68,6 +70,45 @@ def test_a_baseexception_escapes_rather_than_counting_as_a_failure():
         dspy.context(lm=DummyLM([{"include": "yes"}])),
         pytest.raises(KeyboardInterrupt),
     ):
-        fan_out(Asking(), examples, ctx, note="screening", num_threads=1)
+        ProgressTracker(ctx, 1, note="screening").fan_out(
+            Asking(), examples, num_threads=1
+        )
 
     assert ctx.calls == []
+
+
+def test_one_tracker_counts_across_several_fan_outs():
+    """A paged step reports against the whole run, not restarting each page."""
+    ctx = Recorder()
+    tracker = ProgressTracker(ctx, total=4, note="screening")
+
+    with dspy.context(lm=DummyLM([{"include": "yes"}] * 10)):
+        tracker.fan_out(Screen(), examples_for(["ok-1", "ok-2"]), num_threads=1)
+        tracker.fan_out(Screen(), examples_for(["ok-3", "ok-4"]), num_threads=1)
+
+    assert ctx.calls == [(1, 4, 0), (2, 4, 0), (3, 4, 0), (4, 4, 0)]
+
+
+def test_failures_carry_into_later_fan_outs():
+    """Page two must not report failed=0 after page one lost an item."""
+    ctx = Recorder()
+    tracker = ProgressTracker(ctx, total=3, note="screening")
+
+    with dspy.context(lm=DummyLM([{"include": "yes"}] * 10)):
+        tracker.fan_out(Screen(), examples_for(["bad-1", "ok-2"]), num_threads=1)
+        tracker.fan_out(Screen(), examples_for(["ok-3"]), num_threads=1)
+
+    assert ctx.calls == [(1, 3, 1), (2, 3, 1), (3, 3, 1)]
+    assert tracker.failed == 1
+
+
+def test_a_resumed_step_starts_from_the_work_already_done():
+    """`done` is the screened-reference count, so progress doesn't jump backwards."""
+    ctx = Recorder()
+    tracker = ProgressTracker(ctx, total=5, note="screening", done=3)
+    tracker.start()
+
+    with dspy.context(lm=DummyLM([{"include": "yes"}] * 10)):
+        tracker.fan_out(Screen(), examples_for(["ok-4", "ok-5"]), num_threads=1)
+
+    assert ctx.calls == [(3, 5, 0), (4, 5, 0), (5, 5, 0)]

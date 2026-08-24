@@ -3,11 +3,11 @@ from typing import ClassVar
 
 from pydantic import BaseModel
 
-from research_mapper.engine.context import StepContext
 from research_mapper.engine.registry import Step
 from research_mapper.engine.views import AskSpec
 from research_mapper.models.common import UserQuery
 from research_mapper.workflows.evidence_map import artifacts
+from research_mapper.workflows.evidence_map.context import EvidenceMapContext
 from research_mapper.workflows.evidence_map.pipeline import SparseQueryGenerator
 
 
@@ -17,13 +17,13 @@ class SparseQueryParams(BaseModel):
     regenerate: bool = False
 
 
-class EnhanceSparseQuery(Step[SparseQueryParams, StepContext]):
+class EnhanceSparseQuery(Step[SparseQueryParams, EvidenceMapContext]):
     """Suggest Lucene queries for the session question and keep the user's picks."""
 
     type: ClassVar[str] = "enhance_sparse_query"
     Params: ClassVar[builtins.type[BaseModel]] = SparseQueryParams
 
-    def run(self, ctx: StepContext, params: SparseQueryParams) -> dict:
+    def run(self, ctx: EvidenceMapContext, params: SparseQueryParams) -> dict:
         """Suggest Lucene queries, then keep the ones the user picks."""
 
         def generate() -> artifacts.SearchQueries:

@@ -12,7 +12,7 @@ from research_mapper.models.common import Evidence, UserQuery
 from research_mapper.models.taxonomy_search import ConceptFilterGroup
 from research_mapper.taxonomy import RepoCommunity
 from research_mapper.workflows.evidence_map.context import EvidenceMapContext
-from research_mapper.workflows.evidence_map.fanout import fan_out
+from research_mapper.workflows.evidence_map.fanout import ProgressTracker
 from research_mapper.workflows.evidence_map.pipeline import (
     ConceptEvidenceRetriever,
     EvidenceRetriever,
@@ -21,6 +21,8 @@ from research_mapper.workflows.evidence_map import artifacts
 from research_mapper.workflows.evidence_map.views import RefRow
 
 logger = logging.getLogger(__name__)
+
+RETRIEVING = "retrieving evidence"
 
 SPARSE_MODE = "sparse"
 TAXONOMY_MODE = "taxonomy"
@@ -60,7 +62,8 @@ class RetrieveSparseEvidence(Step[RetrieveSparseEvidenceParams, EvidenceMapConte
         queries = ctx.require_artifact(artifacts.SEARCH_QUERIES).queries
         user_query = UserQuery(query=ctx.research_session.question)
         community = RepoCommunity(ctx.research_session.community)
-        ctx.progress(0, len(queries), note="retrieving evidence")
+        tracker = ProgressTracker(ctx, len(queries), note=RETRIEVING)
+        tracker.start()
 
         examples = [
             dspy.Example(
@@ -68,19 +71,14 @@ class RetrieveSparseEvidence(Step[RetrieveSparseEvidenceParams, EvidenceMapConte
             ).with_inputs("user_query", "search_query", "community")
             for query in queries
         ]
-        predictions: list[Retrieval | None] = fan_out(
-            EvidenceRetriever(),
-            examples,
-            ctx,
-            note="retrieving evidence",
+        predictions: list[Retrieval | None] = tracker.fan_out(
+            EvidenceRetriever(), examples
         )
 
         retrieved: set[UUID] = set()
-        failed = 0
         for query, prediction in zip(queries, predictions, strict=True):
             if prediction is None:
                 logger.warning("retrieval failed for query %s", query)
-                failed += 1
                 continue
             retrieved |= _record(
                 ctx,
@@ -93,10 +91,9 @@ class RetrieveSparseEvidence(Step[RetrieveSparseEvidenceParams, EvidenceMapConte
                 },
             )
 
-        ctx.progress(len(queries), len(queries), failed=failed, note="retrieved")
         return {
             "queries": len(queries),
-            "failed": failed,
+            "failed": tracker.failed,
             "references": len(retrieved),
         }
 
@@ -117,7 +114,7 @@ class RetrieveConceptEvidence(Step[RetrieveConceptEvidenceParams, EvidenceMapCon
         """Retrieve evidence over the chosen filter groups."""
         filters = ctx.require_artifact(artifacts.CONCEPT_FILTERS)
         groups, community = filters.groups, filters.community
-        ctx.progress(0, 1, note="retrieving evidence")
+        ctx.progress(0, 1, note=RETRIEVING)
 
         prediction: Retrieval = ConceptEvidenceRetriever()(
             user_query=UserQuery(query=ctx.research_session.question),

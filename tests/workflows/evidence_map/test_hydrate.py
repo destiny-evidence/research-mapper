@@ -29,7 +29,7 @@ def client(monkeypatch) -> FakeClient:
 def test_yields_evidence_keyed_by_destiny_id(client):
     ids = [uuid4() for _ in range(3)]
 
-    pages = list(hydrate.get_references(ids))
+    pages = list(hydrate.get_evidence(ids))
 
     assert len(pages) == 1
     assert sorted(pages[0]) == sorted(ids)
@@ -41,20 +41,20 @@ def test_lookups_are_chunked_to_destinys_cap(client):
     """DESTINY caps a lookup at 100, so a thousand-reference map is ten calls."""
     ids = [uuid4() for _ in range(250)]
 
-    pages = list(hydrate.get_references(ids))
+    pages = list(hydrate.get_evidence(ids))
 
     assert [len(batch) for batch in client.batches] == [100, 100, 50]
     assert [len(page) for page in pages] == [100, 100, 50]
 
 
 def test_no_ids_means_no_calls(client):
-    assert list(hydrate.get_references([])) == []
+    assert list(hydrate.get_evidence([])) == []
     assert client.batches == []
 
 
 def test_nothing_is_fetched_until_a_page_is_consumed(client):
     """It's a generator: the caller controls when DESTINY gets hit."""
-    pages = hydrate.get_references([uuid4() for _ in range(150)])
+    pages = hydrate.get_evidence([uuid4() for _ in range(150)])
 
     assert client.batches == []
     next(pages)

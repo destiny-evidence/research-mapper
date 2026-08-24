@@ -85,7 +85,7 @@ def test_the_map_joins_the_dimensions_artifact_to_the_reference_rows(
     make_reference(db, session, TWO, stage=SessionReferenceStage.EXCLUDED)
     monkeypatch.setattr(
         routes,
-        "get_references",
+        "get_evidence",
         lambda ids: [{ONE: Evidence(destiny_id=ONE, title="A")}],
     )
 
@@ -115,7 +115,7 @@ def test_a_reference_destiny_no_longer_returns_is_dropped(
             coordinate={"Setting": ["Urban"]},
         )
     monkeypatch.setattr(
-        routes, "get_references", lambda ids: [{ONE: Evidence(destiny_id=ONE)}]
+        routes, "get_evidence", lambda ids: [{ONE: Evidence(destiny_id=ONE)}]
     )
 
     body = client.get(f"/sessions/{session.id}/map/").json()
@@ -127,7 +127,7 @@ def test_a_dimensions_artifact_that_is_not_three_is_a_clear_error(
     client, db, session, monkeypatch
 ):
     put_dimensions(db, session, DIMENSIONS[:2])
-    monkeypatch.setattr(routes, "get_references", lambda ids: [])
+    monkeypatch.setattr(routes, "get_evidence", lambda ids: [])
 
     reply = client.get(f"/sessions/{session.id}/map/")
 

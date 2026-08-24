@@ -10,7 +10,7 @@ from research_mapper.models.common import Evidence
 from research_mapper.models.mapping import EvidenceMap, MappedEvidence
 from research_mapper.workflows.evidence_map import artifacts
 from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
-from research_mapper.workflows.evidence_map.hydrate import get_references
+from research_mapper.workflows.evidence_map.hydrate import get_evidence
 from research_mapper.workflows.evidence_map.models import SessionReference
 
 router = APIRouter(tags=["evidence map"])
@@ -30,7 +30,7 @@ def _coordinates(db: Session, session_id: UUID) -> dict[UUID, dict[str, list[str
 
 def _hydrate(destiny_ids: list[UUID]) -> dict[UUID, Evidence]:
     evidence: dict[UUID, Evidence] = {}
-    for page in get_references(destiny_ids):
+    for page in get_evidence(destiny_ids):
         evidence.update(page)
     return evidence
 

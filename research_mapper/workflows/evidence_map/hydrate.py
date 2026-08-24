@@ -10,7 +10,7 @@ from research_mapper.models.common import Evidence
 DESTINY_LOOKUP_CHUNK_SIZE = 100
 
 
-def get_references(reference_ids: Sequence[UUID]) -> Generator[dict[UUID, Evidence]]:
+def get_evidence(reference_ids: Sequence[UUID]) -> Generator[dict[UUID, Evidence]]:
     """Generates pages of evidence from DESTINY reference ids."""
     client = get_destiny_client()
     for start in range(0, len(reference_ids), DESTINY_LOOKUP_CHUNK_SIZE):

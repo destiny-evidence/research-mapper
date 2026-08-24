@@ -157,7 +157,28 @@ def test_forward_answers_a_clarification_step_via_the_ui_and_resumes():
     assert resumed_with.trajectory["observation_0"] == ["intervention"]
 
 
-def test_forward_prints_each_non_special_step_live_when_a_ui_is_given():
+def test_forward_prints_the_reasoning_behind_a_clarification_step_too():
+    """The agent's thought for *why* it's asking should be visible before the
+    question itself — not just skipped because the tool happens to be
+    ask_for_clarification."""
+    mock_ui = MagicMock()
+    mock_ui.select_from_list.return_value = ["intervention"]
+    generator = TaxonomyConceptFilterGenerator(ui=mock_ui)
+
+    clarification_step = _step(
+        0,
+        "ask_for_clarification",
+        _request("Which scheme?", ["intervention", "outcome"]),
+    )
+    generator.agent.start = MagicMock(return_value=clarification_step)
+    generator.agent.resume = MagicMock(return_value=_final())
+
+    generator.forward(UserQuery(query="q"), taxonomy_concepts=[])
+
+    mock_ui.print_reasoning.assert_called_once_with("Step 0", "thinking")
+
+
+def test_forward_prints_every_step_live_when_a_ui_is_given():
     mock_ui = MagicMock()
     generator = TaxonomyConceptFilterGenerator(ui=mock_ui)
 

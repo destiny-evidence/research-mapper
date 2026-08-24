@@ -3,38 +3,48 @@ import logging
 import dspy
 
 from research_mapper.models.common import UserQuery
-from research_mapper.models.taxonomy_search import Concept, ConceptFilterGroup
+from research_mapper.models.react import Step
+from research_mapper.models.taxonomy_search import (
+    ClarificationOptions,
+    Concept,
+    ConceptFilterGroup,
+)
+from research_mapper.modules.react import ResumableReAct
 from research_mapper.signatures.taxonomy_search import (
     GatherEvidenceFromConceptFilters,
     TaxonomyConceptFiltersFromUserQuery,
 )
 from research_mapper.taxonomy import RepoCommunity
 from research_mapper.tools.taxonomy_search import (
-    ConceptFilterGenerationTools,
     RetrieveEvidenceByConceptsTool,
-    UnsatisfiabilityTool,
+    ask_for_clarification,
+    mark_unsatisfiable,
 )
 from research_mapper.ui.tui import TerminalUI
 
 logger = logging.getLogger(__name__)
 
+_UNSURE_OPTION = "I'm not sure / none of these"
+
 
 class TaxonomyConceptFilterGenerator(dspy.Module):
     """
-    Generates a set of taxonomy concepts to filter references with.
+    Generates a set of taxonomy concepts to filter references with, driving a
+    ResumableReAct agent step by step so every reasoning step can be shown
+    live, and so ask_for_clarification/mark_unsatisfiable can be answered or
+    inspected by this caller before their (otherwise trivial) tool bodies
+    ever run — neither tool touches the TUI or holds any state itself.
     """
 
     def __init__(self, ui: TerminalUI | None = None) -> None:
-        tools = []
+        self.ui = ui
+        tools = [mark_unsatisfiable]
         if ui is not None:
-            filter_generation_tools = ConceptFilterGenerationTools(ui)
-            tools.append(filter_generation_tools.ask_for_clarification)
-        self._unsatisfiability_tool = UnsatisfiabilityTool()
-        tools.append(self._unsatisfiability_tool.mark_unsatisfiable)
-        self.agent = dspy.ReAct(
+            tools.append(ask_for_clarification)
+        self.agent = ResumableReAct(
             signature=TaxonomyConceptFiltersFromUserQuery,
             tools=tools,
-            max_iters=5,
+            max_iters=10,
         )
 
     def forward(
@@ -47,18 +57,46 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
         :return: a Prediction wrapping a collection of ConceptFilterGroup instances, plus
             unsatisfiable_reason (None unless the agent flagged the query as unsatisfiable)
         """
-        # self.agent/self._unsatisfiability_tool are built once and reused across calls
-        # (that's what makes run_with_status's live streaming work here), so any reason
-        # left over from a previous call must be cleared before this one runs.
-        self._unsatisfiability_tool.reason = None
-        prediction = self.agent(
+        unsatisfiable_reason: str | None = None
+        result = self.agent.start(
             user_query=user_query, taxonomy_concepts=taxonomy_concepts
         )
+        while isinstance(result, Step):
+            if result.tool_name == "mark_unsatisfiable":
+                unsatisfiable_reason = result.tool_args["reason"]
+            elif result.tool_name == "ask_for_clarification" and self.ui is not None:
+                answer = self._prompt_clarification(
+                    ClarificationOptions(**result.tool_args["request"])
+                )
+                result = result.with_observation(answer)
+            elif self.ui is not None:
+                self.ui.print_reasoning(f"Step {result.idx}", result.thought)
+            result = self.agent.resume(
+                result, user_query=user_query, taxonomy_concepts=taxonomy_concepts
+            )
         return dspy.Prediction(
-            filter_groups=prediction.filter_groups,
-            reasoning=prediction.reasoning,
-            unsatisfiable_reason=self._unsatisfiability_tool.reason,
+            filter_groups=result.filter_groups,
+            reasoning=result.reasoning,
+            unsatisfiable_reason=unsatisfiable_reason,
         )
+
+    def _prompt_clarification(self, request: ClarificationOptions) -> list[str]:
+        """
+        Answers one proposed `ask_for_clarification` call by prompting the TUI. Only
+        ever reached when `self.ui` is set — that's the only case `ask_for_clarification`
+        is registered as a tool at all, so the agent can only propose it then.
+        """
+        options = [*request.options, _UNSURE_OPTION]
+        self.ui.print_info(request.question)
+        while True:
+            selected = self.ui.select_from_list(options, default=[len(options)])
+            if _UNSURE_OPTION in selected and len(selected) > 1:
+                self.ui.print_info(
+                    f'[red]"{_UNSURE_OPTION}" can\'t be combined with other '
+                    "options — try again.[/red]"
+                )
+                continue
+            return selected
 
 
 class ConceptEvidenceRetriever(dspy.Module):

@@ -95,8 +95,13 @@ def get_destiny_client() -> OAuthClient:
     return client
 
 
-if os.getenv("MAPPER_DESTINY_ENV") == "staging":
-    """Temporary proof of connection"""
+def check_database_connection() -> None:
+    """
+    Confirms the app can reach Postgres using its managed identity. Called
+    explicitly at startup (see cli.py's initialise()) so a misconfigured or
+    unreachable database fails loudly then, not silently on whatever the
+    first thing to actually need it later happens to be.
+    """
     token = ManagedIdentityCredential(
         client_id=os.environ["AZURE_CLIENT_ID"]
     ).get_token("https://ossrdbms-aad.database.windows.net/.default")

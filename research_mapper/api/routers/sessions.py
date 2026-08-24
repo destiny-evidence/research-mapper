@@ -111,7 +111,7 @@ def list_operations(db: DbSession, research_session: SessionOr404) -> list[UUID]
 
 
 @router.get("/sessions/{session_id}/artifacts/{artifact_type}/")
-def read_artifact(
+def get_artifact(
     db: DbSession, research_session: SessionOr404, artifact_type: str
 ) -> ArtifactOut:
     """The current version of one artifact — how results are read back out."""

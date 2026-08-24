@@ -7,15 +7,11 @@ from sqlalchemy.orm import Session
 from research_mapper.api.deps import DbSession, SessionOr404
 from research_mapper.engine.models import CurrentArtifact
 from research_mapper.models.common import Evidence
-from research_mapper.models.mapping import (
-    EvidenceMap,
-    MappedEvidence,
-    MappingDimensionWithSubTopics,
-)
+from research_mapper.models.mapping import EvidenceMap, MappedEvidence
+from research_mapper.workflows.evidence_map import artifacts
 from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
 from research_mapper.workflows.evidence_map.hydrate import get_references
 from research_mapper.workflows.evidence_map.models import SessionReference
-from research_mapper.workflows.evidence_map.steps import mapping
 
 router = APIRouter(tags=["evidence map"])
 
@@ -45,15 +41,12 @@ def read_map(db: DbSession, research_session: SessionOr404) -> EvidenceMap:
     artifact = db.execute(
         select(CurrentArtifact)
         .where(CurrentArtifact.research_session_id == research_session.id)
-        .where(CurrentArtifact.type == mapping.DIMENSIONS)
+        .where(CurrentArtifact.type == artifacts.DIMENSIONS.name)
     ).scalar_one_or_none()
     if artifact is None:
         raise HTTPException(404, "this session has no map yet")
 
-    dimensions = [
-        MappingDimensionWithSubTopics.model_validate(dimension)
-        for dimension in artifact.payload["dimensions"]
-    ]
+    dimensions = artifacts.Dimensions.model_validate(artifact.payload).dimensions
     if len(dimensions) != DIMENSION_COUNT:
         msg = (
             f"a map needs {DIMENSION_COUNT} dimensions, this one has {len(dimensions)}"

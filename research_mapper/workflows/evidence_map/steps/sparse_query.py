@@ -3,15 +3,12 @@ from typing import ClassVar
 
 from pydantic import BaseModel
 
-from research_mapper.models.common import UserQuery
-from research_mapper.workflows.evidence_map.pipeline import SparseQueryGenerator
 from research_mapper.engine.context import StepContext
 from research_mapper.engine.registry import Step
 from research_mapper.engine.views import AskSpec
-
-
-SUGGESTED = "suggested_search_queries"
-CHOSEN = "search_queries"
+from research_mapper.models.common import UserQuery
+from research_mapper.workflows.evidence_map import artifacts
+from research_mapper.workflows.evidence_map.pipeline import SparseQueryGenerator
 
 
 class SparseQueryParams(BaseModel):
@@ -28,19 +25,18 @@ class EnhanceSparseQuery(Step[SparseQueryParams, StepContext]):
 
     def run(self, ctx: StepContext, params: SparseQueryParams) -> dict:
         """Suggest Lucene queries, then keep the ones the user picks."""
-        suggested = None if params.regenerate else ctx.get_artifact(SUGGESTED)
-        if suggested is None:
+
+        def generate() -> artifacts.SearchQueries:
             prediction = SparseQueryGenerator()(
                 user_query=UserQuery(query=ctx.research_session.question)
             )
-            payload = {
-                "queries": [
-                    q.model_dump(mode="json") for q in prediction.search_queries
-                ]
-            }
-            ctx.put_artifact(SUGGESTED, payload)
-        else:
-            payload = suggested.payload
+            return artifacts.SearchQueries(
+                queries=prediction.search_queries, reasoning=prediction.reasoning
+            )
+
+        suggested = ctx.get_or_generate_artifact(
+            artifacts.SUGGESTED_SEARCH_QUERIES, generate, params.regenerate
+        )
 
         chosen = ctx.ask(
             "select_queries",
@@ -48,15 +44,25 @@ class EnhanceSparseQuery(Step[SparseQueryParams, StepContext]):
                 type="select_many",
                 prompt="Which of these searches should we run?",
                 options=[
-                    {"id": str(i), "label": q["query"], "value": q}
-                    for i, q in enumerate(payload["queries"])
+                    {
+                        "id": str(i),
+                        "label": query.query,
+                        "value": query.model_dump(mode="json"),
+                    }
+                    for i, query in enumerate(suggested.queries)
                 ],
                 constraints={"min": 1},
             ),
         )
-        version = ctx.put_artifact(CHOSEN, {"queries": chosen})
+
+        version = ctx.write_artifact(
+            artifacts.SEARCH_QUERIES,
+            artifacts.SearchQueries.model_validate(
+                {"queries": chosen, "reasoning": suggested.reasoning}
+            ),
+        )
         return {
-            "suggested": len(payload["queries"]),
+            "suggested": len(suggested.queries),
             "selected": len(chosen),
             "version": version,
         }

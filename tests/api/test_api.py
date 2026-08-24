@@ -10,11 +10,10 @@ from research_mapper.config import init_database
 from research_mapper.engine import registry, runner
 from research_mapper.engine.context import StepContext
 from research_mapper.engine.registry import Step, register
-from research_mapper.engine.views import AskSpec
+from research_mapper.engine.views import ArtifactSpec, AskSpec
 
 SESSION = {"workflow": "evidence_map", "question": "q", "community": "hpv"}
-SUGGESTED = "suggested_queries"
-CHOSEN = "queries"
+
 ONE = {"query": "a"}
 TWO = {"query": "b"}
 SPEC = AskSpec(
@@ -32,6 +31,14 @@ class Params(BaseModel):
     regenerate: bool = False
 
 
+class Queries(BaseModel):
+    queries: list[dict]
+
+
+SUGGESTED = ArtifactSpec("suggested_queries", Queries)
+CHOSEN = ArtifactSpec("queries", Queries)
+
+
 @pytest.fixture
 def client(session_factory, queued):
     """A client over the test database, with one throwaway step registered."""
@@ -41,9 +48,9 @@ def client(session_factory, queued):
     def body(self, ctx, params):
         if ctx.get_artifact(SUGGESTED) is None:
             generated.append(1)
-            ctx.put_artifact(SUGGESTED, {"queries": [ONE, TWO]})
+            ctx.write_artifact(SUGGESTED, Queries(queries=[ONE, TWO]))
         chosen = ctx.ask("select_queries", SPEC)
-        ctx.put_artifact(CHOSEN, {"queries": chosen})
+        ctx.write_artifact(CHOSEN, Queries(queries=chosen))
         return {"selected": len(chosen)}
 
     register(
@@ -121,10 +128,14 @@ def test_the_whole_flow_over_http(client, session_factory, queued):
 
     detail = client.get(f"/sessions/{session_id}/").json()
     assert detail["head_version_number"] == 1
-    assert detail["artifacts"] == {SUGGESTED: 1, CHOSEN: 1}
+    assert detail["artifacts"] == {SUGGESTED.name: 1, CHOSEN.name: 1}
 
-    artifact = client.get(f"/sessions/{session_id}/artifacts/{CHOSEN}/").json()
-    assert artifact == {"type": CHOSEN, "version": 1, "payload": {"queries": [ONE]}}
+    artifact = client.get(f"/sessions/{session_id}/artifacts/{CHOSEN.name}/").json()
+    assert artifact == {
+        "type": CHOSEN.name,
+        "version": 1,
+        "payload": {"queries": [ONE]},
+    }
 
     assert client.generated == [1], "the pre-question work must not run twice"
 

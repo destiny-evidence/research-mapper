@@ -1,10 +1,11 @@
 import pytest
+from pydantic import BaseModel
 
 from factories import make_operation, make_session, make_user
 from research_mapper.engine.context import NeedsInput, StepContext
 from research_mapper.engine.enums import DecisionType
 from research_mapper.engine.models import Decision, Operation, ResearchSession
-from research_mapper.engine.views import AskSpec, Progress
+from research_mapper.engine.views import ArtifactSpec, AskSpec, Progress
 
 ONE = {"query": "a"}
 TWO = {"query": "b"}
@@ -54,15 +55,70 @@ def test_reads_its_operation_and_session(ctx, operation):
     assert ctx.research_session.question == "Does X affect Y?"
 
 
-def test_artifacts_are_versioned_per_type(ctx):
-    assert ctx.get_artifact("queries") is None
-    assert ctx.put_artifact("queries", {"n": 1}) == 1
-    assert ctx.put_artifact("queries", {"n": 2}) == 2
-    assert ctx.put_artifact("criteria", {"n": 1}) == 1
+class Payload(BaseModel):
+    n: int
 
-    latest = ctx.get_artifact("queries")
-    assert latest is not None
-    assert (latest.version, latest.payload) == (2, {"n": 2})
+
+PAYLOAD = ArtifactSpec("payload", Payload)
+OTHER = ArtifactSpec("other", Payload)
+
+
+def test_artifacts_are_versioned_per_type(ctx):
+    """A spec carries its model, so a step reads a payload rather than a dict."""
+    assert ctx.get_artifact(PAYLOAD) is None
+    assert ctx.write_artifact(PAYLOAD, Payload(n=1)) == 1
+    assert ctx.write_artifact(PAYLOAD, Payload(n=2)) == 2
+    assert ctx.write_artifact(OTHER, Payload(n=1)) == 1
+
+    assert ctx.get_artifact(PAYLOAD) == Payload(n=2)
+
+
+def test_artifact_versions_are_readable_without_the_payload(ctx):
+    """screen_evidence stamps the version of the criteria it screened against."""
+    assert ctx.get_artifact_version(PAYLOAD) is None
+
+    ctx.write_artifact(PAYLOAD, Payload(n=1))
+    ctx.write_artifact(PAYLOAD, Payload(n=2))
+    ctx.write_artifact(OTHER, Payload(n=1))
+
+    assert ctx.get_artifact_version(PAYLOAD) == 2
+    assert ctx.get_artifact_version(OTHER) == 1
+
+
+def test_generating_an_artifact_happens_once_across_restarts(ctx):
+    """The checkpoint: a step that blocks on a question doesn't pay for the LM twice."""
+    calls = []
+
+    def generate() -> Payload:
+        calls.append(1)
+        return Payload(n=len(calls))
+
+    assert ctx.get_or_generate_artifact(PAYLOAD, generate) == Payload(n=1)
+    assert ctx.get_or_generate_artifact(PAYLOAD, generate) == Payload(n=1)
+    assert calls == [1]
+    assert ctx.get_artifact_version(PAYLOAD) == 1
+
+
+def test_regenerating_overwrites_the_checkpoint(ctx):
+    def generate() -> Payload:
+        return Payload(n=9)
+
+    ctx.write_artifact(PAYLOAD, Payload(n=1))
+    assert ctx.get_or_generate_artifact(PAYLOAD, generate, regenerate=True) == Payload(
+        n=9
+    )
+    assert ctx.get_artifact_version(PAYLOAD) == 2
+
+
+def test_writing_a_model_the_spec_does_not_declare_is_refused(ctx):
+    """mypy catches this statically; the guard is for anything reaching it untyped."""
+    with pytest.raises(TypeError, match="Payload"):
+        ctx.write_artifact(PAYLOAD, AskSpec(type="select_many", prompt="p", options=[]))  # type: ignore[arg-type]
+
+
+def test_require_names_the_artifact_that_is_missing(ctx):
+    with pytest.raises(LookupError, match="payload"):
+        ctx.require_artifact(PAYLOAD)
 
 
 def test_answers_are_scoped_to_this_operation(db, ctx, operation, session_factory):

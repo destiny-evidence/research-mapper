@@ -1,13 +1,14 @@
 import time
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from functools import cached_property
 from uuid import UUID
 
+from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session, joinedload
 
 from research_mapper.db.session import SessionFactory
-from research_mapper.engine.views import ArtifactView, AskSpec, Progress
+from research_mapper.engine.views import ArtifactSpec, AskSpec, Progress
 from research_mapper.engine.models import (
     Artifact,
     CurrentArtifact,
@@ -77,26 +78,67 @@ class StepContext:
             .where(CurrentArtifact.type == artifact_type)
         ).scalar_one_or_none()
 
-    def get_artifact(self, artifact_type: str) -> ArtifactView | None:
-        """Return the current artifact of a type, or None if there is none yet."""
+    def get_artifact[T: BaseModel](self, artifact: ArtifactSpec[T]) -> T | None:
+        """The current artifact."""
         with self._sf() as db:
-            artifact = self._current(db, artifact_type)
-            if artifact is None:
+            current = self._current(db, artifact.name)
+            if current is None:
                 return None
-            return ArtifactView(version=artifact.version, payload=artifact.payload)
+            return artifact.model.model_validate(current.payload)
 
-    def put_artifact(self, artifact_type: str, payload: dict) -> int:
-        """Write the next version of an artifact and return its version number."""
+    def get_artifact_version[T: BaseModel](
+        self, artifact: ArtifactSpec[T]
+    ) -> int | None:
+        """The current version of an artifact."""
         with self._sf() as db:
-            current = self._current(db, artifact_type)
+            current = self._current(db, artifact.name)
+            if current is None:
+                return None
+            return current.version
+
+    def get_or_generate_artifact[T: BaseModel](
+        self,
+        artifact: ArtifactSpec[T],
+        generate: Callable[[], T],
+        regenerate: bool = False,
+    ) -> T:
+        """The current artifact, generating and storing it if there isn't one.
+
+        Used to checkpoint steps that require user input after agentic work.
+        """
+        if not regenerate:
+            existing = self.get_artifact(artifact)
+            if existing is not None:
+                return existing
+        generated = generate()
+        self.write_artifact(artifact, generated)
+        return generated
+
+    def require_artifact[T: BaseModel](self, artifact: ArtifactSpec[T]) -> T:
+        """The current artifact, raising LookupError if missing."""
+        payload = self.get_artifact(artifact)
+        if payload is None:
+            msg = f"{artifact.name} has not been produced for this session yet"
+            raise LookupError(msg)
+        return payload
+
+    def write_artifact[T: BaseModel](
+        self, artifact: ArtifactSpec[T], payload: T
+    ) -> int:
+        """Write the next version of an artifact and return its version number."""
+        if not isinstance(payload, artifact.model):
+            msg = f"{artifact.name} holds {artifact.model.__name__}, not {type(payload).__name__}"
+            raise TypeError(msg)
+        with self._sf() as db:
+            current = self._current(db, artifact.name)
             version = current.version + 1 if current else 1
             db.add(
                 Artifact(
                     research_session_id=self.research_session_id,
                     operation_id=self.operation_id,
-                    type=artifact_type,
+                    type=artifact.name,
                     version=version,
-                    payload=payload,
+                    payload=payload.model_dump(mode="json"),
                 )
             )
             db.commit()

@@ -21,6 +21,6 @@ class Progress(BaseModel):
 
 
 @dataclass(frozen=True, slots=True)
-class ArtifactView:
-    version: int
-    payload: dict
+class ArtifactSpec[T: BaseModel]:
+    name: str
+    model: type[T]

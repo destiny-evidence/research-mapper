@@ -10,7 +10,7 @@ from research_mapper.engine.models import Artifact
 from research_mapper.models.common import Evidence
 from research_mapper.workflows.evidence_map import routes
 from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
-from research_mapper.workflows.evidence_map.steps import mapping
+from research_mapper.workflows.evidence_map.artifacts import ArtifactType
 
 ONE = uuid.UUID("11111111-1111-4111-8111-111111111111")
 TWO = uuid.UUID("22222222-2222-4222-8222-222222222222")
@@ -55,7 +55,7 @@ def put_dimensions(db, session, dimensions=DIMENSIONS) -> None:
         Artifact(
             research_session_id=session.id,
             operation_id=operation.id,
-            type=mapping.DIMENSIONS,
+            type=ArtifactType.DIMENSIONS,
             version=1,
             payload={"dimensions": dimensions},
         )

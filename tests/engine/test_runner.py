@@ -10,7 +10,7 @@ from research_mapper.engine.context import StepContext
 from research_mapper.engine.enums import OperationStatus
 from research_mapper.engine.models import Decision, Operation, ResearchSession
 from research_mapper.engine.registry import Step, register
-from research_mapper.engine.views import AskSpec
+from research_mapper.engine.views import ArtifactSpec, AskSpec
 
 ONE = {"query": "a"}
 TWO = {"query": "b"}
@@ -22,6 +22,13 @@ SPEC = AskSpec(
         {"id": "2", "label": "b", "value": TWO},
     ],
 )
+
+
+class Draft(BaseModel):
+    queries: list[str]
+
+
+DRAFT = ArtifactSpec("draft", Draft)
 
 
 class Params(BaseModel):
@@ -98,9 +105,9 @@ def test_an_operation_parks_on_a_question_and_resumes_from_its_artifact(
     generated = []
 
     def body(self, ctx, params):
-        if ctx.get_artifact("draft") is None:
+        if ctx.get_artifact(DRAFT) is None:
             generated.append(1)
-            ctx.put_artifact("draft", {"queries": ["a", "b"]})
+            ctx.write_artifact(DRAFT, Draft(queries=["a", "b"]))
         picked = ctx.ask("pick", SPEC)
         return {"picked": picked}
 

@@ -9,7 +9,6 @@ from pydantic import BaseModel
 
 from research_mapper.engine.registry import Step
 from research_mapper.models.common import Evidence, UserQuery
-from research_mapper.models.sparse_search import LuceneQuery
 from research_mapper.models.taxonomy_search import ConceptFilterGroup
 from research_mapper.taxonomy import RepoCommunity
 from research_mapper.workflows.evidence_map.context import EvidenceMapContext
@@ -18,7 +17,7 @@ from research_mapper.workflows.evidence_map.pipeline import (
     ConceptEvidenceRetriever,
     EvidenceRetriever,
 )
-from research_mapper.workflows.evidence_map.steps import concept_filters, sparse_query
+from research_mapper.workflows.evidence_map import artifacts
 from research_mapper.workflows.evidence_map.views import RefRow
 
 logger = logging.getLogger(__name__)
@@ -33,15 +32,6 @@ class Retrieval(Protocol):
     evidence: list[Evidence]
     search_summary: str
     stopping_reason: str
-
-
-def _require_artifact(ctx: EvidenceMapContext, artifact_type: str) -> dict:
-    """Return an upstream artifact's payload, or fail the step if it isn't there yet."""
-    artifact = ctx.get_artifact(artifact_type)
-    if artifact is None:
-        msg = f"{artifact_type} has not been produced for this session yet"
-        raise LookupError(msg)
-    return artifact.payload
 
 
 def _record(
@@ -67,8 +57,7 @@ class RetrieveSparseEvidence(Step[RetrieveSparseEvidenceParams, EvidenceMapConte
         self, ctx: EvidenceMapContext, params: RetrieveSparseEvidenceParams
     ) -> dict:
         """Retrieve evidence over the sparse queries."""
-        payload = _require_artifact(ctx, sparse_query.CHOSEN)
-        queries = [LuceneQuery.model_validate(q) for q in payload["queries"]]
+        queries = ctx.require_artifact(artifacts.SEARCH_QUERIES).queries
         user_query = UserQuery(query=ctx.research_session.question)
         community = RepoCommunity(ctx.research_session.community)
         ctx.progress(0, len(queries), note="retrieving evidence")
@@ -126,9 +115,8 @@ class RetrieveConceptEvidence(Step[RetrieveConceptEvidenceParams, EvidenceMapCon
         self, ctx: EvidenceMapContext, params: RetrieveConceptEvidenceParams
     ) -> dict:
         """Retrieve evidence over the chosen filter groups."""
-        payload = _require_artifact(ctx, concept_filters.CHOSEN)
-        groups = payload["groups"]
-        community = RepoCommunity(payload["community"])
+        filters = ctx.require_artifact(artifacts.CONCEPT_FILTERS)
+        groups, community = filters.groups, filters.community
         ctx.progress(0, 1, note="retrieving evidence")
 
         prediction: Retrieval = ConceptEvidenceRetriever()(
@@ -136,13 +124,13 @@ class RetrieveConceptEvidence(Step[RetrieveConceptEvidenceParams, EvidenceMapCon
             community=community,
             filter_groups=[
                 ConceptFilterGroup(
-                    scheme=group["scheme"],
-                    concept_local_refs=group["concept_local_refs"],
-                    reason=group["reason"],
+                    scheme=group.scheme,
+                    concept_local_refs=group.concept_local_refs,
+                    reason=group.reason,
                 )
                 for group in groups
             ],
-            concepts=[group["concepts"] for group in groups],
+            concepts=[group.concepts for group in groups],
         )
         retrieved = _record(
             ctx,
@@ -151,8 +139,7 @@ class RetrieveConceptEvidence(Step[RetrieveConceptEvidenceParams, EvidenceMapCon
                 "mode": TAXONOMY_MODE,
                 "community": community.value,
                 "filters": [
-                    {"scheme": group["scheme"], "labels": group["labels"]}
-                    for group in groups
+                    {"scheme": group.scheme, "labels": group.labels} for group in groups
                 ],
                 "search_summary": prediction.search_summary,
                 "stopping_reason": prediction.stopping_reason,

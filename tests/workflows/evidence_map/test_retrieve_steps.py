@@ -7,9 +7,10 @@ from factories import make_operation, make_session, make_user
 from research_mapper.engine.models import Operation
 from research_mapper.engine.views import Progress
 from research_mapper.models.common import Evidence
+from research_mapper.workflows.evidence_map import artifacts
 from research_mapper.workflows.evidence_map.context import EvidenceMapContext
 from research_mapper.workflows.evidence_map.models import SessionReference
-from research_mapper.workflows.evidence_map.steps import concept_filters, retrieve
+from research_mapper.workflows.evidence_map.steps import retrieve
 
 ONE = uuid.UUID("11111111-1111-4111-8111-111111111111")
 TWO = uuid.UUID("22222222-2222-4222-8222-222222222222")
@@ -39,7 +40,12 @@ def prediction(*destiny_ids) -> dspy.Prediction:
 
 
 def test_sparse_retrieval_records_a_reference_per_query(ctx, db, monkeypatch):
-    ctx.put_artifact("search_queries", {"queries": [{"query": "a"}, {"query": "b"}]})
+    ctx.write_artifact(
+        artifacts.SEARCH_QUERIES,
+        artifacts.SearchQueries.model_validate(
+            {"queries": [{"query": "a"}, {"query": "b"}]}
+        ),
+    )
     by_query = {"a": prediction(ONE), "b": prediction(ONE, TWO)}
     monkeypatch.setattr(
         retrieve.EvidenceRetriever,
@@ -57,7 +63,12 @@ def test_sparse_retrieval_records_a_reference_per_query(ctx, db, monkeypatch):
 
 
 def test_sparse_retrieval_skips_failed_batch_items(ctx, db, monkeypatch):
-    ctx.put_artifact("search_queries", {"queries": [{"query": "a"}, {"query": "b"}]})
+    ctx.write_artifact(
+        artifacts.SEARCH_QUERIES,
+        artifacts.SearchQueries.model_validate(
+            {"queries": [{"query": "a"}, {"query": "b"}]}
+        ),
+    )
 
     def one_query_fails(self, search_query, **_):
         if search_query.query == "a":
@@ -85,20 +96,22 @@ def test_retrieval_fails_without_its_upstream_artifact(ctx):
 def test_concept_retrieval_uses_the_community_the_filters_were_built_for(
     ctx, db, monkeypatch
 ):
-    ctx.put_artifact(
-        concept_filters.CHOSEN,
-        {
-            "community": "esea",
-            "groups": [
-                {
-                    "scheme": "topic",
-                    "concept_local_refs": ["c1"],
-                    "reason": "relevant",
-                    "labels": ["Schools"],
-                    "concepts": ["https://vocab.example/c1"],
-                }
-            ],
-        },
+    ctx.write_artifact(
+        artifacts.CONCEPT_FILTERS,
+        artifacts.ConceptFilters.model_validate(
+            {
+                "community": "esea",
+                "groups": [
+                    {
+                        "scheme": "topic",
+                        "concept_local_refs": ["c1"],
+                        "reason": "relevant",
+                        "labels": ["Schools"],
+                        "concepts": ["https://vocab.example/c1"],
+                    }
+                ],
+            }
+        ),
     )
     seen = {}
 
@@ -121,7 +134,7 @@ def test_concept_retrieval_uses_the_community_the_filters_were_built_for(
 
 def test_concept_retrieval_fails_clearly_until_its_producer_exists(ctx):
     """generate_concept_filters is Phase 5; until then this is the failure to expect."""
-    with pytest.raises(LookupError, match=concept_filters.CHOSEN):
+    with pytest.raises(LookupError, match=artifacts.ArtifactType.CONCEPT_FILTERS):
         retrieve.RetrieveConceptEvidence().run(
             ctx, retrieve.RetrieveConceptEvidenceParams()
         )

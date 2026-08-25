@@ -1,10 +1,11 @@
-from research_mapper.workflows.evidence_map.models import SessionReference
+from research_mapper.api.auth import LOCAL_PRINCIPAL
 from research_mapper.engine.models import Operation, ResearchSession, User
+from research_mapper.workflows.evidence_map.models import SessionReference
 
 
-def make_user(db, subject="user-1") -> User:
-    """Persist a user."""
-    user = User(issuer="https://login.example", subject=subject)
+def make_user(db, subject=LOCAL_PRINCIPAL[1], issuer=LOCAL_PRINCIPAL[0]) -> User:
+    """Persist a user, by default the one an unauthenticated API reports as its caller."""
+    user = User(issuer=issuer, subject=subject)
     db.add(user)
     db.commit()
     return user

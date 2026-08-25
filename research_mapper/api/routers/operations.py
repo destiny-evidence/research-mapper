@@ -3,18 +3,24 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
-from research_mapper.api.deps import DbSession, Factory
+from research_mapper.api.deps import CurrentUser, DbSession, Factory
 from research_mapper.api.schemas import DecisionOut, OperationOut, Respond
 from research_mapper.engine import runner
 from research_mapper.engine.answers import InvalidAnswer
-from research_mapper.engine.models import Decision, Operation
+from research_mapper.engine.models import Decision, Operation, ResearchSession, User
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/operations", tags=["operations"])
 
 
-def _load(db: Session, operation_id: UUID) -> Operation:
-    operation = db.get(Operation, operation_id)
+def _load(db: Session, operation_id: UUID, user: User) -> Operation:
+    """One of the caller's operations, or 404."""
+    operation = db.execute(
+        select(Operation)
+        .join(ResearchSession, ResearchSession.id == Operation.research_session_id)
+        .where(Operation.id == operation_id)
+        .where(ResearchSession.user_id == user.id)
+    ).scalar_one_or_none()
     if operation is None:
         raise HTTPException(404, "operation not found")
     return operation
@@ -44,17 +50,23 @@ def _out(db: Session, operation: Operation) -> OperationOut:
 
 
 @router.get("/{operation_id}/")
-def read_operation(db: DbSession, operation_id: UUID) -> OperationOut:
+def read_operation(
+    db: DbSession, operation_id: UUID, user: CurrentUser
+) -> OperationOut:
     """Get an operation."""
-    return _out(db, _load(db, operation_id))
+    return _out(db, _load(db, operation_id, user))
 
 
 @router.post("/{operation_id}/respond/")
 def respond(
-    body: Respond, db: DbSession, operation_id: UUID, session_factory: Factory
+    body: Respond,
+    db: DbSession,
+    operation_id: UUID,
+    user: CurrentUser,
+    session_factory: Factory,
 ) -> OperationOut:
     """Answer one or several of an operation's open decisions, keyed by decision key."""
-    operation = _load(db, operation_id)
+    operation = _load(db, operation_id, user)
     try:
         runner.answer_decisions(operation.id, body.answers, session_factory)
     except LookupError as exc:
@@ -65,9 +77,11 @@ def respond(
 
 
 @router.post("/{operation_id}/retry/")
-def retry(db: DbSession, operation_id: UUID, session_factory: Factory) -> OperationOut:
+def retry(
+    db: DbSession, operation_id: UUID, user: CurrentUser, session_factory: Factory
+) -> OperationOut:
     """Requeue a failed operation."""
-    operation = _load(db, operation_id)
+    operation = _load(db, operation_id, user)
     try:
         runner.retry_operation(operation.id, session_factory)
     except ValueError as exc:

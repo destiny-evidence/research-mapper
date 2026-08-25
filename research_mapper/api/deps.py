@@ -4,12 +4,12 @@ from uuid import UUID
 
 from fastapi import Depends, HTTPException, Path
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from research_mapper.api import auth
 from research_mapper.db.session import SessionFactory, db_manager
 from research_mapper.engine.models import ResearchSession, User
-
-LOCAL_USER = ("local", "local")
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -19,6 +19,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 DbSession = Annotated[Session, Depends(get_db)]
+Principal = Annotated[auth.Principal, Depends(auth.principal)]
 
 
 def get_session_factory() -> SessionFactory:
@@ -29,26 +30,31 @@ def get_session_factory() -> SessionFactory:
 Factory = Annotated[SessionFactory, Depends(get_session_factory)]
 
 
-def current_user(db: DbSession) -> User:
-    """Return the one local user. Becomes the EasyAuth lookup when auth lands."""
-    issuer, subject = LOCAL_USER
-    user = db.execute(
-        select(User).where(User.issuer == issuer).where(User.subject == subject)
-    ).scalar_one_or_none()
+def current_user(db: DbSession, who: Principal) -> User:
+    """Get or create the row for the authenticated caller."""
+    issuer, subject = who
+    lookup = select(User).where(User.issuer == issuer).where(User.subject == subject)
+    user = db.execute(lookup).scalar_one_or_none()
     if user is None:
-        user = User(issuer=issuer, subject=subject)
-        db.add(user)
-        db.commit()
+        try:
+            user = User(issuer=issuer, subject=subject)
+            db.add(user)
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            user = db.execute(lookup).scalar_one()
     return user
 
 
 CurrentUser = Annotated[User, Depends(current_user)]
 
 
-def get_session(db: DbSession, session_id: Annotated[UUID, Path()]) -> ResearchSession:
-    """Return a research session, or 404."""
+def get_session(
+    db: DbSession, user: CurrentUser, session_id: Annotated[UUID, Path()]
+) -> ResearchSession:
+    """Return one of the caller's research sessions, or 404."""
     research_session = db.get(ResearchSession, session_id)
-    if research_session is None:
+    if research_session is None or research_session.user_id != user.id:
         raise HTTPException(404, "session not found")
     return research_session
 

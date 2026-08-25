@@ -44,10 +44,12 @@ def create_session(
 
 
 @router.get("/sessions/")
-def list_sessions(db: DbSession) -> list[SessionSummary]:
-    """List sessions, newest first."""
+def list_sessions(db: DbSession, user: CurrentUser) -> list[SessionSummary]:
+    """List the caller's sessions, newest first."""
     rows = db.execute(
-        select(ResearchSession).order_by(ResearchSession.id.desc())
+        select(ResearchSession)
+        .where(ResearchSession.user_id == user.id)
+        .order_by(ResearchSession.id.desc())
     ).scalars()
     return [SessionSummary.model_validate(row) for row in rows]
 

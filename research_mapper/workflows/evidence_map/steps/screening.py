@@ -24,6 +24,10 @@ logger = logging.getLogger(__name__)
 SCREENING = "screening evidence"
 
 
+class NothingToScreen(Exception):
+    """Screening was asked to run against a session that gathered no evidence."""
+
+
 class GenerateScreeningCriteriaParams(BaseModel):
     """Inputs to generate_screening_criteria."""
 
@@ -116,6 +120,9 @@ class ScreenEvidence(Step[ScreenEvidenceParams, EvidenceMapContext]):
         total_references = (
             len(references) + already_included_references + already_excluded_references
         )
+        if not total_references:
+            msg = "no evidence was retrieved, so there is nothing to screen"
+            raise NothingToScreen(msg)
 
         tracker = ProgressTracker(
             ctx,

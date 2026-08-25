@@ -4,9 +4,11 @@ from functools import lru_cache
 from pathlib import Path
 
 import dspy
+import httpx
 from destiny_sdk.client import OAuthClient, OAuthMiddleware
 from dotenv import load_dotenv, find_dotenv
 
+from research_mapper import local_destiny_auth
 from research_mapper.db.session import db_manager
 
 logger = logging.getLogger(__name__)
@@ -68,6 +70,27 @@ def configure_dspy() -> None:
     logger.info("DSPy configured successfully!")
 
 
+def _destiny_auth(env: str) -> httpx.Auth | None:
+    """How to authenticate to DESTINY, or None to let the SDK prompt in a browser."""
+    client_id = os.environ.get("AZURE_CLIENT_ID")
+    application_id = os.environ.get("MAPPER_DESTINY_APPLICATION_ID")
+    if client_id and application_id:
+        logger.info("Authenticating to Destiny with managed identity")
+        return OAuthMiddleware(
+            azure_client_id=client_id,
+            azure_application_id=application_id,
+            use_managed_identity=True,
+        )
+
+    refresh_token = os.environ.get(local_destiny_auth.REFRESH_TOKEN_VAR)
+    if refresh_token:
+        logger.info("Authenticating to Destiny with a stored refresh token")
+        return local_destiny_auth.RefreshTokenAuth(
+            local_destiny_auth.auth_code_flow(env), refresh_token
+        )
+    return None
+
+
 @lru_cache(maxsize=1)
 def get_destiny_client() -> OAuthClient:
     """
@@ -76,24 +99,17 @@ def get_destiny_client() -> OAuthClient:
     a bad credential or unreachable DESTINY instance should fail loudly at
     startup, not silently wait to surface on a user's first request.
     """
-    client_id = os.environ.get("AZURE_CLIENT_ID")
-    application_id = os.environ.get("MAPPER_DESTINY_APPLICATION_ID")
     env = os.environ.get("MAPPER_DESTINY_ENV", "production")
-
-    auth = None
-    if client_id and application_id:
-        logger.info("Authenticating to Destiny with managed identity")
-        auth = OAuthMiddleware(
-            azure_client_id=client_id,
-            azure_application_id=application_id,
-            use_managed_identity=True,
-        )
-
-    client = OAuthClient(auth=auth, env=env)
+    client = OAuthClient(auth=_destiny_auth(env), env=env)
     logger.debug("Triggering eagerly OAuth token fetch via health check")
     client.get_client().get("/v1/system/healthcheck/")
     logger.info("Destiny client authenticated and healthy")
     return client
+
+
+def init_destiny_client() -> None:
+    """Eagerly authenticate to DESTINY."""
+    get_destiny_client()
 
 
 def init_database() -> None:

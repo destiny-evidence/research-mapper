@@ -5,7 +5,7 @@ from pathlib import Path
 
 from research_mapper.config import (
     configure_dspy,
-    get_destiny_client,
+    init_destiny_client,
     load_environment,
 )
 from research_mapper.export import export_mapped_evidence_to_ris
@@ -39,7 +39,7 @@ def initialise(env_file: str | None) -> None:
     :return: Nothing.
     """
     load_environment(env_file)
-    get_destiny_client()
+    init_destiny_client()
     logger.info("Destiny client ready")
     configure_dspy()
 

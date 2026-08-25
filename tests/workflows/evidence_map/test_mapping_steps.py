@@ -194,6 +194,36 @@ def test_only_included_references_are_placed_on_the_map(db, ctx, session, monkey
     assert rows[TWO].coordinate is None
 
 
+def test_mapping_fails_when_screening_included_nothing(db, ctx, session, monkeypatch):
+    """Otherwise every step goes green and the session ends with an empty map."""
+    ctx.write_artifact(
+        artifacts.DIMENSIONS,
+        artifacts.Dimensions.model_validate({"dimensions": with_subtopics()}),
+    )
+    make_reference(db, session, ONE, stage=SessionReferenceStage.EXCLUDED)
+    hydrate(monkeypatch)
+
+    with pytest.raises(mapping.NothingToMap, match="nothing to map"):
+        mapping.GenerateMap().run(ctx, mapping.GenerateMapParams())
+
+
+def test_mapping_again_with_everything_already_placed_is_not_an_empty_funnel(
+    db, ctx, session, monkeypatch
+):
+    """Placed references leave INCLUDED, which must not read as `screening included nothing`."""
+    ctx.write_artifact(
+        artifacts.DIMENSIONS,
+        artifacts.Dimensions.model_validate({"dimensions": with_subtopics()}),
+    )
+    make_reference(db, session, ONE, stage=SessionReferenceStage.MAPPED)
+    hydrate(monkeypatch)
+
+    assert mapping.GenerateMap().run(ctx, mapping.GenerateMapParams()) == {
+        "mapped": 0,
+        "failed": 0,
+    }
+
+
 def test_a_failed_mapping_leaves_the_reference_unmapped(db, ctx, session, monkeypatch):
     ctx.write_artifact(
         artifacts.DIMENSIONS,

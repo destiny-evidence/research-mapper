@@ -39,6 +39,7 @@ services:
   api:
     <<: *app
     command: ["python", "-m", "research_mapper", "api"]
+    restart: unless-stopped
     ports:
       - "${MAPPER_API_PORT:-8080}:8080"
     depends_on:
@@ -47,6 +48,9 @@ services:
 
   worker:
     <<: *app
+    # A dropped connection or a schema change under a prepared statement kills the
+    # dequeue loop; without this the worker stays dead and the queue silently stops.
+    restart: unless-stopped
     command: ["python", "-m", "research_mapper", "worker"]
     depends_on:
       migrate:

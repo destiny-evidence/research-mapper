@@ -31,6 +31,11 @@ logger = logging.getLogger(__name__)
 SUBTOPICS = "generating subtopics"
 MAPPING = "mapping evidence"
 
+
+class NothingToMap(Exception):
+    """Screening included nothing, so the map would be empty."""
+
+
 SUBTOPIC_FIELDS = (
     "dimension1_subtopic",
     "dimension2_subtopic",
@@ -226,6 +231,11 @@ class GenerateMap(Step[GenerateMapParams, EvidenceMapContext]):
             raise ValueError(msg)
         dimensions_version = ctx.get_artifact_version(artifacts.DIMENSIONS)
         references = ctx.references(SessionReferenceStage.INCLUDED)
+        # Already-placed references have left INCLUDED, so a rerun with nothing new is
+        # not the same as a session screening never let anything through.
+        if not references and not ctx.references(SessionReferenceStage.MAPPED):
+            msg = "screening included no evidence, so there is nothing to map"
+            raise NothingToMap(msg)
 
         evidence = [
             item

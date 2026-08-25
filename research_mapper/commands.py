@@ -1,14 +1,23 @@
 import asyncio
+import os
+import sys
 from collections.abc import Callable
 from datetime import timedelta
+from pathlib import Path
 from uuid import UUID
 
 from pgqueuer.executors import DatabaseRetryEntrypointExecutor
-from sqlalchemy import text
-from sqlalchemy.engine import CursorResult
 import uvicorn
 
-from research_mapper.config import configure_dspy, init_database
+from dotenv import set_key
+
+from research_mapper import local_destiny_auth
+from research_mapper.config import (
+    configure_dspy,
+    init_database,
+    init_destiny_client,
+    load_environment,
+)
 from research_mapper.db.session import SessionFactory, db_manager
 from research_mapper.workflows.evidence_map.context import EvidenceMapContext
 from research_mapper.engine import queue, runner
@@ -50,6 +59,7 @@ def worker() -> None:
     """Run the operation worker."""
     init_database()
     configure_dspy()
+    init_destiny_client()
     asyncio.run(_worker())
 
 
@@ -68,20 +78,38 @@ def migrate() -> None:
     command.upgrade(Config("alembic.ini"), "head")
 
 
-def sql(statement: str) -> None:
-    """Run one statement against the database and print any rows."""
-    init_database()
-    with db_manager.session() as db:
-        result = db.execute(text(statement))
-        if isinstance(result, CursorResult) and result.returns_rows:
-            for row in result:
-                print(row)
-        db.commit()
+def login(*args: str) -> None:
+    """Log in to DESTINY and store a refresh token for local development."""
+    load_environment()
+    env = os.environ.get("MAPPER_DESTINY_ENV")
+    if not env:
+        print("Set MAPPER_DESTINY_ENV")
+        sys.exit(1)
+    if "--relay-port" in args:
+        local_destiny_auth.start_relay(int(args[args.index("--relay-port") + 1]))
+    token = local_destiny_auth.login(env, open_browser="--no-browser" not in args)
+    if not token.refresh_token:
+        raise SystemExit("Destiny issued no refresh token")
+
+    if "--print" in args:
+        print(f"{local_destiny_auth.REFRESH_TOKEN_VAR}={token.refresh_token}")
+        return
+    path = Path(".env")
+    set_key(
+        str(path),
+        local_destiny_auth.REFRESH_TOKEN_VAR,
+        token.refresh_token,
+        quote_mode="never",
+    )
+    print(
+        f"wrote {local_destiny_auth.REFRESH_TOKEN_VAR} to {path.resolve()}",
+        file=sys.stderr,
+    )
 
 
 COMMANDS: dict[str, Callable[..., None]] = {
     "api": api,
+    "login": login,
     "worker": worker,
     "migrate": migrate,
-    "sql": sql,
 }

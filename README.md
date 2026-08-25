@@ -1,6 +1,6 @@
 # research-mapper
 
-A human-in-the-loop agentic workflow for mapping evidence from the DESTINY repository. 
+A human-in-the-loop agentic workflow for mapping evidence from the DESTINY repository.
 
 ## Architecture
 
@@ -41,6 +41,14 @@ There are several ways to provide them, checked in this order (first match per v
 3. **`./.env`** — a `.env` file in the current directory (or a parent directory), handy for a local clone.
 4. **A machine-wide fallback file** — `~/.config/research-mapper/.env` (or `%APPDATA%\research-mapper\.env` on Windows), useful when running `research-mapper` from arbitrary directories.
 
+### DESTINY authentication
+
+To locally authenticate against DESTINY repository in the API/worker, use the below entrypoint. This will initiate interactive flow and store a refresh token in your `.env`, which is then exchanged for access tokens in the application.
+
+```bash
+uv run python -m research_mapper login
+```
+
 ### Running
 
 ```bash
@@ -70,8 +78,7 @@ docker compose up --build
 ```
 
 Credentials come from `./.env` — a container cannot see variables you only exported in your shell.
-`MAPPER_API_PORT` moves the published API port. For the API alone, without an LLM or DESTINY, see
-[demo/](demo/).
+`MAPPER_API_PORT` moves the published API port. [demo/](demo/) adds a throwaway UI on top.
 
 ## License
 

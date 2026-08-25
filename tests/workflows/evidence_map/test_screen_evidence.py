@@ -169,11 +169,15 @@ def test_a_rerun_only_screens_what_is_left_and_progress_includes_the_rest(
     )
 
 
-def test_a_session_with_nothing_gathered_completes_at_zero(db, ctx, monkeypatch):
+def test_a_session_with_nothing_gathered_fails_rather_than_screening_nothing(
+    db, ctx, monkeypatch
+):
+    """The orchestrator refused to continue past an empty funnel; so does this."""
     pages(monkeypatch)
     screen(monkeypatch)
 
-    assert run(ctx) == {"screened": 0, "included": 0, "failed": 0}
+    with pytest.raises(screening.NothingToScreen, match="nothing to screen"):
+        run(ctx)
 
 
 def test_screening_needs_its_criteria_first(db, session, session_factory, monkeypatch):

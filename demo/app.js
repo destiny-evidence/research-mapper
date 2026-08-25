@@ -1,12 +1,12 @@
 const PLAN = [
-  {type: 'enhance_sparse_query', title: 'Draft search queries',
+  {type: 'enhance_sparse_query', mode: 'sparse', title: 'Draft search queries',
    blurb: 'The agent turns your question into database searches. You keep the ones worth running.',
    regenerate: true},
-  {type: 'retrieve_sparse_evidence', title: 'Search by query',
+  {type: 'retrieve_sparse_evidence', mode: 'sparse', title: 'Search by query',
    blurb: 'Each chosen query runs against DESTINY, in parallel.'},
-  {type: 'generate_concept_filters', title: 'Choose taxonomy concepts',
+  {type: 'generate_concept_filters', mode: 'taxonomy', title: 'Choose taxonomy concepts',
    blurb: 'A ReAct loop matches your question to the community taxonomy. It asks when it is unsure.'},
-  {type: 'retrieve_concept_evidence', title: 'Search by concept',
+  {type: 'retrieve_concept_evidence', mode: 'taxonomy', title: 'Search by concept',
    blurb: 'A second search, this time over the concepts rather than the words.'},
   {type: 'generate_screening_criteria', title: 'Set screening criteria',
    blurb: 'Inclusion and exclusion rules for everything that came back.',
@@ -24,6 +24,10 @@ const PLAN = [
 ];
 
 const STEP = Object.fromEntries(PLAN.map(s => [s.type, s]));
+
+// Which retrieval paths this session uses. Lives here for the same reason the order does:
+// the API takes a step name from the client and has no plan of its own.
+const plan = () => PLAN.filter(step => !step.mode || mode === 'both' || step.mode === mode);
 const $ = id => document.getElementById(id);
 
 let session = null;
@@ -35,6 +39,7 @@ let timer = null;
 let startedAt = {};
 let answeredAt = {};
 let tab = 'run';
+let mode = 'both';
 
 /* ---------- api ---------- */
 
@@ -57,10 +62,13 @@ const canon = value => JSON.stringify(value, Object.keys(value ?? {}).sort());
 
 /* ---------- session lifecycle ---------- */
 
-async function start(question, community) {
+async function start(question, community, searchMode) {
+  mode = searchMode;
   session = await api('/sessions/', {
     method: 'POST',
-    body: JSON.stringify({workflow: 'evidence_map', question, community}),
+    body: JSON.stringify({
+      workflow: 'evidence_map', question, community, params: {search_mode: mode},
+    }),
   });
   ops = {}; map = null; mapView = null; currentId = null; tab = 'run';
   enter();
@@ -69,6 +77,7 @@ async function start(question, community) {
 
 async function openSession(sessionId) {
   session = await api(`/sessions/${sessionId}/`);
+  mode = (session.params || {}).search_mode || 'both';
   const ids = await api(`/sessions/${sessionId}/operations/`);
   const loaded = await Promise.all(ids.map(id => api(`/operations/${id}/`)));
   ops = {};
@@ -91,7 +100,7 @@ function enter() {
 
 /* ---------- driving the pipeline ---------- */
 
-const nextStep = () => PLAN.find(step => (ops[step.type] || {}).status !== 'complete');
+const nextStep = () => plan().find(step => (ops[step.type] || {}).status !== 'complete');
 
 async function advance() {
   const step = nextStep();
@@ -181,17 +190,26 @@ async function loadMap() {
 
 function render() {
   $('question').textContent = session.question;
-  $('sub').innerHTML = [
-    `<span>${esc(session.community)}</span>`,
-    `<span>v${session.head_version_number}</span>`,
-    `<span class="mono">${esc(session.id.slice(0, 8))}</span>`,
-  ].join('');
+  $('context').textContent = session.community;
+  $('topmeta').textContent = `v${session.head_version_number} · ${session.id.slice(0, 8)}`;
+  $('sub').innerHTML = tally().map(part => `<span>${esc(part)}</span>`).join('');
   renderRail();
   if (tab === 'run') renderRun();
 }
 
+function tally() {
+  // The funnel, filled in as the run gets far enough to know each number.
+  const screened = (ops.screen_evidence || {}).result;
+  const mapped = (ops.generate_map || {}).result;
+  return [
+    screened && `${screened.screened} references`,
+    screened && `${screened.included} included`,
+    mapped && `${mapped.mapped} mapped`,
+  ].filter(Boolean);
+}
+
 function renderRail() {
-  $('rail').innerHTML = PLAN.map((step, index) => {
+  $('rail').innerHTML = plan().map((step, index) => {
     const operation = ops[step.type];
     const status = operation ? operation.status : '';
     const glyph = {complete: '✓', failed: '!', awaiting_input: '?'}[status] || (index + 1);
@@ -345,7 +363,7 @@ function rowHtml(key, value, fields) {
 }
 
 function completed() {
-  const done = PLAN.filter(step => (ops[step.type] || {}).status === 'complete');
+  const done = plan().filter(step => (ops[step.type] || {}).status === 'complete');
   if (!done.length) return '';
   return `<div class="done-list"><div class="done-h">Completed</div>${done.map(step =>
     `<div class="done"><span class="tick">✓</span><span class="nm">${esc(step.title)}</span>
@@ -600,7 +618,7 @@ $('go').onclick = async () => {
   $('go').disabled = true;
   $('start-hint').textContent = 'starting…';
   try {
-    await start(question, $('community').value);
+    await start(question, $('community').value, $('mode').value);
   } catch (error) {
     $('go').disabled = false;
     $('start-hint').textContent = error.message;

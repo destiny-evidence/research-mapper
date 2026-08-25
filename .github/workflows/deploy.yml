@@ -2,7 +2,8 @@ name: Deploy
 
 on:
   push:
-    # drop `infra` before merging
+    # TODO: drop `infra` before merging -- only here so the workflow can be
+    # exercised before it exists on main, where workflow_dispatch registers.
     branches: [main, infra]
   workflow_dispatch:
 
@@ -15,11 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging
     env:
-      IMAGE: ${{ vars.REGISTRY_SERVER }}/${{ vars.APP_NAME }}:${{ github.sha }}
+      IMAGE: ${{ vars.REGISTRY_NAME }}.azurecr.io/${{ vars.APP_NAME }}:${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Az CLI login
+      - name: "Az CLI login"
         uses: azure/login@v2.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
@@ -40,3 +41,42 @@ jobs:
           resourceGroup: ${{ vars.RESOURCE_GROUP }}
           containerAppEnvironment: ${{ vars.CONTAINER_APP_ENV }}
           imageToDeploy: ${{ env.IMAGE }}
+
+      - name: Deploy built image to the worker
+        uses: Azure/cli@v2.0.0
+        with:
+          inlineScript: |
+            az containerapp update \
+              --name ${{ vars.WORKER_APP_NAME }} \
+              --resource-group ${{ vars.RESOURCE_GROUP }} \
+              --image ${{ env.IMAGE }}
+
+  migrate-database:
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: ${{ always() && !failure() && !cancelled() }}
+    environment: staging
+    steps:
+      - name: "Az CLI login"
+        uses: azure/login@v2.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Update database migrator job image
+        uses: Azure/cli@v2.0.0
+        with:
+          inlineScript: |
+            az containerapp job update \
+              --name "db-migrator-${{ vars.ENVIRONMENT_NAME }}" \
+              --resource-group ${{ vars.RESOURCE_GROUP }} \
+              --image ${{ vars.REGISTRY_NAME }}.azurecr.io/${{ vars.APP_NAME }}:${{ github.sha }}
+
+      - name: Trigger database migrations
+        uses: Azure/cli@v2.0.0
+        with:
+          inlineScript: |
+            az containerapp job start \
+              --name "db-migrator-${{ vars.ENVIRONMENT_NAME }}" \
+              --resource-group ${{ vars.RESOURCE_GROUP }}

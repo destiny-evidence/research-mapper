@@ -1,3 +1,5 @@
+"""Operation routes."""
+
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException

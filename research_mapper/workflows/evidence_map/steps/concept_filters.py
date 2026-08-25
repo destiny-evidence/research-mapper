@@ -1,3 +1,5 @@
+"""Turning the question into taxonomy filters."""
+
 import builtins
 from typing import ClassVar
 

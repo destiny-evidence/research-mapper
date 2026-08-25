@@ -1,3 +1,5 @@
+"""Deciding what stays in."""
+
 import builtins
 import logging
 from typing import ClassVar, Protocol

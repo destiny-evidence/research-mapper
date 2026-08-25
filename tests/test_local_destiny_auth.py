@@ -1,6 +1,4 @@
-import socket
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from unittest.mock import MagicMock
 
 import httpx
@@ -8,11 +6,7 @@ import pytest
 from destiny_sdk.keycloak_auth import TokenResponse
 
 from research_mapper.config import _destiny_auth
-from research_mapper.local_destiny_auth import (
-    RefreshTokenAuth,
-    auth_code_flow,
-    start_relay,
-)
+from research_mapper.local_destiny_auth import RefreshTokenAuth, auth_code_flow
 
 
 def token(access: str, refresh: str | None = "refresh-2") -> TokenResponse:
@@ -132,58 +126,6 @@ def test_managed_identity_wins_over_a_stray_refresh_token(monkeypatch):
 
 def test_no_credentials_leaves_the_sdk_to_prompt():
     assert _destiny_auth("staging") is None
-
-
-def free_port() -> int:
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        return probe.getsockname()[1]
-
-
-def loopback_server(port: int) -> HTTPServer:
-    """A server bound the way the SDK binds its callback server."""
-
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):  # noqa: N802
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"reached the callback")
-
-        def log_message(self, *args):
-            pass
-
-    server = HTTPServer(("localhost", port), Handler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    return server
-
-
-def test_the_relay_carries_a_published_port_to_the_loopback_callback():
-    """A container publishes a port; the SDK only listens on localhost inside it."""
-    target, listen = free_port(), free_port()
-    server = loopback_server(target)
-    try:
-        start_relay(listen, target)
-        response = httpx.get(f"http://127.0.0.1:{listen}/callback", timeout=5)
-    finally:
-        server.shutdown()
-
-    assert response.text == "reached the callback"
-
-
-def test_the_relay_waits_for_a_callback_server_that_is_not_up_yet():
-    """It starts before the SDK binds, so an early redirect must not be refused."""
-    target, listen = free_port(), free_port()
-    start_relay(listen, target)
-    server: list[HTTPServer] = []
-    timer = threading.Timer(0.4, lambda: server.append(loopback_server(target)))
-    timer.start()
-    try:
-        response = httpx.get(f"http://127.0.0.1:{listen}/callback", timeout=5)
-    finally:
-        timer.join()
-        server[0].shutdown()
-
-    assert response.text == "reached the callback"
 
 
 def test_one_exchange_serves_every_request_that_hit_the_same_dead_token():

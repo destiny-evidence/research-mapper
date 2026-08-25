@@ -1,3 +1,5 @@
+"""Reference hydration."""
+
 from collections.abc import Generator, Sequence
 from uuid import UUID
 

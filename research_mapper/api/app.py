@@ -1,3 +1,5 @@
+"""The API application."""
+
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 

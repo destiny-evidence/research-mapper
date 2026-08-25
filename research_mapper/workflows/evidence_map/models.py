@@ -1,3 +1,5 @@
+"""Evidence map database models."""
+
 from uuid import UUID
 
 from sqlalchemy import UUID as SQL_UUID
@@ -10,6 +12,8 @@ from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
 
 
 class SessionReference(Base):
+    """A reference gathered for a session, and where it got to."""
+
     __tablename__ = "session_references"
 
     research_session_id: Mapped[UUID] = mapped_column(

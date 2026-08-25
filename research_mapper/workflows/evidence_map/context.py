@@ -1,3 +1,5 @@
+"""Evidence map database context."""
+
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -21,6 +23,8 @@ def _by_agent(**fields: object) -> dict:
 
 
 class EvidenceMapContext(StepContext):
+    """A step context with this workflow's references."""
+
     def _update(self, destiny_id: UUID, **values: object):
         """Build an update of one of this session's references."""
         return (

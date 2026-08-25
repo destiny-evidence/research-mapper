@@ -1,3 +1,5 @@
+"""Step registry."""
+
 import builtins
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar
@@ -11,18 +13,16 @@ REGISTRY: dict[str, STEP_T] = {}
 
 
 class Step[P: BaseModel, C: StepContext](ABC):
-    """One unit of durable work, run by the worker against a StepContext.
-
-    `C` is the context the step needs: `StepContext` if it only touches session,
-    artifacts and decisions, or a subclass if it writes a workflow's own state.
-    """
+    """One unit of durable work, run against a StepContext with provided Params."""
 
     type: ClassVar[str]
     mutates_state: ClassVar[bool] = True
     Params: ClassVar[builtins.type[BaseModel]]
 
     @abstractmethod
-    def run(self, ctx: C, params: P) -> dict: ...
+    def run(self, ctx: C, params: P) -> dict:
+        """Do the work. Return a summary for the operation record."""
+        ...
 
 
 def register(step: STEP_T) -> STEP_T:

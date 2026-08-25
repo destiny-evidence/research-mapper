@@ -4,10 +4,8 @@ Generates a repository-scoped refresh token once and then uses that across the A
 """
 
 import contextlib
-import socket
 import sys
 import threading
-import time
 from collections.abc import Generator
 
 import httpx
@@ -16,7 +14,6 @@ from destiny_sdk.keycloak_auth import KeycloakAuthCodeFlow, TokenResponse
 KEYCLOAK_URL = "https://auth.evidence-repository.org"
 REALM = "destiny"
 CALLBACK_PORT = 8400
-RELAY_CONNECT_TIMEOUT = 10.0
 REFRESH_TOKEN_VAR = "MAPPER_DESTINY_REFRESH_TOKEN"
 
 
@@ -62,44 +59,8 @@ class RefreshTokenAuth(httpx.Auth):
             yield request
 
 
-def _pump(source: socket.socket, sink: socket.socket) -> None:
-    with contextlib.suppress(OSError):
-        while chunk := source.recv(65536):
-            sink.sendall(chunk)
-    with contextlib.suppress(OSError):
-        sink.shutdown(socket.SHUT_WR)
-
-
-def _relay(listener: socket.socket, target_port: int) -> None:
-    while True:
-        client, _ = listener.accept()
-        deadline = time.monotonic() + RELAY_CONNECT_TIMEOUT
-        while True:
-            try:
-                upstream = socket.create_connection(("127.0.0.1", target_port))
-                break
-            except OSError:
-                if time.monotonic() > deadline:
-                    client.close()
-                    break
-                time.sleep(0.1)
-        else:
-            continue
-        for source, sink in ((client, upstream), (upstream, client)):
-            threading.Thread(target=_pump, args=(source, sink), daemon=True).start()
-
-
-def start_relay(listen_port: int, target_port: int = CALLBACK_PORT) -> None:
-    """Forward a published container port to the callback server."""
-    listener = socket.socket()
-    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listener.bind(("0.0.0.0", listen_port))  # noqa: S104
-    listener.listen(8)
-    threading.Thread(target=_relay, args=(listener, target_port), daemon=True).start()
-
-
-def login(env: str, *, open_browser: bool = True) -> TokenResponse:
+def login(env: str) -> TokenResponse:
     """Log in to DESTINY in a browser and return the tokens Keycloak issued."""
     flow = auth_code_flow(env)
     with contextlib.redirect_stdout(sys.stderr):
-        return flow.authenticate(open_browser=open_browser)
+        return flow.authenticate()

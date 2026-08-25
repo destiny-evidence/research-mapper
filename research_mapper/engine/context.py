@@ -1,3 +1,5 @@
+"""Generic database context."""
+
 import time
 from collections.abc import Callable, Collection
 from functools import cached_property
@@ -21,10 +23,15 @@ PROGRESS_MIN_INTERVAL_SECONDS = 1.0
 
 
 class NeedsInput(BaseException):
-    """Raised out of a step when a human decision is needed to continue."""
+    """Raised out of a step when a human decision is needed to continue.
+
+    Not an Exception, so a step catching its own errors cannot swallow a pause.
+    """
 
 
 class StepContext:
+    """What a step can read and write while it runs."""
+
     def __init__(
         self,
         operation_id: UUID,

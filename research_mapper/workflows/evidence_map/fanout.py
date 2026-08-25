@@ -13,6 +13,8 @@ MAX_CONCURRENCY = 8
 
 
 class ProgressTracker:
+    """Reports fan-out progress back to the operation."""
+
     def __init__(self, ctx: StepContext, total: int, note: str, done: int = 0):
         self._ctx = ctx
         self._total = total

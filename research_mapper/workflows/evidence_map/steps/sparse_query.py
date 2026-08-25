@@ -1,3 +1,5 @@
+"""Turning the question into searches."""
+
 import builtins
 from typing import ClassVar
 

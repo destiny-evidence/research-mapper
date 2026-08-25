@@ -1,3 +1,5 @@
+"""Building the map from the taxonomy's own schemes."""
+
 import builtins
 from typing import ClassVar
 

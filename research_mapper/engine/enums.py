@@ -1,3 +1,5 @@
+"""Generic enums."""
+
 from enum import StrEnum, auto
 
 

@@ -1,3 +1,5 @@
+"""API dependencies."""
+
 from collections.abc import Generator
 from typing import Annotated
 from uuid import UUID

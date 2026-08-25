@@ -1,3 +1,5 @@
+"""Generic database models."""
+
 from datetime import datetime
 from uuid import UUID
 
@@ -23,6 +25,8 @@ from research_mapper.engine.views import Progress
 
 
 class User(Base):
+    """Someone who can own sessions."""
+
     __tablename__ = "users"
 
     issuer: Mapped[str] = mapped_column(nullable=False)
@@ -32,6 +36,8 @@ class User(Base):
 
 
 class ResearchSession(Base):
+    """A question, and everything produced while answering it."""
+
     __tablename__ = "research_sessions"
 
     user_id: Mapped[UUID] = mapped_column(
@@ -46,6 +52,8 @@ class ResearchSession(Base):
 
 
 class Operation(Base):
+    """One run of one step, and how it went."""
+
     __tablename__ = "operations"
 
     research_session_id: Mapped[UUID] = mapped_column(
@@ -94,6 +102,8 @@ class Operation(Base):
 
 
 class Decision(Base):
+    """A question put to the user, and their answer."""
+
     __tablename__ = "decisions"
 
     research_session_id: Mapped[UUID] = mapped_column(
@@ -138,6 +148,8 @@ class Decision(Base):
 
 
 class Artifact(Base):
+    """A versioned output of a step."""
+
     __tablename__ = "artifacts"
 
     research_session_id: Mapped[UUID] = mapped_column(

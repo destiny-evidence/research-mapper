@@ -1,3 +1,5 @@
+"""Custom database types."""
+
 from typing import Any
 
 from pydantic import BaseModel
@@ -7,6 +9,8 @@ from sqlalchemy.types import TypeDecorator
 
 
 class PydanticJSONB[T: BaseModel](TypeDecorator[T]):
+    """A JSONB column that round-trips through a pydantic model."""
+
     impl = JSONB
     cache_ok = True
 

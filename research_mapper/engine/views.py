@@ -1,3 +1,5 @@
+"""Generic view models."""
+
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal
 
@@ -5,6 +7,8 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSeriali
 
 
 class AskSpec(BaseModel):
+    """A question for the user."""
+
     type: Literal["select_many", "edit_list"]
     prompt: str
     options: list[dict]
@@ -12,6 +16,8 @@ class AskSpec(BaseModel):
 
 
 class Progress(BaseModel):
+    """How far an operation has got."""
+
     model_config = ConfigDict(frozen=True, extra="ignore")
 
     done: int = 0
@@ -31,5 +37,7 @@ Ordered = Annotated[
 
 @dataclass(frozen=True, slots=True)
 class ArtifactSpec[T: BaseModel]:
+    """The name and shape of one artifact type."""
+
     name: str
     model: type[T]

@@ -1,3 +1,5 @@
+"""Work queue."""
+
 from datetime import timedelta
 from typing import cast
 from uuid import UUID
@@ -37,7 +39,11 @@ async def queries() -> tuple[Queries, psycopg.AsyncConnection]:
 
 
 def enqueue_in(db: Session, operation_id: UUID) -> None:
-    """Queue an operation inside the caller's transaction."""
+    """Queue an operation inside the caller's transaction.
+
+    Call this in the transaction that writes the row, or an operation can exist
+    with nothing to run it.
+    """
     raw_connection = cast(
         "psycopg.Connection", db.connection().connection.driver_connection
     )

@@ -1,3 +1,5 @@
+"""Database connections."""
+
 import os
 from contextlib import AbstractContextManager, contextmanager
 from collections.abc import Callable, Generator
@@ -133,6 +135,7 @@ db_manager = DatabaseSessionManager()
 
 
 def get_session() -> Generator[Session, None, None]:
+    """Yield a session, for use as a dependency."""
     with db_manager.session() as session:
         yield session
 

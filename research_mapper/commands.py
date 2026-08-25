@@ -1,3 +1,5 @@
+"""Application entry points."""
+
 import asyncio
 import os
 import sys
@@ -83,22 +85,17 @@ def migrate() -> None:
     command.upgrade(Config("alembic.ini"), "head")
 
 
-def login(*args: str) -> None:
+def login() -> None:
     """Log in to DESTINY and store a refresh token for local development."""
     load_environment()
     env = os.environ.get("MAPPER_DESTINY_ENV")
     if not env:
         print("Set MAPPER_DESTINY_ENV")
         sys.exit(1)
-    if "--relay-port" in args:
-        local_destiny_auth.start_relay(int(args[args.index("--relay-port") + 1]))
-    token = local_destiny_auth.login(env, open_browser="--no-browser" not in args)
+    token = local_destiny_auth.login(env)
     if not token.refresh_token:
         raise SystemExit("Destiny issued no refresh token")
 
-    if "--print" in args:
-        print(f"{local_destiny_auth.REFRESH_TOKEN_VAR}={token.refresh_token}")
-        return
     path = Path(".env")
     set_key(
         str(path),

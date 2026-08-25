@@ -1,3 +1,5 @@
+"""Building the map and placing evidence on it."""
+
 import builtins
 import logging
 from typing import ClassVar, Protocol

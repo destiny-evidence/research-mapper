@@ -1,3 +1,5 @@
+"""Fetching evidence from DESTINY."""
+
 import builtins
 import logging
 from collections.abc import Iterable

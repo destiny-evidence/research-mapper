@@ -1,3 +1,5 @@
+"""The workflows this deployment can run."""
+
 from typing import TYPE_CHECKING
 
 from research_mapper.engine.registry import Step, register
@@ -18,6 +20,7 @@ def load() -> None:
 
 
 def routers() -> list["APIRouter"]:
+    """Every workflow's API routes."""
     from research_mapper.workflows.evidence_map import routes
 
     return [routes.router]

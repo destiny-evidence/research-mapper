@@ -1,3 +1,5 @@
+"""Evidence map view models."""
+
 from dataclasses import dataclass
 from uuid import UUID
 

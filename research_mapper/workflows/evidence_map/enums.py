@@ -1,3 +1,5 @@
+"""Evidence map enums."""
+
 from enum import StrEnum, auto
 
 

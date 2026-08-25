@@ -1,3 +1,5 @@
+"""Declarative base model."""
+
 from datetime import datetime
 from uuid import UUID, uuid7
 
@@ -7,6 +9,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
+    """Declarative base with a uuid7 id and timestamps."""
+
     metadata = MetaData(
         naming_convention={
             "ix": "ix_%(table_name)s_%(column_0_N_name)s",

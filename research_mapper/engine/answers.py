@@ -1,3 +1,5 @@
+"""Answer validation."""
+
 from research_mapper.engine.models import Decision
 
 

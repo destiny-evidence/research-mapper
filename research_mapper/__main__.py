@@ -1,3 +1,5 @@
+"""Command line dispatch."""
+
 import sys
 
 from research_mapper.commands import COMMANDS
@@ -5,6 +7,7 @@ from research_mapper.cli import run
 
 
 def main() -> None:
+    """Run a command, or the terminal app if none is given."""
     if len(sys.argv) < 2:
         run()
         return

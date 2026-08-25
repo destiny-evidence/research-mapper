@@ -1,8 +1,9 @@
+from research_mapper.api.auth import LOCAL_PRINCIPAL
 from research_mapper.engine.models import Operation, ResearchSession, User
 
 
-def make_user(db, subject="local", issuer="local") -> User:
-    """Persist a user."""
+def make_user(db, subject=LOCAL_PRINCIPAL[1], issuer=LOCAL_PRINCIPAL[0]) -> User:
+    """Persist a user, by default the one an unauthenticated API reports as its caller."""
     user = User(issuer=issuer, subject=subject)
     db.add(user)
     db.commit()
@@ -13,7 +14,7 @@ def make_session(db, user, question="Does X affect Y?") -> ResearchSession:
     """Persist a research session owned by a user."""
     session = ResearchSession(
         user_id=user.id,
-        workflow="evidence_map",
+        workflow="drafts",
         question=question,
         community="hpv",
     )

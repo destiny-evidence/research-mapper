@@ -207,6 +207,7 @@ table.map td{padding:0;text-align:center;height:74px;min-width:118px}
 .start-card p.lede{color:var(--muted);font-size:14px;margin:0 0 24px;max-width:52ch}
 .start-card .field{margin-bottom:18px}
 .field.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.field.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 .recent{margin-top:26px;border-top:1px solid var(--line);padding-top:20px}
 .recent button{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:11px 13px;margin-bottom:7px;color:var(--text);font-size:13.5px}
 .recent button:hover{border-color:var(--line-2);background:var(--panel-2)}
@@ -266,13 +267,12 @@ table.rec .id{color:var(--dim)}
     <div class="brand"><span class="mark">R</span> research-mapper <span class="sep">/</span> <span class="ctx">demo</span></div>
     <h1>Map the evidence on a question</h1>
     <p class="lede">The agent drafts searches, screens what it finds, and lays it out on a map. It
-    stops to ask you whenever a decision is yours. Nothing is held in memory — close the tab and come
-    back whenever.</p>
+    stops to ask you whenever a decision is yours.</p>
     <div class="field">
       <label for="q">Research question</label>
       <textarea id="q" rows="3" placeholder="What is known about HPV vaccine uptake among adolescents in school settings?"></textarea>
     </div>
-    <div class="field two">
+    <div class="field three">
       <div>
         <label for="community">Community</label>
         <select id="community"><option value="hpv">hpv</option><option value="esea">esea</option></select>
@@ -283,6 +283,13 @@ table.rec .id{color:var(--dim)}
           <option value="both">Both</option>
           <option value="sparse">Search terms</option>
           <option value="taxonomy">Taxonomy concepts</option>
+        </select>
+      </div>
+      <div>
+        <label for="mapmode">Mapping</label>
+        <select id="mapmode">
+          <option value="suggested">Suggested axes</option>
+          <option value="taxonomy">Taxonomy schemes</option>
         </select>
       </div>
     </div>

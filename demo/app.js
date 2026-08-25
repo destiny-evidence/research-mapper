@@ -13,21 +13,25 @@ const PLAN = [
    regenerate: true},
   {type: 'screen_evidence', title: 'Screen the evidence',
    blurb: 'Every reference is judged against your criteria. The longest step, and the one that saves as it goes.'},
-  {type: 'generate_map_dimensions', title: 'Choose map dimensions',
-   blurb: 'The three axes the map is built from. Edit them however you like — your version is kept alongside the suggestion.',
+  {type: 'generate_map_dimensions', map: 'suggested', title: 'Choose map dimensions',
+   blurb: 'The three axes the map is built from. Edit them however you like, your version is kept alongside the suggestion.',
    regenerate: true},
-  {type: 'generate_map_subtopics', title: 'Fill in subtopics',
+  {type: 'generate_map_subtopics', map: 'suggested', title: 'Fill in subtopics',
    blurb: 'The buckets within each axis. One question per dimension, all asked together.',
    regenerate: true},
-  {type: 'generate_map', title: 'Place evidence on the map',
+  {type: 'generate_map', map: 'suggested', title: 'Place evidence on the map',
    blurb: 'Every included reference gets a place on the map.'},
+  {type: 'generate_taxonomy_map', map: 'taxonomy', title: 'Map along taxonomy schemes',
+   blurb: 'The axes come from the taxonomy itself, and each reference is placed by the concepts DESTINY has already tagged it with. No suggestions, no questions, and anything missing a tag is reported rather than guessed at.'},
 ];
 
 const STEP = Object.fromEntries(PLAN.map(s => [s.type, s]));
 
 // Which retrieval paths this session uses. Lives here for the same reason the order does:
 // the API takes a step name from the client and has no plan of its own.
-const plan = () => PLAN.filter(step => !step.mode || mode === 'both' || step.mode === mode);
+const plan = () => PLAN.filter(step =>
+  (!step.mode || mode === 'both' || step.mode === mode) &&
+  (!step.map || step.map === mapMode));
 const $ = id => document.getElementById(id);
 
 let session = null;
@@ -40,6 +44,7 @@ let startedAt = {};
 let answeredAt = {};
 let tab = 'run';
 let mode = 'both';
+let mapMode = 'suggested';
 let loop = null;
 
 /* ---------- api ---------- */
@@ -63,12 +68,14 @@ const canon = value => JSON.stringify(value, Object.keys(value ?? {}).sort());
 
 /* ---------- session lifecycle ---------- */
 
-async function start(question, community, searchMode) {
+async function start(question, community, searchMode, mapping) {
   mode = searchMode;
+  mapMode = mapping;
   session = await api('/sessions/', {
     method: 'POST',
     body: JSON.stringify({
-      workflow: 'evidence_map', question, community, params: {search_mode: mode},
+      workflow: 'evidence_map', question, community,
+      params: {search_mode: mode, map_mode: mapMode},
     }),
   });
   ops = {}; map = null; mapView = null; currentId = null; tab = 'run';
@@ -79,6 +86,7 @@ async function start(question, community, searchMode) {
 async function openSession(sessionId) {
   session = await api(`/sessions/${sessionId}/`);
   mode = (session.params || {}).search_mode || 'both';
+  mapMode = (session.params || {}).map_mode || 'suggested';
   const ids = await api(`/sessions/${sessionId}/operations/`);
   const loaded = await Promise.all(ids.map(id => api(`/operations/${id}/`)));
   ops = {};
@@ -283,6 +291,8 @@ function activeCard(step, operation) {
   if (human) body = open.map(decision => decisionBlock(decision)).join('') + submitRow(step);
   else if (status === 'failed') body = `<div class="err">${esc((operation.error || {}).type)}: ${esc((operation.error || {}).message)}</div>
       <div class="actions"><button class="btn primary" data-act="retry">Retry</button>
+      ${operation.type === 'generate_taxonomy_map'
+        ? '<button class="btn ghost" data-act="fallback">Use suggested axes instead</button>' : ''}
       <button class="btn ghost" data-act="skip">Continue anyway</button></div>`;
   else if (status === 'complete') body = chips(operation.result);
   else body = progress(operation) + (stuck ? stalled() : '');
@@ -306,7 +316,7 @@ function progress(operation) {
     </div>`;
 }
 
-const stalled = () => `<div class="err" style="margin-top:12px">Still queued after 15 seconds —
+const stalled = () => `<div class="err" style="margin-top:12px">Still queued after 15 seconds -
     check the worker is up and not busy with another session.
     <div class="actions"><button class="btn ghost" data-act="rerun">Re-run this step</button></div>
   </div>`;
@@ -399,7 +409,7 @@ function tracePanel(artifact) {
   return `<div class="card">
     <div class="card-h"><h3>What the agent has done so far</h3></div>
     <p class="blurb">It stopped at the highlighted step to ask you the question above. Your answer
-      goes in there and it carries on from that point — it does not start again.</p>
+      goes in there and it carries on from that point.</p>
     <div class="trace">${iterations.join('')}</div></div>`;
 }
 
@@ -429,8 +439,7 @@ async function renderState() {
   const artifacts = Object.entries(session.artifacts || {}).sort();
 
   $('view-state').innerHTML = `
-    <div class="note">Everything here is saved as it happens, not held in memory. Close the tab, stop
-      the worker, come back tomorrow — the run carries on from the last thing that finished.</div>
+    <div class="note">Everything here is saved as it happens, not held in memory.</div>
 
     ${block('session', `<table class="rec">
       <tr><th>question</th><td class="wrap">${esc(session.question)}</td></tr>
@@ -495,6 +504,9 @@ function wire(operation) {
     if (act === 'retry') { await retry(); return; }
     if (act === 'rerun') { await run(operation.type, {}); return; }
     if (act === 'skip') { currentId = null; advance(); return; }
+    // The taxonomy axes need three schemes in the evidence. When they aren't there the
+    // fallback is the other three steps, which is a change of plan, not of this step.
+    if (act === 'fallback') { mapMode = 'suggested'; currentId = null; advance(); return; }
     if (act === 'regenerate') { await run(operation.type, {regenerate: true}); return; }
     if (act === 'submit') await submit(form, operation, button);
   });
@@ -730,7 +742,7 @@ $('go').onclick = async () => {
   $('go').disabled = true;
   $('start-hint').textContent = 'starting…';
   try {
-    await start(question, $('community').value, $('mode').value);
+    await start(question, $('community').value, $('mode').value, $('mapmode').value);
   } catch (error) {
     $('go').disabled = false;
     $('start-hint').textContent = error.message;

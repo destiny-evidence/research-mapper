@@ -16,6 +16,9 @@ from research_mapper.workflows.evidence_map.steps.screening import (
     ScreenEvidence,
 )
 from research_mapper.workflows.evidence_map.steps.sparse_query import EnhanceSparseQuery
+from research_mapper.workflows.evidence_map.steps.taxonomy_mapping import (
+    GenerateTaxonomyMap,
+)
 
 STEPS: list[type[Step]] = [
     EnhanceSparseQuery,
@@ -27,4 +30,5 @@ STEPS: list[type[Step]] = [
     GenerateMapDimensions,
     GenerateMapSubtopics,
     GenerateMap,
+    GenerateTaxonomyMap,
 ]

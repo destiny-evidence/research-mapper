@@ -7,12 +7,15 @@ from factories import make_operation, make_session, make_user
 from research_mapper.engine.context import NeedsInput, StepContext
 from research_mapper.engine.enums import DecisionType
 from research_mapper.engine.models import Decision
+from research_mapper.models.screening import ScreeningCriterion
 from research_mapper.models.sparse_search import LuceneQuery
 from research_mapper.workflows.evidence_map import artifacts
-from research_mapper.workflows.evidence_map.steps import sparse_query
+from research_mapper.workflows.evidence_map.steps import screening, sparse_query
 
 A = {"query": "hpv AND uptake"}
 B = {"query": "hpv AND refusal"}
+INCLUDE = {"criterion_type": "inclusion", "description": "peer reviewed"}
+EXCLUDE = {"criterion_type": "exclusion", "description": "not english"}
 
 
 @pytest.fixture
@@ -68,6 +71,15 @@ def suggest_queries(monkeypatch, *queries) -> list:
     )
 
 
+def suggest_criteria(monkeypatch, *criteria) -> list:
+    return suggest(
+        monkeypatch,
+        screening.CriteriaGenerator,
+        "screening_criteria",
+        [ScreeningCriterion(**c) for c in criteria],
+    )
+
+
 def test_suggested_queries_are_stored_before_the_user_is_asked(ctx, monkeypatch):
     """The artifact lands first, so a crash while waiting costs no LM call."""
     suggest_queries(monkeypatch, A, B)
@@ -119,3 +131,27 @@ def test_regenerate_ignores_the_stored_suggestions(ctx, restart, monkeypatch):
     stored = restart().get_artifact(artifacts.SUGGESTED_SEARCH_QUERIES)
     assert stored is not None
     assert [query.model_dump(mode="json") for query in stored.queries] == [B]
+
+
+def test_screening_criteria_are_suggested_then_narrowed(
+    db, ctx, operation, restart, monkeypatch
+):
+    suggest_criteria(monkeypatch, INCLUDE, EXCLUDE)
+    with pytest.raises(NeedsInput):
+        screening.GenerateScreeningCriteria().run(
+            ctx, screening.GenerateScreeningCriteriaParams()
+        )
+
+    spec = ctx.pending_decisions["select_criteria"]
+    assert [option["value"] for option in spec.options] == [INCLUDE, EXCLUDE]
+    assert spec.options[0]["label"] == "Inclusion - peer reviewed"
+
+    answer(db, operation, "select_criteria", [EXCLUDE])
+    result = screening.GenerateScreeningCriteria().run(
+        restart(), screening.GenerateScreeningCriteriaParams()
+    )
+
+    assert result == {"suggested": 2, "selected": 1, "version": 1}
+    chosen = restart().get_artifact(artifacts.SCREENING_CRITERIA)
+    assert chosen is not None
+    assert [c.model_dump(mode="json") for c in chosen.criteria] == [EXCLUDE]

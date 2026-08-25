@@ -8,6 +8,10 @@ from research_mapper.workflows.evidence_map.steps.retrieve import (
     RetrieveConceptEvidence,
     RetrieveSparseEvidence,
 )
+from research_mapper.workflows.evidence_map.steps.screening import (
+    GenerateScreeningCriteria,
+    ScreenEvidence,
+)
 from research_mapper.workflows.evidence_map.steps.sparse_query import EnhanceSparseQuery
 
 STEPS: list[type[Step]] = [
@@ -15,4 +19,6 @@ STEPS: list[type[Step]] = [
     GenerateConceptFilters,
     RetrieveSparseEvidence,
     RetrieveConceptEvidence,
+    GenerateScreeningCriteria,
+    ScreenEvidence,
 ]

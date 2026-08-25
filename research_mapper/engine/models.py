@@ -51,6 +51,9 @@ class ResearchSession(Base):
     workflow_version: Mapped[str] = mapped_column(String, nullable=False, default="v1")
 
 
+ONE_RUNNING_PER_SESSION = "uq_operations_one_running_per_session"
+
+
 class Operation(Base):
     """One run of one step, and how it went."""
 
@@ -92,7 +95,7 @@ class Operation(Base):
     __table_args__ = (
         Index("ix_operations_session_created", research_session_id, "id"),
         Index(
-            "uq_operations_one_running_per_session",
+            ONE_RUNNING_PER_SESSION,
             research_session_id,
             unique=True,
             postgresql_where=status == OperationStatus.RUNNING,

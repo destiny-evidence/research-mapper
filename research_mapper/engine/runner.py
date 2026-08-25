@@ -13,7 +13,12 @@ from research_mapper.engine import queue, registry
 from research_mapper.engine.answers import validate_answer
 from research_mapper.engine.context import NeedsInput, StepContext
 from research_mapper.engine.enums import OperationStatus
-from research_mapper.engine.models import Decision, Operation, ResearchSession
+from research_mapper.engine.models import (
+    ONE_RUNNING_PER_SESSION,
+    Decision,
+    Operation,
+    ResearchSession,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +51,9 @@ def _claim(session_factory: SessionFactory, operation_id: UUID) -> bool:
             db.commit()
         except IntegrityError as exc:
             db.rollback()
+            diag = getattr(exc.orig, "diag", None)
+            if getattr(diag, "constraint_name", None) != ONE_RUNNING_PER_SESSION:
+                raise
             msg = f"another operation is running on {operation_id}'s session"
             raise SessionBusy(msg) from exc
     return claimed is not None
@@ -58,19 +66,15 @@ def _finish(session_factory: SessionFactory, operation_id: UUID, result: dict) -
         if operation is None:
             msg = f"operation {operation_id} vanished before it could complete"
             raise LookupError(msg)
-        values: dict = {"status": OperationStatus.COMPLETE, "result": result}
+        operation.status = OperationStatus.COMPLETE
+        operation.result = result
         if operation.mutates_state:
-            research_session = db.get(
-                ResearchSession, operation.research_session_id, with_for_update=True
-            )
-            if research_session is None:
-                msg = f"session {operation.research_session_id} vanished"
-                raise LookupError(msg)
-            research_session.head_version_number += 1
-            values["version_number"] = research_session.head_version_number
-        db.execute(
-            update(Operation).where(Operation.id == operation_id).values(**values)
-        )
+            operation.version_number = db.execute(
+                update(ResearchSession)
+                .where(ResearchSession.id == operation.research_session_id)
+                .values(head_version_number=ResearchSession.head_version_number + 1)
+                .returning(ResearchSession.head_version_number)
+            ).scalar_one()
         db.commit()
 
 
@@ -102,11 +106,7 @@ def _block(
                     constraints=spec.constraints,
                 )
             )
-        db.execute(
-            update(Operation)
-            .where(Operation.id == operation_id)
-            .values(status=OperationStatus.AWAITING_INPUT)
-        )
+        operation.status = OperationStatus.AWAITING_INPUT
         db.commit()
 
 

@@ -1,0 +1,60 @@
+x-app: &app
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: research-mapper:local
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    MAPPER_DB_HOST: db:5432
+    MAPPER_DB_NAME: research_mapper
+    MAPPER_DB_USER: research_mapper
+    MAPPER_DB_PASSWORD: research_mapper
+  depends_on:
+    db:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: research_mapper
+      POSTGRES_PASSWORD: research_mapper
+      POSTGRES_DB: research_mapper
+    ports:
+      - "5433:5432"
+    volumes:
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U research_mapper -d research_mapper"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    <<: *app
+    command: ["python", "-m", "research_mapper", "migrate"]
+
+  api:
+    <<: *app
+    command: ["python", "-m", "research_mapper", "api"]
+    restart: unless-stopped
+    ports:
+      - "${MAPPER_API_PORT:-8080}:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    # A dropped connection or a schema change under a prepared statement kills the
+    # dequeue loop; without this the worker stays dead and the queue silently stops.
+    restart: unless-stopped
+    command: ["python", "-m", "research_mapper", "worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  db-data:

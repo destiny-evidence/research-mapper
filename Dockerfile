@@ -18,8 +18,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 COPY research_mapper ./research_mapper
 COPY alembic.ini entrypoint.sh ./
+# --reinstall-package: without it a cached wheel is reused and the installed copy of the
+# project lags ./research_mapper, so the image silently ships the previous build's code.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-default-groups --no-editable
+    uv sync --frozen --no-default-groups --no-editable \
+    --reinstall-package research-mapper
 
 EXPOSE 8080
 CMD ["ttyd", "--writable", "--port", "8080", "--terminal-type", "xterm-256color", \

@@ -1,0 +1,165 @@
+import threading
+from unittest.mock import MagicMock
+
+import httpx
+import pytest
+from destiny_sdk.keycloak_auth import TokenResponse
+
+from research_mapper.config import _destiny_auth
+from research_mapper.local_destiny_auth import RefreshTokenAuth, auth_code_flow
+
+
+def token(access: str, refresh: str | None = "refresh-2") -> TokenResponse:
+    return TokenResponse(
+        access_token=access,
+        refresh_token=refresh,
+        expires_in=300,
+        token_type="Bearer",
+        scope="openid",
+    )
+
+
+def flow(*responses: TokenResponse) -> MagicMock:
+    fake = MagicMock()
+    fake.refresh_token.side_effect = responses
+    return fake
+
+
+def run(auth: RefreshTokenAuth, *statuses: int) -> list[str]:
+    """Drive the auth flow against canned responses, returning each token it sent.
+
+    httpx re-yields the same request object, so the header has to be read as it goes.
+    """
+    request = httpx.Request("GET", "https://destiny.example/v1/references/")
+    generator = auth.auth_flow(request)
+    sent = [next(generator).headers["Authorization"]]
+    for status in statuses:
+        try:
+            sent.append(
+                generator.send(httpx.Response(status, request=request)).headers[
+                    "Authorization"
+                ]
+            )
+        except StopIteration:
+            break
+    return sent
+
+
+def test_the_refresh_token_buys_an_access_token():
+    auth = RefreshTokenAuth(flow(token("access-1")), "refresh-1")
+
+    assert run(auth, 200) == ["Bearer access-1"]
+
+
+def test_the_access_token_is_reused_across_requests():
+    """One exchange per process, not one per request."""
+    fake = flow(token("access-1"))
+    auth = RefreshTokenAuth(fake, "refresh-1")
+
+    run(auth, 200)
+    run(auth, 200)
+
+    fake.refresh_token.assert_called_once_with("refresh-1")
+
+
+def test_a_401_renews_the_token_and_retries_once():
+    fake = flow(token("access-1"), token("access-2"))
+    auth = RefreshTokenAuth(fake, "refresh-1")
+
+    assert run(auth, 401, 200) == ["Bearer access-1", "Bearer access-2"]
+
+
+def test_the_rotated_refresh_token_is_used_for_the_next_exchange():
+    """Keycloak issues a new refresh token each time; holding the old one locks us out."""
+    fake = flow(token("access-1", refresh="refresh-2"), token("access-2"))
+    auth = RefreshTokenAuth(fake, "refresh-1")
+
+    run(auth, 401, 200)
+
+    assert [call.args[0] for call in fake.refresh_token.call_args_list] == [
+        "refresh-1",
+        "refresh-2",
+    ]
+
+
+def test_an_exchange_that_returns_no_refresh_token_keeps_the_one_it_has():
+    fake = flow(token("access-1", refresh=None), token("access-2"))
+    auth = RefreshTokenAuth(fake, "refresh-1")
+
+    run(auth, 401, 200)
+
+    assert [call.args[0] for call in fake.refresh_token.call_args_list] == [
+        "refresh-1",
+        "refresh-1",
+    ]
+
+
+def test_the_flow_is_pointed_at_the_environments_client():
+    assert auth_code_flow("staging").client_id == "destiny-auth-client-staging"
+    assert auth_code_flow("staging").redirect_uri == "http://localhost:8400/callback"
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_credentials(monkeypatch):
+    for name in (
+        "AZURE_CLIENT_ID",
+        "MAPPER_DESTINY_APPLICATION_ID",
+        "MAPPER_DESTINY_REFRESH_TOKEN",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
+def test_a_refresh_token_is_chosen_over_a_browser_login(monkeypatch):
+    monkeypatch.setenv("MAPPER_DESTINY_REFRESH_TOKEN", "refresh-1")
+
+    assert isinstance(_destiny_auth("staging"), RefreshTokenAuth)
+
+
+def test_managed_identity_wins_over_a_stray_refresh_token(monkeypatch):
+    """A deployed worker must not fall back to a developer's token."""
+    monkeypatch.setenv("AZURE_CLIENT_ID", "client-id")
+    monkeypatch.setenv("MAPPER_DESTINY_APPLICATION_ID", "app-id")
+    monkeypatch.setenv("MAPPER_DESTINY_REFRESH_TOKEN", "refresh-1")
+
+    assert not isinstance(_destiny_auth("staging"), RefreshTokenAuth)
+
+
+def test_no_credentials_leaves_the_sdk_to_prompt():
+    assert _destiny_auth("staging") is None
+
+
+def test_one_exchange_serves_every_request_that_hit_the_same_dead_token():
+    """Keycloak burns the refresh token per exchange, so a 401 storm must not stampede."""
+    callers = 4
+    auth = RefreshTokenAuth(
+        flow(*(token(f"access-{n}") for n in range(1, callers + 2))), "refresh-1"
+    )
+    requests = [
+        httpx.Request("GET", "https://destiny.example/") for _ in range(callers)
+    ]
+    flows = [auth.auth_flow(request) for request in requests]
+
+    # All of them are in flight with the same token before any sees a 401.
+    assert [next(f).headers["Authorization"] for f in flows] == [
+        "Bearer access-1"
+    ] * callers
+
+    retried: list[str] = []
+    barrier = threading.Barrier(callers, timeout=10)
+
+    def caller(generator, request) -> None:
+        barrier.wait()
+        response = httpx.Response(401, request=request)
+        retried.append(generator.send(response).headers["Authorization"])
+
+    threads = [
+        threading.Thread(target=caller, args=pair)
+        for pair in zip(flows, requests, strict=True)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert auth._flow.refresh_token.call_count == 2
+    assert retried == ["Bearer access-2"] * callers

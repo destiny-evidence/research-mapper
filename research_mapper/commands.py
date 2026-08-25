@@ -7,6 +7,7 @@ from pathlib import Path
 from uuid import UUID
 
 from pgqueuer.executors import DatabaseRetryEntrypointExecutor
+from pgqueuer.errors import RetryRequested
 import uvicorn
 
 from dotenv import set_key
@@ -23,9 +24,10 @@ from research_mapper.workflows.evidence_map.context import EvidenceMapContext
 from research_mapper.engine import queue, runner
 from research_mapper import workflows
 
-HEARTBEAT_TIMEOUT = timedelta(minutes=45)
+HEARTBEAT_TIMEOUT = timedelta(minutes=5)
 DEQUEUE_TIMEOUT = timedelta(seconds=5)
 MAX_RETRIES = 1
+BUSY_RETRY_DELAY = timedelta(seconds=30)
 
 
 def _context(operation_id: UUID, session_factory: SessionFactory) -> EvidenceMapContext:
@@ -46,9 +48,12 @@ async def _worker() -> None:
     )
     async def _run(job) -> None:
         operation_id = UUID(job.payload.decode())
-        await asyncio.to_thread(
-            runner.run_operation, operation_id, db_manager.session, _context
-        )
+        try:
+            await asyncio.to_thread(
+                runner.run_operation, operation_id, db_manager.session, _context
+            )
+        except runner.SessionBusy as exc:
+            raise RetryRequested(delay=BUSY_RETRY_DELAY, reason=str(exc)) from exc
 
     await manager.run(
         dequeue_timeout=DEQUEUE_TIMEOUT, heartbeat_timeout=HEARTBEAT_TIMEOUT

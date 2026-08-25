@@ -39,23 +39,26 @@ class RefreshTokenAuth(httpx.Auth):
         self._flow = flow
         self._refresh_token = refresh_token
         self._access_token: str | None = None
+        self._lock = threading.Lock()
 
-    def _token(self, renew: bool = False) -> str:
-        if self._access_token is None or renew:
-            token = self._flow.refresh_token(self._refresh_token)
-            # Keycloak issues a new refresh token on every exchange.
-            self._refresh_token = token.refresh_token or self._refresh_token
-            self._access_token = token.access_token
-        return self._access_token
+    def _token(self, stale: str | None = None) -> str:
+        """The current access token, renewed if `stale` is still the current one."""
+        with self._lock:
+            if self._access_token is None or self._access_token == stale:
+                token = self._flow.refresh_token(self._refresh_token)
+                self._refresh_token = token.refresh_token or self._refresh_token
+                self._access_token = token.access_token
+            return self._access_token
 
     def auth_flow(
         self, request: httpx.Request
     ) -> Generator[httpx.Request, httpx.Response, None]:
         """Attach an access token, renewing it once if the request comes back 401."""
-        request.headers["Authorization"] = f"Bearer {self._token()}"
+        attempted = self._token()
+        request.headers["Authorization"] = f"Bearer {attempted}"
         response = yield request
         if response.status_code == httpx.codes.UNAUTHORIZED:
-            request.headers["Authorization"] = f"Bearer {self._token(renew=True)}"
+            request.headers["Authorization"] = f"Bearer {self._token(attempted)}"
             yield request
 
 

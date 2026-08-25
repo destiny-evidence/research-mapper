@@ -184,3 +184,40 @@ def test_the_relay_waits_for_a_callback_server_that_is_not_up_yet():
         server[0].shutdown()
 
     assert response.text == "reached the callback"
+
+
+def test_one_exchange_serves_every_request_that_hit_the_same_dead_token():
+    """Keycloak burns the refresh token per exchange, so a 401 storm must not stampede."""
+    callers = 4
+    auth = RefreshTokenAuth(
+        flow(*(token(f"access-{n}") for n in range(1, callers + 2))), "refresh-1"
+    )
+    requests = [
+        httpx.Request("GET", "https://destiny.example/") for _ in range(callers)
+    ]
+    flows = [auth.auth_flow(request) for request in requests]
+
+    # All of them are in flight with the same token before any sees a 401.
+    assert [next(f).headers["Authorization"] for f in flows] == [
+        "Bearer access-1"
+    ] * callers
+
+    retried: list[str] = []
+    barrier = threading.Barrier(callers, timeout=10)
+
+    def caller(generator, request) -> None:
+        barrier.wait()
+        response = httpx.Response(401, request=request)
+        retried.append(generator.send(response).headers["Authorization"])
+
+    threads = [
+        threading.Thread(target=caller, args=pair)
+        for pair in zip(flows, requests, strict=True)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert auth._flow.refresh_token.call_count == 2
+    assert retried == ["Bearer access-2"] * callers

@@ -1,4 +1,5 @@
-import asyncio
+from datetime import timedelta
+from typing import cast
 from uuid import UUID
 
 import psycopg
@@ -6,10 +7,16 @@ from pgqueuer.adapters.drivers.psycopg import PsycopgDriver
 from pgqueuer.adapters.persistence import qb
 from pgqueuer.qm import QueueManager
 from pgqueuer.queries import Queries
+from sqlalchemy.orm import Session
 
 from research_mapper.db.session import db_password, db_settings
 
 ENTRYPOINT = "operation"
+
+NO_DELAY = timedelta(0)
+DEFAULT_PRIORITY = 0
+NO_DEDUPE_KEY = None
+NO_HEADERS = "null"
 
 
 async def connect() -> psycopg.AsyncConnection:
@@ -29,18 +36,23 @@ async def queries() -> tuple[Queries, psycopg.AsyncConnection]:
     return Queries(PsycopgDriver(connection)), connection
 
 
-async def enqueue(operation_id: UUID) -> None:
-    """Queue an operation for a worker to pick up."""
-    repository, connection = await queries()
-    try:
-        await repository.enqueue(ENTRYPOINT, str(operation_id).encode())
-    finally:
-        await connection.close()
-
-
-def enqueue_sync(operation_id: UUID) -> None:
-    """Synchronously queue an operation."""
-    asyncio.run(enqueue(operation_id))
+def enqueue_in(db: Session, operation_id: UUID) -> None:
+    """Queue an operation inside the caller's transaction."""
+    raw_connection = cast(
+        "psycopg.Connection", db.connection().connection.driver_connection
+    )
+    with psycopg.RawCursor(raw_connection) as cursor:
+        cursor.execute(
+            qb.QueryQueueBuilder().build_enqueue_query(),
+            (
+                [DEFAULT_PRIORITY],
+                [ENTRYPOINT],
+                [str(operation_id).encode()],
+                [NO_DELAY],
+                [NO_DEDUPE_KEY],
+                [NO_HEADERS],
+            ),
+        )
 
 
 def install_ddl(create_schema: bool = False) -> str:

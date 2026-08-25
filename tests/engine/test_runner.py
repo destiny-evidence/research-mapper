@@ -63,6 +63,13 @@ def run(operation, session_factory):
     runner.run_operation(operation.id, session_factory, StepContext)
 
 
+def enqueue(operation, session_factory):
+    """Put a job on the queue the way the worker would still see it in flight."""
+    with session_factory() as db:
+        queue.enqueue_in(db, operation.id)
+        db.commit()
+
+
 def reload(db, operation) -> Operation:
     db.expire_all()
     reloaded = db.get(Operation, operation.id)
@@ -273,7 +280,7 @@ def test_a_resume_is_delivered_even_while_the_parking_job_is_still_in_the_queue(
     step("asks", lambda self, ctx, params: {"picked": ctx.ask("pick", SPEC)})
     operation = make_operation(db, session, user, type="asks")
     run(operation, session_factory)
-    queue.enqueue_sync(operation.id)
+    enqueue(operation, session_factory)
     assert queued() == [str(operation.id)]
 
     runner.answer_decisions(operation.id, {"pick": [ONE]}, session_factory)
@@ -313,7 +320,7 @@ def test_a_retry_is_delivered_even_while_the_failed_job_is_still_in_the_queue(
     operation = make_operation(db, session, user, type="boom")
     with pytest.raises(RuntimeError):
         run(operation, session_factory)
-    queue.enqueue_sync(operation.id)
+    enqueue(operation, session_factory)
     assert queued() == [str(operation.id)]
 
     runner.retry_operation(operation.id, session_factory)
@@ -403,3 +410,101 @@ def test_an_invalid_answer_is_rejected_without_touching_the_operation(
     assert db.get(Decision, decision.id).answer is None
     assert reload(db, operation).status == OperationStatus.AWAITING_INPUT
     assert queued() == []
+
+
+def test_a_redelivered_running_operation_is_taken_over(db, scenario, session_factory):
+    """Redelivery only happens once the queue gave up on the previous worker."""
+    user, session = scenario
+    step("counts", lambda self, ctx, params: {"n": 7})
+    zombie = make_operation(
+        db, session, user, type="counts", status=OperationStatus.RUNNING
+    )
+
+    run(zombie, session_factory)
+
+    assert reload(db, zombie).status == OperationStatus.COMPLETE
+
+
+def test_a_busy_session_defers_the_next_operation(db, scenario, session_factory):
+    """A blocked operation must say so, not fall over on the way in and stay pending."""
+    user, session = scenario
+    step("counts", lambda self, ctx, params: {"n": 7})
+    holder = make_operation(
+        db, session, user, type="counts", status=OperationStatus.RUNNING
+    )
+    waiting = make_operation(db, session, user, type="counts")
+
+    with pytest.raises(runner.SessionBusy):
+        run(waiting, session_factory)
+    assert reload(db, waiting).status == OperationStatus.PENDING
+
+    # Once the holder is taken over and finishes, the waiting one gets its turn.
+    run(holder, session_factory)
+    run(waiting, session_factory)
+    assert reload(db, waiting).status == OperationStatus.COMPLETE
+
+
+def test_redelivering_a_finished_operation_does_not_rerun_it(
+    db, scenario, session_factory
+):
+    """The queue delivers at least once; a second delivery must be a no-op."""
+    user, session = scenario
+    runs = []
+    step("counts", lambda self, ctx, params: runs.append(1) or {"n": len(runs)})
+    operation = make_operation(db, session, user, type="counts")
+
+    run(operation, session_factory)
+    run(operation, session_factory)
+
+    finished = reload(db, operation)
+    assert runs == [1]
+    assert finished.result == {"n": 1}
+    assert finished.version_number == 1
+    assert db.get(ResearchSession, session.id).head_version_number == 1
+
+
+def test_answering_the_last_question_resumes_even_under_a_concurrent_answer(
+    db, scenario, session_factory, queued
+):
+    """Two callers each answering part of the set must not both leave it parked."""
+    import threading
+
+    user, session = scenario
+    keys = ("first", "second")
+    step("asks", lambda self, ctx, params: ctx.ask_all({k: SPEC for k in keys}))
+    operation = make_operation(db, session, user, type="asks")
+    run(operation, session_factory)
+    assert reload(db, operation).status == OperationStatus.AWAITING_INPUT
+
+    # Hold the first caller open between its read and its commit, so the second
+    # runs while the first still believes both questions are unanswered.
+    reading = threading.Event()
+    finish = threading.Event()
+    real_validate = runner.validate_answer
+
+    def gated(decision, answer):
+        real_validate(decision, answer)
+        if not reading.is_set():
+            reading.set()
+            finish.wait(timeout=10)
+
+    def answer(key):
+        runner.answer_decisions(operation.id, {key: [ONE]}, session_factory)
+
+    runner.validate_answer = gated
+    try:
+        threads = [threading.Thread(target=answer, args=(key,)) for key in keys]
+        threads[0].start()
+        assert reading.wait(timeout=10)
+        threads[1].start()
+        threads[1].join(timeout=0.5)
+        finish.set()
+        for thread in threads:
+            thread.join(timeout=10)
+    finally:
+        runner.validate_answer = real_validate
+
+    db.expire_all()
+    assert not db.query(Decision).filter(Decision.answer.is_(None)).count()
+    assert reload(db, operation).status == OperationStatus.PENDING
+    assert queued() == [str(operation.id)]

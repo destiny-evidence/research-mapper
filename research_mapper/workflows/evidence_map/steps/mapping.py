@@ -231,50 +231,51 @@ class GenerateMap(Step[GenerateMapParams, EvidenceMapContext]):
             raise ValueError(msg)
         dimensions_version = ctx.get_artifact_version(artifacts.DIMENSIONS)
         references = ctx.references(SessionReferenceStage.INCLUDED)
-        # Already-placed references have left INCLUDED, so a rerun with nothing new is
-        # not the same as a session screening never let anything through.
-        if not references and not ctx.references(SessionReferenceStage.MAPPED):
+        already_mapped = len(ctx.references(SessionReferenceStage.MAPPED))
+        if not references and not already_mapped:
             msg = "screening included no evidence, so there is nothing to map"
             raise NothingToMap(msg)
 
-        evidence = [
-            item
-            for page in get_evidence([r.destiny_id for r in references])
-            for item in page.values()
-        ]
         user_query = UserQuery(query=ctx.research_session.question)
         axes = (dimensions[0], dimensions[1], dimensions[2])
-        examples = [
-            dspy.Example(
-                user_query=user_query, evidence=item, dimensions=axes
-            ).with_inputs("user_query", "evidence", "dimensions")
-            for item in evidence
-        ]
-
-        tracker = ProgressTracker(ctx, len(examples), note=MAPPING)
+        tracker = ProgressTracker(
+            ctx, len(references) + already_mapped, note=MAPPING, done=already_mapped
+        )
         tracker.start()
-        predictions = tracker.fan_out(EvidenceMapper(), examples)
 
-        rows: list[CoordinateRow] = []
-        for item, prediction in zip(evidence, predictions, strict=True):
-            if prediction is None:
-                logger.warning("mapping failed for id %s", item.destiny_id)
-                continue
-            rows.append(
-                CoordinateRow(
-                    destiny_id=item.destiny_id,
-                    coordinate={
-                        dimension.name: [getattr(prediction, field)]
-                        for dimension, field in zip(
-                            dimensions, SUBTOPIC_FIELDS, strict=True
-                        )
-                    },
-                    reasoning=prediction.reasoning,
-                    dimensions_version=dimensions_version or 1,
+        mapped = 0
+        for evidence_page in get_evidence([r.destiny_id for r in references]):
+            evidence = evidence_page.values()
+            examples = [
+                dspy.Example(
+                    user_query=user_query, evidence=item, dimensions=axes
+                ).with_inputs("user_query", "evidence", "dimensions")
+                for item in evidence
+            ]
+            predictions = tracker.fan_out(EvidenceMapper(), examples)
+
+            rows: list[CoordinateRow] = []
+            for item, prediction in zip(evidence, predictions, strict=True):
+                if prediction is None:
+                    logger.warning("mapping failed for id %s", item.destiny_id)
+                    continue
+                rows.append(
+                    CoordinateRow(
+                        destiny_id=item.destiny_id,
+                        coordinate={
+                            dimension.name: [getattr(prediction, field)]
+                            for dimension, field in zip(
+                                dimensions, SUBTOPIC_FIELDS, strict=True
+                            )
+                        },
+                        reasoning=prediction.reasoning,
+                        dimensions_version=dimensions_version or 1,
+                    )
                 )
-            )
-        ctx.set_coordinates(rows)
-        return {"mapped": len(rows), "failed": tracker.failed}
+            ctx.set_coordinates(rows)
+            mapped += len(rows)
+
+        return {"mapped": mapped, "failed": tracker.failed}
 
 
 def _key(dimension: MappingDimension) -> str:

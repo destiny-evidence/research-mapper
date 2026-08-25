@@ -317,3 +317,39 @@ def test_the_map_route_reads_what_generate_map_wrote(db, ctx, session, monkeypat
         "Population": ["Teens"],
         "Outcome": ["Uptake"],
     }
+
+
+def test_a_map_that_dies_partway_keeps_the_pages_it_finished(
+    db, ctx, session, monkeypatch
+):
+    """Otherwise a long map that dies near the end re-pays for all of it on the retry."""
+    ctx.write_artifact(
+        artifacts.DIMENSIONS,
+        artifacts.Dimensions.model_validate({"dimensions": with_subtopics()}),
+    )
+    make_reference(db, session, ONE, stage=SessionReferenceStage.INCLUDED)
+    make_reference(db, session, TWO, stage=SessionReferenceStage.INCLUDED)
+
+    def one_page_then_trouble(_reference_ids):
+        yield {ONE: Evidence(destiny_id=ONE, title="paper")}
+        msg = "destiny went away"
+        raise RuntimeError(msg)
+
+    monkeypatch.setattr(mapping, "get_evidence", one_page_then_trouble)
+    monkeypatch.setattr(
+        mapping.EvidenceMapper,
+        "__call__",
+        lambda self, **_: dspy.Prediction(
+            dimension1_subtopic="School",
+            dimension2_subtopic="Teens",
+            dimension3_subtopic="Uptake",
+            reasoning="why",
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="destiny went away"):
+        mapping.GenerateMap().run(ctx, mapping.GenerateMapParams())
+
+    rows = {r.destiny_id: r.stage for r in db.query(SessionReference).all()}
+    assert rows[ONE] == SessionReferenceStage.MAPPED
+    assert rows[TWO] == SessionReferenceStage.INCLUDED

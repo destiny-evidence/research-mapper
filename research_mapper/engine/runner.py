@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 
 from research_mapper.db.session import SessionFactory
 from research_mapper.engine import queue, registry
@@ -17,15 +18,35 @@ logger = logging.getLogger(__name__)
 ContextFactory = Callable[[UUID, SessionFactory], StepContext]
 
 
-def _mark_running(session_factory: SessionFactory, operation_id: UUID) -> None:
-    """Move an operation into the running state, clearing the last attempt's error."""
+# A job only comes back round when pgqueuer decided the worker holding it was
+# gone, so an operation already marked running is safe to take over.
+CLAIMABLE = (
+    OperationStatus.PENDING,
+    OperationStatus.AWAITING_INPUT,
+    OperationStatus.RUNNING,
+)
+
+
+class SessionBusy(Exception):
+    """Another operation holds this session's running slot. Try again later."""
+
+
+def _claim(session_factory: SessionFactory, operation_id: UUID) -> bool:
     with session_factory() as db:
-        db.execute(
-            update(Operation)
-            .where(Operation.id == operation_id)
-            .values(status=OperationStatus.RUNNING, error=None)
-        )
-        db.commit()
+        try:
+            claimed = db.execute(
+                update(Operation)
+                .where(Operation.id == operation_id)
+                .where(Operation.status.in_(CLAIMABLE))
+                .values(status=OperationStatus.RUNNING, error=None)
+                .returning(Operation.id)
+            ).scalar_one_or_none()
+            db.commit()
+        except IntegrityError as exc:
+            db.rollback()
+            msg = f"another operation is running on {operation_id}'s session"
+            raise SessionBusy(msg) from exc
+    return claimed is not None
 
 
 def _finish(session_factory: SessionFactory, operation_id: UUID, result: dict) -> None:
@@ -110,7 +131,9 @@ def run_operation(
     context_factory: ContextFactory,
 ) -> None:
     """Run one operation to completion, to a decision, or to failure."""
-    _mark_running(session_factory, operation_id)
+    if not _claim(session_factory, operation_id):
+        logger.info("operation %s is not runnable, leaving it alone", operation_id)
+        return
     ctx = context_factory(operation_id, session_factory)
     try:
         step_class = registry.get(ctx.operation_type)
@@ -145,8 +168,9 @@ def create_operation(
             mutates_state=step_class.mutates_state,
         )
         db.add(operation)
+        db.flush()
+        queue.enqueue_in(db, operation.id)
         db.commit()
-    queue.enqueue_sync(operation.id)
     return operation.id
 
 
@@ -166,6 +190,10 @@ def answer_decisions(
                 select(Decision)
                 .where(Decision.operation_id == operation_id)
                 .where(Decision.answer.is_(None))
+                # Two callers each answering part of the set must not both
+                # conclude the other's questions are still open and leave the
+                # operation parked with nothing left to answer.
+                .with_for_update()
             ).scalars()
         }
         if unknown := answers.keys() - open_decisions.keys():
@@ -186,9 +214,9 @@ def answer_decisions(
                 .values(status=OperationStatus.PENDING)
                 .returning(Operation.id)
             ).scalar_one_or_none()
+            if resumed:
+                queue.enqueue_in(db, resumed)
         db.commit()
-    if resumed:
-        queue.enqueue_sync(resumed)
     return resumed
 
 
@@ -209,5 +237,5 @@ def retry_operation(operation_id: UUID, session_factory: SessionFactory) -> None
                 raise LookupError(msg)
             msg = f"operation {operation_id} is {operation.status}, not failed"
             raise ValueError(msg)
+        queue.enqueue_in(db, operation_id)
         db.commit()
-    queue.enqueue_sync(operation_id)

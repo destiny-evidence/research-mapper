@@ -16,7 +16,7 @@ from research_mapper.config import (
 )
 from research_mapper.db.session import SessionFactory, db_manager
 from research_mapper.engine import queue, runner
-from research_mapper.engine.context import StepContext
+from research_mapper.workflows.evidence_map.context import EvidenceMapContext
 from research_mapper import workflows
 
 HEARTBEAT_TIMEOUT = timedelta(minutes=5)
@@ -25,8 +25,8 @@ MAX_RETRIES = 1
 BUSY_RETRY_DELAY = timedelta(seconds=30)
 
 
-def _context(operation_id: UUID, session_factory: SessionFactory) -> StepContext:
-    return StepContext(operation_id, session_factory)
+def _context(operation_id: UUID, session_factory: SessionFactory) -> EvidenceMapContext:
+    return EvidenceMapContext(operation_id, session_factory)
 
 
 async def _worker() -> None:

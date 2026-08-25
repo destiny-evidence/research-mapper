@@ -141,6 +141,7 @@ def mock_destiny_client(mock_reference):
 APP_TABLES = (
     "artifacts",
     "decisions",
+    "session_references",
     "operations",
     "research_sessions",
     "users",

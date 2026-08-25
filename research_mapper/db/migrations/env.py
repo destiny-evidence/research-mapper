@@ -8,6 +8,7 @@ from research_mapper.config import init_database, load_environment
 from research_mapper.db.base import Base
 from research_mapper.db.session import db_manager
 
+import research_mapper.workflows.evidence_map.models  # noqa: F401
 import research_mapper.engine.models  # noqa: F401
 
 config = context.config

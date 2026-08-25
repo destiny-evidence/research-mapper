@@ -46,6 +46,7 @@ jobs:
       - name: Run type checks
         run: |
           uv run mypy research_mapper/db research_mapper/engine \
+            research_mapper/workflows \
             research_mapper/api research_mapper/commands.py
 
       - name: Run unit tests

@@ -1,6 +1,7 @@
 import pytest
 from pydantic import BaseModel
 
+from research_mapper import workflows
 from research_mapper.engine import registry
 from research_mapper.engine.context import StepContext
 from research_mapper.engine.registry import Step, register
@@ -54,6 +55,15 @@ def test_step_cannot_be_instantiated_without_run():
 
     with pytest.raises(TypeError):
         Incomplete()
+
+
+def test_load_populates_the_registry():
+    """The worker and the API both call this instead of a magic import."""
+    workflows.load()
+
+    assert "enhance_sparse_query" in registry.known_types()
+    assert issubclass(registry.get("enhance_sparse_query"), Step)
+    assert StepContext
 
 
 def test_registering_the_same_step_twice_is_a_no_op():

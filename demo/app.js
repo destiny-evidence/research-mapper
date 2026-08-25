@@ -3,24 +3,24 @@ const PLAN = [
    blurb: 'The agent turns your question into database searches. You keep the ones worth running.',
    regenerate: true},
   {type: 'retrieve_sparse_evidence', mode: 'sparse', title: 'Search by query',
-   blurb: 'Each chosen query runs against DESTINY, in parallel.'},
+   blurb: 'Each query you kept runs against DESTINY, all at once. Reload the page and the count carries on.'},
   {type: 'generate_concept_filters', mode: 'taxonomy', title: 'Choose taxonomy concepts',
-   blurb: 'A ReAct loop matches your question to the community taxonomy. It asks when it is unsure.'},
+   blurb: 'The agent matches your question to the community taxonomy, and stops to ask when it is not sure.'},
   {type: 'retrieve_concept_evidence', mode: 'taxonomy', title: 'Search by concept',
-   blurb: 'A second search, this time over the concepts rather than the words.'},
+   blurb: 'A second search, over concepts rather than words. Anything found twice is only kept once.'},
   {type: 'generate_screening_criteria', title: 'Set screening criteria',
-   blurb: 'Inclusion and exclusion rules for everything that came back.',
+   blurb: 'Rules for what counts. Edit them before anything is judged against them.',
    regenerate: true},
   {type: 'screen_evidence', title: 'Screen the evidence',
-   blurb: 'Every reference is judged against your criteria.'},
+   blurb: 'Every reference is judged against your criteria. The longest step, and the one that saves as it goes.'},
   {type: 'generate_map_dimensions', title: 'Choose map dimensions',
-   blurb: 'The three axes the map is built from. Edit them however you like.',
+   blurb: 'The three axes the map is built from. Edit them however you like — your version is kept alongside the suggestion.',
    regenerate: true},
   {type: 'generate_map_subtopics', title: 'Fill in subtopics',
-   blurb: 'The buckets within each axis. One question per dimension, asked together.',
+   blurb: 'The buckets within each axis. One question per dimension, all asked together.',
    regenerate: true},
   {type: 'generate_map', title: 'Place evidence on the map',
-   blurb: 'Every included reference gets a coordinate across the three dimensions.'},
+   blurb: 'Every included reference gets a place on the map.'},
 ];
 
 const STEP = Object.fromEntries(PLAN.map(s => [s.type, s]));
@@ -40,6 +40,7 @@ let startedAt = {};
 let answeredAt = {};
 let tab = 'run';
 let mode = 'both';
+let loop = null;
 
 /* ---------- api ---------- */
 
@@ -83,7 +84,10 @@ async function openSession(sessionId) {
   ops = {};
   for (const operation of loaded) ops[operation.type] = operation;
   map = null; mapView = null; tab = 'run';
-  const live = loaded.reverse().find(o => o.status !== 'complete' && o.status !== 'failed');
+  // Regenerating leaves the earlier attempt parked at awaiting_input forever. Only the
+  // newest operation of a type counts, so pick up from the plan, not from the raw list.
+  const live = plan().map(step => ops[step.type])
+    .find(o => o && o.status !== 'complete' && o.status !== 'failed');
   currentId = live ? live.id : null;
   enter();
   if (currentId) poll(); else advance();
@@ -142,12 +146,17 @@ async function poll() {
     timer = setTimeout(poll, 2000);
     return;
   }
-  ops[operation.type] = operation;
+  const known = ops[operation.type];
+  if (!known || known.id === operation.id) ops[operation.type] = operation;
   render();
   if (operation.status === 'pending' || operation.status === 'running') {
     timer = setTimeout(poll, 800);
-  } else if (operation.status === 'complete') {
-    refreshArtifacts();
+    return;
+  }
+  // awaiting_input writes artifacts too — the paused loop state is one of them.
+  await refreshArtifacts();
+  render();
+  if (operation.status === 'complete') {
     if ($('auto').checked) advance(); else { currentId = null; loadMap(); render(); }
   }
 }
@@ -170,10 +179,16 @@ async function retry() {
 
 async function refreshArtifacts() {
   try {
-    const detail = await api(`/sessions/${session.id}/`);
-    session = detail;
+    session = await api(`/sessions/${session.id}/`);
     renderArtifacts();
-  } catch { /* the panel is decoration */ }
+  } catch { return; }
+  // The map is readable as soon as the dimensions exist — no need to wait for the run to end.
+  $('tab-map').disabled = !(session.artifacts || {}).dimensions;
+  if (!$('tab-map').disabled) loadMap();
+  if (!(session.artifacts || {}).concept_filter_loop) { loop = null; return; }
+  try {
+    loop = await api(`/sessions/${session.id}/artifacts/concept_filter_loop/`);
+  } catch { loop = null; }
 }
 
 async function loadMap() {
@@ -195,6 +210,7 @@ function render() {
   $('sub').innerHTML = tally().map(part => `<span>${esc(part)}</span>`).join('');
   renderRail();
   if (tab === 'run') renderRun();
+  else if (tab === 'state') renderState();
 }
 
 function tally() {
@@ -245,6 +261,7 @@ function renderRun() {
   else if (!step) parts.push(`<div class="card"><div class="card-h"><h2>Mapping complete</h2>
       <span class="tag machine">done</span></div>
       <p class="blurb">Every step has run. The map is on the next tab.</p></div>`);
+  if (loop && operation && operation.type === 'generate_concept_filters') parts.push(tracePanel(loop));
   parts.push(completed());
   $('view-run').innerHTML = parts.join('');
   wire(operation);
@@ -362,6 +379,94 @@ function rowHtml(key, value, fields) {
     <button type="button" class="icon-btn" data-act="remove">remove</button></div>`;
 }
 
+/* ---------- what the agent has done so far ---------- */
+
+const brief = value => {
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  return text && text.length > 220 ? text.slice(0, 220) + '…' : text;
+};
+
+function tracePanel(artifact) {
+  const {trajectory = {}, step = {}} = artifact.payload || {};
+  const iterations = [];
+  for (let i = 0; trajectory[`thought_${i}`] !== undefined; i++) {
+    // The proposed step is already in the trajectory; only its observation is missing.
+    const observation = trajectory[`observation_${i}`];
+    iterations.push(iteration(i, trajectory[`thought_${i}`], trajectory[`tool_name_${i}`],
+      trajectory[`tool_args_${i}`], observation, observation === undefined));
+  }
+  if (!iterations.length) return '';
+  return `<div class="card">
+    <div class="card-h"><h3>What the agent has done so far</h3></div>
+    <p class="blurb">It stopped at the highlighted step to ask you the question above. Your answer
+      goes in there and it carries on from that point — it does not start again.</p>
+    <div class="trace">${iterations.join('')}</div></div>`;
+}
+
+function iteration(index, thought, tool, args, observation, pending) {
+  const call = `${tool}(${Object.entries(args || {})
+    .map(([name, value]) => `${name}=${brief(value)}`).join(', ')})`;
+  return `<div class="iter ${pending ? 'pause' : ''}">
+    <div class="i">${index}</div>
+    <div>
+      <div class="th">${esc(thought)}</div>
+      <div class="call">${esc(call)}</div>
+      <div class="obs">${esc(pending ? 'waiting on your answer' : brief(observation))}</div>
+    </div></div>`;
+}
+
+/* ---------- session tab ---------- */
+
+const block = (title, inner) =>
+  `<div class="rec-block"><div class="side-h">${esc(title)}</div>${inner}</div>`;
+
+async function renderState() {
+  let decisions = [];
+  try {
+    decisions = await api(`/sessions/${session.id}/decisions/?unanswered=false`);
+  } catch { /* the table just stays empty */ }
+  const operations = plan().map(step => ops[step.type]).filter(Boolean);
+  const artifacts = Object.entries(session.artifacts || {}).sort();
+
+  $('view-state').innerHTML = `
+    <div class="note">Everything here is saved as it happens, not held in memory. Close the tab, stop
+      the worker, come back tomorrow — the run carries on from the last thing that finished.</div>
+
+    ${block('session', `<table class="rec">
+      <tr><th>question</th><td class="wrap">${esc(session.question)}</td></tr>
+      <tr><th>community</th><td>${esc(session.community)}</td></tr>
+      <tr><th>started</th><td>${esc(new Date(session.created_at).toLocaleString())}</td></tr>
+      <tr><th>id</th><td class="id">${esc(session.id)}</td></tr>
+    </table>`)}
+
+    ${block(`steps · ${operations.length}`, operations.length ? `<table class="rec">
+      <thead><tr><th>step</th><th>status</th><th>result</th></tr></thead>
+      <tbody>${operations.map(operation => `<tr>
+        <td>${esc((STEP[operation.type] || {}).title || operation.type)}</td>
+        <td><span class="st ${esc(operation.status)}">${esc(operation.status)}</span></td>
+        <td>${esc(operation.result ? summarise(operation.result)
+          : operation.error ? operation.error.type : '—')}</td></tr>`).join('')}</tbody>
+    </table>` : '<div class="hint">none yet</div>')}
+
+    ${block(`questions · ${decisions.length}`, decisions.length ? `<table class="rec">
+      <thead><tr><th>question</th><th>answered</th><th>you chose</th></tr></thead>
+      <tbody>${decisions.map(decision => `<tr>
+        <td class="wrap">${esc(decision.prompt)}</td>
+        <td>${esc(decision.answered_at
+          ? new Date(decision.answered_at).toLocaleTimeString() : 'still open')}</td>
+        <td>${esc(decision.answer
+          ? `${decision.answer.length} of ${decision.options.length}` : '—')}</td></tr>`).join('')}
+      </tbody></table>` : '<div class="hint">none yet</div>')}
+
+    ${block(`saved results · ${artifacts.length}`, artifacts.length ? `<table class="rec">
+      <thead><tr><th>name</th><th>version</th><th></th></tr></thead>
+      <tbody>${artifacts.map(([name, version]) => `<tr>
+        <td>${esc(name.replace(/_/g, ' '))}</td><td>v${esc(version)}</td>
+        <td><button class="icon-btn" data-artifact="${esc(name)}">view</button></td>
+      </tr>`).join('')}</tbody>
+    </table>` : '<div class="hint">none yet</div>')}`;
+}
+
 function completed() {
   const done = plan().filter(step => (ops[step.type] || {}).status === 'complete');
   if (!done.length) return '';
@@ -464,7 +569,7 @@ function renderArtifacts() {
     : '<div class="hint">none yet</div>';
 }
 
-$('artifacts').addEventListener('click', async event => {
+async function openArtifact(event) {
   const button = event.target.closest('[data-artifact]');
   if (!button) return;
   const name = button.dataset.artifact;
@@ -472,7 +577,10 @@ $('artifacts').addEventListener('click', async event => {
   $('modal-title').textContent = `${name} · v${artifact.version}`;
   $('modal-body').textContent = JSON.stringify(artifact.payload, null, 2);
   $('modal').hidden = false;
-});
+}
+
+$('artifacts').addEventListener('click', openArtifact);
+$('view-state').addEventListener('click', openArtifact);
 
 $('modal-close').onclick = () => { $('modal').hidden = true; };
 $('modal').addEventListener('click', event => { if (event.target.id === 'modal') $('modal').hidden = true; });
@@ -602,16 +710,20 @@ $('view-map').addEventListener('change', event => {
 
 function show(which) {
   tab = which;
-  $('tab-run').classList.toggle('on', which === 'run');
-  $('tab-map').classList.toggle('on', which === 'map');
-  $('view-run').hidden = which !== 'run';
-  $('view-map').hidden = which !== 'map';
-  if (which === 'run') renderRun(); else renderMap();
+  for (const name of ['run', 'state', 'map']) {
+    $(`tab-${name}`).classList.toggle('on', which === name);
+    $(`view-${name}`).hidden = which !== name;
+  }
+  if (which === 'run') renderRun();
+  else if (which === 'state') renderState();
+  else renderMap();
 }
 
 $('tab-run').onclick = () => show('run');
+$('tab-state').onclick = () => show('state');
 $('tab-map').onclick = () => show('map');
-$('new-session').onclick = () => { clearTimeout(timer); location.reload(); };
+// Not reload(): ?session= would still be in the URL and boot() lands back in the same session.
+$('new-session').onclick = () => { clearTimeout(timer); location.href = location.pathname; };
 
 $('go').onclick = async () => {
   const question = $('q').value.trim() || $('q').placeholder;

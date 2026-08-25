@@ -220,15 +220,54 @@ table.map td{padding:0;text-align:center;height:74px;min-width:118px}
 .modal-h h2{font-size:17px}
 pre{margin:0;font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--text);white-space:pre-wrap;word-break:break-word}
 .empty-state{color:var(--dim);font-size:14px;text-align:center;padding:50px 0}
+
+/* ---------- state tab: the durable record ---------- */
+.rec-block{margin-bottom:26px}
+table.rec{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:12px}
+table.rec th{
+  text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);
+  font-weight:400;padding:0 14px 7px 0;border-bottom:1px solid var(--line);white-space:nowrap;
+}
+table.rec td{padding:8px 14px 8px 0;border-bottom:1px solid var(--line);color:var(--text);vertical-align:top}
+table.rec td.wrap{white-space:normal;font-family:var(--sans);font-size:13px}
+table.rec tr:hover td{background:var(--panel-2)}
+table.rec .id{color:var(--dim)}
+.st{border-radius:20px;padding:1px 8px;border:1px solid var(--line-2);font-size:10.5px;letter-spacing:.04em}
+.st.complete{border-color:#a9cdbb;background:#eef7f2;color:var(--ok)}
+.st.failed{border-color:#e3b5b1;background:#fdf1f0;color:var(--bad)}
+.st.awaiting_input{border-color:var(--amber-line);background:var(--amber-wash);color:var(--amber)}
+.st.running,.st.pending{border-color:#c6d0e2;background:var(--navy-wash);color:var(--navy-2)}
+.note{
+  background:var(--panel-2);border:1px solid var(--line);border-left:2px solid var(--navy);
+  border-radius:6px;padding:13px 16px;margin-bottom:26px;font-size:13.5px;color:var(--muted);
+}
+.note b{color:var(--ink);font-weight:600}
+.note code{font-family:var(--mono);font-size:12px;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--navy-2)}
+
+/* ---------- react trajectory ---------- */
+.trace{border-top:1px solid var(--line);margin-top:16px}
+.iter{display:grid;grid-template-columns:24px 1fr;gap:12px;padding:13px 0;border-bottom:1px solid var(--line)}
+.iter .i{font-family:var(--mono);font-size:10.5px;color:var(--dim);padding-top:3px}
+.iter .th{font-size:13.5px;color:var(--text)}
+.iter .call{font-family:var(--mono);font-size:11.5px;color:var(--navy-2);margin-top:7px;word-break:break-word}
+.iter .obs{
+  font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:6px;white-space:pre-wrap;
+  max-height:104px;overflow:auto;background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:7px 9px;
+}
+.iter.pause{background:var(--amber-wash);border-bottom-color:var(--amber-line);padding:13px 12px;margin:0 -12px}
+.iter.pause .i{color:var(--amber)}
+
 </style>
 </head>
 <body>
 
 <div id="start">
   <div class="start-card">
-    <div class="brand"><span class="mark">R</span> Research Mapper <span class="sep">/</span> <span class="ctx">demo</span></div>
+    <div class="brand"><span class="mark">R</span> research-mapper <span class="sep">/</span> <span class="ctx">demo</span></div>
     <h1>Map the evidence on a question</h1>
-    <p class="lede">The agent drafts searches, screens what it finds, and places it on an evidence map — stopping to ask you whenever a decision is yours.</p>
+    <p class="lede">The agent drafts searches, screens what it finds, and lays it out on a map. It
+    stops to ask you whenever a decision is yours. Nothing is held in memory — close the tab and come
+    back whenever.</p>
     <div class="field">
       <label for="q">Research question</label>
       <textarea id="q" rows="3" placeholder="What is known about HPV vaccine uptake among adolescents in school settings?"></textarea>
@@ -261,11 +300,12 @@ pre{margin:0;font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(
 <div id="app" hidden>
   <header class="topbar">
     <div class="brand">
-      <span class="mark">R</span> Research Mapper
+      <span class="mark">R</span> research-mapper
       <span class="sep">/</span> <span class="ctx" id="context">—</span>
     </div>
     <nav class="tabs">
       <button id="tab-run" class="on">Run</button>
+      <button id="tab-state">Session</button>
       <button id="tab-map" disabled>Map</button>
     </nav>
     <div class="topmeta" id="topmeta"></div>
@@ -292,6 +332,7 @@ pre{margin:0;font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(
           <div class="sub" id="sub"></div>
         </header>
         <div id="view-run"></div>
+        <div id="view-state" hidden></div>
         <div id="view-map" hidden></div>
       </div>
     </main>

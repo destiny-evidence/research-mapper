@@ -113,3 +113,116 @@ def mock_destiny_client(mock_reference):
     client.lookup.return_value = [mock_reference]
 
     return client
+
+
+APP_TABLES = (
+    "artifacts",
+    "decisions",
+    "operations",
+    "research_sessions",
+    "users",
+)
+
+# A database of its own: the suite drops every table on the way in, so sharing one with a
+# running stack wipes it and kills the worker's prepared statements mid-flight.
+LOCAL_DB = {
+    "MAPPER_DB_HOST": "localhost:5433",
+    "MAPPER_DB_NAME": "research_mapper_test",
+    "MAPPER_DB_USER": "research_mapper",
+    "MAPPER_DB_PASSWORD": "research_mapper",
+}
+
+
+def _create_database_if_missing() -> None:
+    """Create the test database, so a fresh clone needs no manual setup step."""
+    import os
+
+    import psycopg
+
+    host, _, port = os.environ["MAPPER_DB_HOST"].partition(":")
+    name = os.environ["MAPPER_DB_NAME"]
+    with psycopg.connect(
+        host=host,
+        port=int(port or 5432),
+        dbname="postgres",
+        user=os.environ["MAPPER_DB_USER"],
+        password=os.environ["MAPPER_DB_PASSWORD"],
+        autocommit=True,
+    ) as connection:
+        exists = connection.execute(
+            "SELECT 1 FROM pg_database WHERE datname = %s", (name,)
+        ).fetchone()
+        if not exists:
+            connection.execute(f'CREATE DATABASE "{name}"')
+
+
+@pytest.fixture(scope="session")
+def database():
+    """Migrate a real Postgres from scratch and yield its SessionFactory."""
+    import os
+
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy.exc import OperationalError
+
+    from research_mapper.config import init_database
+    from research_mapper.db.session import db_manager
+
+    for key, value in LOCAL_DB.items():
+        os.environ.setdefault(key, value)
+
+    try:
+        _create_database_if_missing()
+    except Exception as exc:  # noqa: BLE001
+        pytest.skip(f"no Postgres at {os.environ['MAPPER_DB_HOST']}: {exc}")
+
+    init_database()
+    try:
+        with db_manager.engine.connect():
+            pass
+    except OperationalError as exc:
+        pytest.skip(f"no Postgres at {os.environ['MAPPER_DB_HOST']}: {exc}")
+
+    config = Config("alembic.ini")
+    command.downgrade(config, "base")
+    command.upgrade(config, "head")
+    return db_manager.session
+
+
+@pytest.fixture
+def session_factory(database):
+    """A SessionFactory over an empty database."""
+    from sqlalchemy import text
+
+    with database() as db:
+        db.execute(text(f"TRUNCATE {', '.join(APP_TABLES)} CASCADE"))
+        db.commit()
+    return database
+
+
+@pytest.fixture
+def db(session_factory):
+    """A session for arranging and asserting, separate from the code under test."""
+    with session_factory() as session:
+        yield session
+
+
+@pytest.fixture
+def queued(database):
+    """Empty the queue and yield a reader over it."""
+    from sqlalchemy import text
+
+    with database() as db:
+        db.execute(text("TRUNCATE pgqueuer"))
+        db.commit()
+
+    def read() -> list[str]:
+        with database() as db:
+            return [
+                bytes(row.payload).decode()
+                for row in db.execute(
+                    text("SELECT payload FROM pgqueuer WHERE entrypoint = 'operation'")
+                ).all()
+            ]
+
+    return read

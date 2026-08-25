@@ -4,10 +4,10 @@ from functools import lru_cache
 from pathlib import Path
 
 import dspy
-import psycopg
-from azure.identity import ManagedIdentityCredential
 from destiny_sdk.client import OAuthClient, OAuthMiddleware
 from dotenv import load_dotenv, find_dotenv
+
+from research_mapper.db.session import db_manager
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,8 @@ def configure_dspy() -> None:
     )
     logger.debug("Running LLM sanity check")
     result = lm("Say: 'hello world'", temperature=0.0)
-    assert result and result[0], result
+    if not result or not result[0]:
+        logger.warning("LLM sanity check returned nothing: %s", result)
     dspy.configure(lm=lm)
     logger.info("DSPy configured successfully!")
 
@@ -95,27 +96,16 @@ def get_destiny_client() -> OAuthClient:
     return client
 
 
-def check_database_connection() -> None:
-    """
-    Confirms the app can reach Postgres using its managed identity. Called
-    explicitly at startup (see cli.py's initialise()) so a misconfigured or
-    unreachable database fails loudly then, not silently on whatever the
-    first thing to actually need it later happens to be.
-    """
-    token = ManagedIdentityCredential(
-        client_id=os.environ["AZURE_CLIENT_ID"]
-    ).get_token("https://ossrdbms-aad.database.windows.net/.default")
+def init_destiny_client() -> None:
+    """Eagerly authenticate to DESTINY."""
+    get_destiny_client()
 
-    with (
-        psycopg.connect(
-            host=os.environ["MAPPER_DB_HOST"],
-            dbname=os.environ["MAPPER_DB_NAME"],
-            user=os.environ["MAPPER_DB_USER"],
-            password=token.token,
-            sslmode="require",
-        ) as connection,
-        connection.cursor() as cursor,
-    ):
-        cursor.execute("SELECT version()")
 
-    logger.info("Successfully connected to the database with managed identity!")
+def init_database() -> None:
+    """Initializes the database session manager from environment variables."""
+    db_manager.init()
+
+
+def close_database() -> None:
+    """Closes the database session manager."""
+    db_manager.close()

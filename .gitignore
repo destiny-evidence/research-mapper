@@ -15,3 +15,8 @@ wheels/
 .terraform/
 *.tfstate
 *.tfstate.*
+
+# Caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/

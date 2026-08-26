@@ -26,7 +26,9 @@ from research_mapper.ui.tui import TerminalUI
 
 logger = logging.getLogger(__name__)
 
-_UNSURE_OPTION = "I'm not sure / none of these"
+_NOT_SURE_OPTION = "I'm not sure"
+_NONE_OF_THESE_OPTION = "None of these"
+_SENTINEL_OPTIONS = {_NOT_SURE_OPTION, _NONE_OF_THESE_OPTION}
 
 
 class TaxonomyConceptFilterGenerator(dspy.Module):
@@ -100,14 +102,14 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
         ever reached when `self.ui` is set — that's the only case `ask_for_clarification`
         is registered as a tool at all, so the agent can only propose it then.
         """
-        options = [*request.options, _UNSURE_OPTION]
+        options = [*request.options, _NONE_OF_THESE_OPTION, _NOT_SURE_OPTION]
         self.ui.print_info(request.question)
         while True:
             selected = self.ui.select_from_list(options, default=[len(options)])
-            if _UNSURE_OPTION in selected and len(selected) > 1:
+            if len(selected) > 1 and _NONE_OF_THESE_OPTION in selected:
                 self.ui.print_info(
-                    f'[red]"{_UNSURE_OPTION}" can\'t be combined with other '
-                    "options — try again.[/red]"
+                    '[red]"None of these" can\'t be combined '
+                    "with other options — try again.[/red]"
                 )
                 continue
             return selected

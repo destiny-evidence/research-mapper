@@ -5,7 +5,8 @@ from research_mapper.models.react import Step
 from research_mapper.models.taxonomy_search import ClarificationOptions, IndexedVocab
 from research_mapper.modules.taxonomy_search import TaxonomyConceptFilterGenerator
 
-_UNSURE = "I'm not sure / none of these"
+_NOT_SURE = "I'm not sure"
+_NONE_OF_THESE = "None of these"
 
 
 def _step(idx: int, tool_name: str, tool_args: dict | None = None) -> Step:
@@ -57,7 +58,7 @@ def _forward(generator: TaxonomyConceptFilterGenerator, query: str = "q"):
 # ---------------------------------------------------------------------------
 
 
-def test_prompt_clarification_appends_unsure_option():
+def test_prompt_clarification_appends_none_of_these_and_not_sure_options():
     mock_ui = MagicMock()
     mock_ui.select_from_list.return_value = ["A"]
     generator = TaxonomyConceptFilterGenerator(ui=mock_ui)
@@ -66,27 +67,42 @@ def test_prompt_clarification_appends_unsure_option():
         ClarificationOptions(question="Which one?", options=["A", "B"])
     )
 
-    mock_ui.select_from_list.assert_called_once_with(["A", "B", _UNSURE], default=[3])
+    mock_ui.select_from_list.assert_called_once_with(
+        ["A", "B", _NONE_OF_THESE, _NOT_SURE], default=[4]
+    )
     assert result == ["A"]
 
 
-def test_prompt_clarification_allows_unsure_alone():
+def test_prompt_clarification_allows_not_sure_alone():
     mock_ui = MagicMock()
-    mock_ui.select_from_list.return_value = [_UNSURE]
+    mock_ui.select_from_list.return_value = [_NOT_SURE]
     generator = TaxonomyConceptFilterGenerator(ui=mock_ui)
 
     result = generator._prompt_clarification(
         ClarificationOptions(question="Which one?", options=["A", "B"])
     )
 
-    assert result == [_UNSURE]
+    assert result == [_NOT_SURE]
     assert mock_ui.select_from_list.call_count == 1
 
 
-def test_prompt_clarification_rejects_unsure_combined_with_other_options():
+def test_prompt_clarification_allows_none_of_these_alone():
+    mock_ui = MagicMock()
+    mock_ui.select_from_list.return_value = [_NONE_OF_THESE]
+    generator = TaxonomyConceptFilterGenerator(ui=mock_ui)
+
+    result = generator._prompt_clarification(
+        ClarificationOptions(question="Which one?", options=["A", "B"])
+    )
+
+    assert result == [_NONE_OF_THESE]
+    assert mock_ui.select_from_list.call_count == 1
+
+
+def test_prompt_clarification_rejects_sentinel_combined_with_a_real_option():
     mock_ui = MagicMock()
     mock_ui.select_from_list.side_effect = [
-        ["A", _UNSURE],  # invalid: mixed with a real option
+        ["A", _NOT_SURE],  # invalid: mixed with a real option
         ["A"],  # corrected on retry
     ]
     generator = TaxonomyConceptFilterGenerator(ui=mock_ui)
@@ -99,8 +115,26 @@ def test_prompt_clarification_rejects_unsure_combined_with_other_options():
     assert mock_ui.select_from_list.call_count == 2
 
 
-def test_prompt_clarification_defaults_to_the_unsure_option():
-    """Pressing Enter with no thought must not silently pick the LLM's first option."""
+def test_prompt_clarification_rejects_both_sentinels_combined():
+    """Not sure and none of these are contradictory signals — pick one."""
+    mock_ui = MagicMock()
+    mock_ui.select_from_list.side_effect = [
+        [_NOT_SURE, _NONE_OF_THESE],  # invalid: mutually exclusive
+        [_NOT_SURE],  # corrected on retry
+    ]
+    generator = TaxonomyConceptFilterGenerator(ui=mock_ui)
+
+    result = generator._prompt_clarification(
+        ClarificationOptions(question="Which one?", options=["A", "B"])
+    )
+
+    assert result == [_NOT_SURE]
+    assert mock_ui.select_from_list.call_count == 2
+
+
+def test_prompt_clarification_defaults_to_the_not_sure_option():
+    """Pressing Enter with no thought must not silently pick the LLM's first option,
+    and must default to uncertainty, not a confident "none of these apply"."""
     mock_ui = MagicMock()
     generator = TaxonomyConceptFilterGenerator(ui=mock_ui)
 
@@ -109,7 +143,7 @@ def test_prompt_clarification_defaults_to_the_unsure_option():
     )
 
     _, kwargs = mock_ui.select_from_list.call_args
-    assert kwargs["default"] == [4]  # 1-indexed; "I'm not sure" is the 4th of 4 options
+    assert kwargs["default"] == [5]  # 1-indexed; "I'm not sure" is the 5th of 5 options
 
 
 # ---------------------------------------------------------------------------

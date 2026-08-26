@@ -1,13 +1,14 @@
 import logging
 
 import dspy
+from rdflib import Graph
 
 from research_mapper.models.common import UserQuery
 from research_mapper.models.react import Step
 from research_mapper.models.taxonomy_search import (
     ClarificationOptions,
-    Concept,
     ConceptFilterGroup,
+    IndexedVocab,
 )
 from research_mapper.modules.react import ResumableReAct
 from research_mapper.signatures.taxonomy_search import (
@@ -17,6 +18,7 @@ from research_mapper.signatures.taxonomy_search import (
 from research_mapper.taxonomy import RepoCommunity
 from research_mapper.tools.taxonomy_search import (
     RetrieveEvidenceByConceptsTool,
+    TaxonomyBrowsingTools,
     ask_for_clarification,
     mark_unsatisfiable,
 )
@@ -33,34 +35,29 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
     ResumableReAct agent step by step so every reasoning step can be shown
     live, and so ask_for_clarification/mark_unsatisfiable can be answered or
     inspected by this caller before their (otherwise trivial) tool bodies
-    ever run — neither tool touches the TUI or holds any state itself.
+    ever run — neither tool touches the TUI or holds any state itself. The
+    agent explores the taxonomy on demand via TaxonomyBrowsingTools rather
+    than having it all handed to it upfront, so it's built fresh per call —
+    its tools are bound to that call's community-specific indexed vocab/graph.
     """
 
     def __init__(self, ui: TerminalUI | None = None) -> None:
         self.ui = ui
-        tools = [mark_unsatisfiable]
-        if ui is not None:
-            tools.append(ask_for_clarification)
-        self.agent = ResumableReAct(
-            signature=TaxonomyConceptFiltersFromUserQuery,
-            tools=tools,
-            max_iters=10,
-        )
 
     def forward(
-        self, user_query: UserQuery, taxonomy_concepts: list[Concept]
+        self, user_query: UserQuery, indexed: IndexedVocab, graph: Graph
     ) -> dspy.Prediction:
         """
         Runs an agent to interactively generate a set of concepts to filter references on.
         :param user_query: the original user query
-        :param taxonomy_concepts: the collection of taxonomy/vocabulary concepts to generate filter groups with
+        :param indexed: the community's indexed vocabulary, to explore via tool calls
+        :param graph: the community's rdflib Graph, for broader/narrower lookups
         :return: a Prediction wrapping a collection of ConceptFilterGroup instances, plus
             unsatisfiable_reason (None unless the agent flagged the query as unsatisfiable)
         """
+        self.agent = self._build_agent(indexed, graph)
         unsatisfiable_reason: str | None = None
-        result = self.agent.start(
-            user_query=user_query, taxonomy_concepts=taxonomy_concepts
-        )
+        result = self.agent.start(user_query=user_query)
         while isinstance(result, Step):
             if self.ui is not None:
                 self.ui.print_reasoning(f"Step {result.idx}", result.thought)
@@ -71,13 +68,30 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
                     ClarificationOptions(**result.tool_args["request"])
                 )
                 result = result.with_observation(answer)
-            result = self.agent.resume(
-                result, user_query=user_query, taxonomy_concepts=taxonomy_concepts
-            )
+            result = self.agent.resume(result, user_query=user_query)
         return dspy.Prediction(
             filter_groups=result.filter_groups,
             reasoning=result.reasoning,
             unsatisfiable_reason=unsatisfiable_reason,
+        )
+
+    def _build_agent(self, indexed: IndexedVocab, graph: Graph) -> ResumableReAct:
+        browsing = TaxonomyBrowsingTools(graph, indexed)
+        tools = [
+            browsing.list_schemes,
+            browsing.list_concepts_in_scheme,
+            browsing.search_concepts,
+            browsing.get_concept_detail,
+            browsing.get_broader,
+            browsing.get_narrower,
+            mark_unsatisfiable,
+        ]
+        if self.ui is not None:
+            tools.append(ask_for_clarification)
+        return ResumableReAct(
+            signature=TaxonomyConceptFiltersFromUserQuery,
+            tools=tools,
+            max_iters=50,
         )
 
     def _prompt_clarification(self, request: ClarificationOptions) -> list[str]:

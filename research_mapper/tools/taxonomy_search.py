@@ -1,4 +1,6 @@
+import difflib
 import logging
+import re
 from typing import Annotated
 
 from destiny_sdk.search import AnnotationFilter
@@ -8,7 +10,10 @@ from research_mapper.config import get_destiny_client
 from research_mapper.destiny import evidence_from_destiny_reference
 from research_mapper.models.taxonomy_search import (
     ClarificationOptions,
+    Concept,
+    ConceptDetail,
     ConceptSearchPage,
+    ConceptSummary,
     IndexedVocab,
 )
 from research_mapper.taxonomy import COMMUNITY_ANNOTATION_LABELS, RepoCommunity
@@ -35,61 +40,119 @@ class TaxonomyBrowsingTools:
 
     def list_schemes(self) -> list[str]:
         """List every scheme (topic/category) this taxonomy is organised into."""
-        return sorted({concept.scheme for concept in self._by_ref.values()})
+        return self._schemes()
 
-    def list_concepts_in_scheme(self, scheme: str) -> list[str]:
-        """List every concept's local_ref and label within one scheme, as returned
-        by list_schemes."""
+    def list_concepts_in_scheme(self, scheme: str) -> list[ConceptSummary]:
+        """List every concept within one scheme, as returned by list_schemes.
+        Concepts with a nonzero narrower_count group others underneath them —
+        they're often category headers with no definition of their own (the
+        grouping is the point), rather than concepts meant to be cited
+        directly; see get_narrower for their more specific children."""
+        if scheme not in self._schemes():
+            msg = f"No such scheme: {scheme!r}."
+            suggestions = difflib.get_close_matches(
+                scheme, self._schemes(), n=3, cutoff=0.4
+            )
+            if suggestions:
+                msg += f" Did you mean: {', '.join(suggestions)}?"
+            raise ValueError(msg)
         return [
-            f"{concept.local_ref}: {concept.label}"
+            self._summarise(concept)
             for concept in self._by_ref.values()
             if concept.scheme == scheme
         ]
 
-    def search_concepts(self, query: str) -> list[str]:
-        """Search concept labels and alternate labels (case-insensitive substring
-        match) across every scheme."""
-        needle = query.lower()
-        return [
-            f"{concept.local_ref}: {concept.label} ({concept.scheme})"
+    def _schemes(self) -> list[str]:
+        return sorted({concept.scheme for concept in self._by_ref.values()})
+
+    def lookup_concepts(self, label: str) -> list[ConceptSummary]:
+        """Find concepts by name: case-insensitive substring match of `label`
+        against concept labels and alternate labels, across every scheme.
+        This is a literal substring match, not a free-text/semantic search."""
+        needle = label.lower()
+        results = [
+            self._summarise(concept)
             for concept in self._by_ref.values()
             if needle in concept.label.lower()
             or any(needle in alt.lower() for alt in concept.alt_labels)
         ]
+        if not results:
+            msg = f"No concepts found matching {label!r}."
+            suggestions = self._lookup_suggestions(label)
+            if suggestions:
+                msg += f" Did you mean one of: {', '.join(suggestions)}?"
+            raise ValueError(msg)
+        return results
 
-    def get_concept_detail(self, local_ref: str) -> str:
+    def _lookup_suggestions(self, label: str, n: int = 5) -> list[str]:
+        """lookup_concepts is whole-phrase substring matching, so a multi-word
+        label like "gender-transformative" won't match a label like "Gender
+        Disparities in Education" even though it's clearly related. Whole-
+        phrase difflib matching against multi-word labels is too noisy to help
+        here (surfaces unrelated labels by sheer character overlap), so this
+        falls back to per-token substring matching instead — it's what
+        actually surfaces the near-miss labels."""
+        tokens = [tok for tok in re.split(r"[\s-]+", label.lower()) if len(tok) > 2]
+        if not tokens:
+            return []
+        matches = [
+            concept.label
+            for concept in self._by_ref.values()
+            if any(tok in concept.label.lower() for tok in tokens)
+        ]
+        return matches[:n]
+
+    def get_concept_detail(self, local_ref: str) -> ConceptDetail:
         """Get a concept's full label, alternate labels, and definition/scope note,
         given its local_ref."""
         concept = self._by_ref.get(local_ref)
         if concept is None:
-            return f"No such concept: {local_ref}"
-        parts = [f"label: {concept.label}", f"scheme: {concept.scheme}"]
-        if concept.alt_labels:
-            parts.append(f"alt labels: {', '.join(concept.alt_labels)}")
-        if concept.detail:
-            parts.append(f"detail: {concept.detail}")
-        return "; ".join(parts)
+            msg = f"No such concept: {local_ref}"
+            raise ValueError(msg)
+        return ConceptDetail(
+            local_ref=concept.local_ref,
+            label=concept.label,
+            scheme=concept.scheme,
+            alt_labels=concept.alt_labels,
+            detail=concept.detail,
+            narrower_count=self._narrower_count(local_ref),
+        )
 
-    def get_broader(self, local_ref: str) -> list[str]:
+    def get_broader(self, local_ref: str) -> list[ConceptSummary]:
         """Get the more general concept(s) a concept sits under, if any — most
         concepts have none; only a handful of schemes are hierarchical."""
         return self._related(local_ref, SKOS.broader)
 
-    def get_narrower(self, local_ref: str) -> list[str]:
+    def get_narrower(self, local_ref: str) -> list[ConceptSummary]:
         """Get the more specific concept(s) under a concept, if any — most
         concepts have none; only a handful of schemes are hierarchical."""
         return self._related(local_ref, SKOS.narrower)
 
-    def _related(self, local_ref: str, predicate: URIRef) -> list[str]:
+    def _related(self, local_ref: str, predicate: URIRef) -> list[ConceptSummary]:
         iri = self._local_ref_to_iri.get(local_ref)
         if iri is None:
-            return [f"No such concept: {local_ref}"]
+            msg = f"No such concept: {local_ref}"
+            raise ValueError(msg)
         related_refs = [
             self._iri_to_ref[str(related_iri)]
             for related_iri in self._graph.objects(URIRef(iri), predicate)
             if str(related_iri) in self._iri_to_ref
         ]
-        return [f"{ref}: {self._by_ref[ref].label}" for ref in related_refs]
+        return [self._summarise(self._by_ref[ref]) for ref in related_refs]
+
+    def _summarise(self, concept: Concept) -> ConceptSummary:
+        return ConceptSummary(
+            local_ref=concept.local_ref,
+            label=concept.label,
+            scheme=concept.scheme,
+            narrower_count=self._narrower_count(concept.local_ref),
+        )
+
+    def _narrower_count(self, local_ref: str) -> int:
+        iri = self._local_ref_to_iri.get(local_ref)
+        if iri is None:
+            return 0
+        return sum(1 for _ in self._graph.objects(URIRef(iri), SKOS.narrower))
 
 
 def ask_for_clarification(request: ClarificationOptions) -> list[str]:

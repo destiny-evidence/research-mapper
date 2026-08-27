@@ -1,3 +1,4 @@
+import difflib
 import logging
 
 import dspy
@@ -31,6 +32,13 @@ _NONE_OF_THESE_OPTION = "None of these"
 _SENTINEL_OPTIONS = {_NOT_SURE_OPTION, _NONE_OF_THESE_OPTION}
 
 
+class UnknownConceptRefError(ValueError):
+    """Raised when the agent's final output cites a local_ref that isn't part
+    of the indexed vocabulary it was exploring — this is what used to crash
+    downstream (e.g. a KeyError in a TUI display lambda) instead of surfacing
+    clearly at the point the bad ref was actually produced."""
+
+
 class TaxonomyConceptFilterGenerator(dspy.Module):
     """
     Generates a set of taxonomy concepts to filter references with, driving a
@@ -58,8 +66,11 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
             unsatisfiable_reason (None unless the agent flagged the query as unsatisfiable)
         """
         self.agent = self._build_agent(indexed, graph)
+        available_concepts = self._concept_listing(indexed)
         unsatisfiable_reason: str | None = None
-        result = self.agent.start(user_query=user_query)
+        result = self.agent.start(
+            user_query=user_query, available_concepts=available_concepts
+        )
         while isinstance(result, Step):
             if self.ui is not None:
                 self.ui.print_reasoning(f"Step {result.idx}", result.thought)
@@ -70,11 +81,52 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
                     ClarificationOptions(**result.tool_args["request"])
                 )
                 result = result.with_observation(answer)
-            result = self.agent.resume(result, user_query=user_query)
+            result = self.agent.resume(
+                result, user_query=user_query, available_concepts=available_concepts
+            )
+        self._validate_filter_groups(result.filter_groups, indexed)
         return dspy.Prediction(
             filter_groups=result.filter_groups,
             reasoning=result.reasoning,
             unsatisfiable_reason=unsatisfiable_reason,
+        )
+
+    def _validate_filter_groups(
+        self, filter_groups: list[ConceptFilterGroup], indexed: IndexedVocab
+    ) -> None:
+        """
+        Guards against the agent citing a local_ref that was never a real
+        concept — e.g. mis-parsed out of a compound string — before it can
+        crash something downstream. Suggestions are matched against concept
+        labels, not refs: refs are short alphanumeric codes fuzzy matching
+        finds too noisy to be useful, but labels reliably surface the
+        agent's likely intended concept.
+        """
+        if not filter_groups:
+            return
+        known_refs = {concept.local_ref for concept in indexed.concepts}
+        labels = [concept.label for concept in indexed.concepts]
+        for group in filter_groups:
+            for ref in group.concept_local_refs:
+                if ref in known_refs:
+                    continue
+                msg = f"Unknown concept local_ref {ref!r} in scheme {group.scheme!r}."
+                suggestions = difflib.get_close_matches(ref, labels, n=3, cutoff=0.4)
+                if suggestions:
+                    msg += f" Did you mean one of: {', '.join(suggestions)}?"
+                raise UnknownConceptRefError(msg)
+
+    def _concept_listing(self, indexed: IndexedVocab) -> str:
+        """A flat 'scheme: label' line per concept — cheap enough (a few
+        thousand tokens even for HPV's 575 concepts) to hand the agent
+        upfront so it can find real labels to act on instead of guessing
+        plausible-sounding wording and fishing for it one lookup_concepts
+        call at a time."""
+        return "\n".join(
+            f"{concept.scheme}: {concept.label}"
+            for concept in sorted(
+                indexed.concepts, key=lambda concept: (concept.scheme, concept.label)
+            )
         )
 
     def _build_agent(self, indexed: IndexedVocab, graph: Graph) -> ResumableReAct:
@@ -82,7 +134,7 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
         tools = [
             browsing.list_schemes,
             browsing.list_concepts_in_scheme,
-            browsing.search_concepts,
+            browsing.lookup_concepts,
             browsing.get_concept_detail,
             browsing.get_broader,
             browsing.get_narrower,

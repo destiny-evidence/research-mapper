@@ -1,9 +1,19 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from research_mapper.models.common import UserQuery
 from research_mapper.models.react import Step
-from research_mapper.models.taxonomy_search import ClarificationOptions, IndexedVocab
-from research_mapper.modules.taxonomy_search import TaxonomyConceptFilterGenerator
+from research_mapper.models.taxonomy_search import (
+    ClarificationOptions,
+    Concept,
+    ConceptFilterGroup,
+    IndexedVocab,
+)
+from research_mapper.modules.taxonomy_search import (
+    TaxonomyConceptFilterGenerator,
+    UnknownConceptRefError,
+)
 
 _NOT_SURE = "I'm not sure"
 _NONE_OF_THESE = "None of these"
@@ -46,9 +56,22 @@ def _generator_with_mock_agent(
     return generator
 
 
-def _forward(generator: TaxonomyConceptFilterGenerator, query: str = "q"):
+def _forward(generator: TaxonomyConceptFilterGenerator, query: str = "q", indexed=None):
     return generator.forward(
-        UserQuery(query=query), indexed=MagicMock(), graph=MagicMock()
+        UserQuery(query=query), indexed=indexed or MagicMock(), graph=MagicMock()
+    )
+
+
+def _indexed_vocab() -> IndexedVocab:
+    return IndexedVocab(
+        concepts=[
+            Concept(local_ref="C10", scheme="Setting", label="Primary Education"),
+            Concept(local_ref="C11", scheme="Setting", label="Secondary Education"),
+        ],
+        local_ref_to_iri={
+            "C10": "https://example.org/C10",
+            "C11": "https://example.org/C11",
+        },
     )
 
 
@@ -99,10 +122,26 @@ def test_prompt_clarification_allows_none_of_these_alone():
     assert mock_ui.select_from_list.call_count == 1
 
 
-def test_prompt_clarification_rejects_sentinel_combined_with_a_real_option():
+def test_prompt_clarification_allows_not_sure_combined_with_a_real_option():
+    """ "I'm not sure" is a hedge, not a contradiction — "I think it's probably
+    A, but I'm not sure" is a coherent answer, unlike combining with "None of
+    these", which is a real contradiction."""
+    mock_ui = MagicMock()
+    mock_ui.select_from_list.return_value = ["A", _NOT_SURE]
+    generator = TaxonomyConceptFilterGenerator(ui=mock_ui)
+
+    result = generator._prompt_clarification(
+        ClarificationOptions(question="Which one?", options=["A", "B"])
+    )
+
+    assert result == ["A", _NOT_SURE]
+    assert mock_ui.select_from_list.call_count == 1
+
+
+def test_prompt_clarification_rejects_none_of_these_combined_with_a_real_option():
     mock_ui = MagicMock()
     mock_ui.select_from_list.side_effect = [
-        ["A", _NOT_SURE],  # invalid: mixed with a real option
+        ["A", _NONE_OF_THESE],  # invalid: a real contradiction
         ["A"],  # corrected on retry
     ]
     generator = TaxonomyConceptFilterGenerator(ui=mock_ui)
@@ -116,10 +155,10 @@ def test_prompt_clarification_rejects_sentinel_combined_with_a_real_option():
 
 
 def test_prompt_clarification_rejects_both_sentinels_combined():
-    """Not sure and none of these are contradictory signals — pick one."""
+    """None of these still can't combine with anything, including not sure."""
     mock_ui = MagicMock()
     mock_ui.select_from_list.side_effect = [
-        [_NOT_SURE, _NONE_OF_THESE],  # invalid: mutually exclusive
+        [_NOT_SURE, _NONE_OF_THESE],  # invalid: none of these can't combine
         [_NOT_SURE],  # corrected on retry
     ]
     generator = TaxonomyConceptFilterGenerator(ui=mock_ui)
@@ -158,7 +197,7 @@ def test_forward_drives_the_agent_step_by_step_to_completion():
     result = _forward(generator)
 
     generator.agent.resume.assert_called_once_with(
-        step0, user_query=UserQuery(query="q")
+        step0, user_query=UserQuery(query="q"), available_concepts=""
     )
     assert result.reasoning == "done"
 
@@ -184,6 +223,22 @@ def test_forward_reason_does_not_leak_between_calls():
     generator._build_agent.return_value.start = MagicMock(return_value=_final())
     second = _forward(generator, "q2")
     assert second.unsatisfiable_reason is None
+
+
+def test_forward_passes_the_concept_listing_to_start_and_resume():
+    indexed = _indexed_vocab()
+    step0 = _step(0, "some_other_tool")
+    generator = _generator_with_mock_agent(start_returns=step0)
+
+    _forward(generator, indexed=indexed)
+
+    expected_listing = "Setting: Primary Education\nSetting: Secondary Education"
+    generator.agent.start.assert_called_once_with(
+        user_query=UserQuery(query="q"), available_concepts=expected_listing
+    )
+    generator.agent.resume.assert_called_once_with(
+        step0, user_query=UserQuery(query="q"), available_concepts=expected_listing
+    )
 
 
 def test_forward_answers_a_clarification_step_via_the_ui_and_resumes():
@@ -236,6 +291,92 @@ def test_forward_does_not_touch_ui_when_none_is_given():
 
     # Would raise if forward() ever touched self.ui — there isn't one.
     _forward(generator)
+
+
+# ---------------------------------------------------------------------------
+# _concept_listing — the upfront "scheme: label" index
+# ---------------------------------------------------------------------------
+
+
+def test_concept_listing_formats_every_concept_as_scheme_label_sorted():
+    """Labels repeat across schemes (confirmed on real HPV/ESEA data), so each
+    line is scheme-qualified; sorted so the same taxonomy always renders the
+    same listing, regardless of concept insertion order."""
+    generator = TaxonomyConceptFilterGenerator()
+    indexed = IndexedVocab(
+        concepts=[
+            Concept(local_ref="C2", scheme="Setting", label="Secondary Education"),
+            Concept(local_ref="C1", scheme="Country", label="Kenya"),
+            Concept(local_ref="C3", scheme="Setting", label="Primary Education"),
+        ],
+        local_ref_to_iri={},
+    )
+
+    result = generator._concept_listing(indexed)
+
+    assert result == (
+        "Country: Kenya\nSetting: Primary Education\nSetting: Secondary Education"
+    )
+
+
+def test_concept_listing_empty_for_no_concepts():
+    generator = TaxonomyConceptFilterGenerator()
+    assert (
+        generator._concept_listing(IndexedVocab(concepts=[], local_ref_to_iri={})) == ""
+    )
+
+
+# ---------------------------------------------------------------------------
+# forward — validating the agent's final concept_local_refs
+# ---------------------------------------------------------------------------
+
+
+def test_forward_raises_for_an_unknown_concept_local_ref():
+    """This is the real crash the user hit: the agent mis-parsed a local_ref
+    out of a compound display string and cited one that was never a real
+    concept, which used to surface as a bare KeyError deep in a TUI lambda
+    instead of a clear error at the point the bad ref was produced."""
+    final = _final()
+    final.filter_groups = [
+        ConceptFilterGroup(
+            scheme="Setting",
+            concept_local_refs=["C10: Primary Education"],
+            reason="matches",
+        )
+    ]
+    generator = _generator_with_mock_agent(start_returns=final)
+
+    with pytest.raises(UnknownConceptRefError, match="C10: Primary Education"):
+        _forward(generator, indexed=_indexed_vocab())
+
+
+def test_forward_suggests_close_matching_labels_for_an_unknown_ref():
+    final = _final()
+    final.filter_groups = [
+        ConceptFilterGroup(
+            scheme="Setting",
+            concept_local_refs=["C10: Primary Education"],
+            reason="matches",
+        )
+    ]
+    generator = _generator_with_mock_agent(start_returns=final)
+
+    with pytest.raises(UnknownConceptRefError, match="Did you mean.*Primary Education"):
+        _forward(generator, indexed=_indexed_vocab())
+
+
+def test_forward_accepts_known_concept_local_refs():
+    final = _final()
+    final.filter_groups = [
+        ConceptFilterGroup(
+            scheme="Setting", concept_local_refs=["C10"], reason="matches"
+        )
+    ]
+    generator = _generator_with_mock_agent(start_returns=final)
+
+    result = _forward(generator, indexed=_indexed_vocab())
+
+    assert result.filter_groups == final.filter_groups
 
 
 def test_ask_for_clarification_only_registered_as_a_tool_when_ui_given():

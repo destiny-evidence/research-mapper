@@ -7,7 +7,7 @@ from rdflib.namespace import DCTERMS
 
 from research_mapper.models.common import Evidence
 from research_mapper.models.sparse_search import LuceneQuery
-from research_mapper.models.taxonomy_search import ClarificationOptions
+from research_mapper.models.taxonomy_search import ClarificationOptions, ConceptSummary
 from research_mapper.taxonomy import RepoCommunity, build_concept_index
 from research_mapper.tools.sparse_search import SearchReferencesTool, search_references
 from research_mapper.tools.taxonomy_search import (
@@ -389,25 +389,102 @@ def test_list_concepts_in_scheme_only_returns_that_scheme():
 
     result = tools.list_concepts_in_scheme("Country")
 
-    assert result == [f"{kenya_ref}: Kenya"]
+    assert result == [
+        ConceptSummary(
+            local_ref=kenya_ref, label="Kenya", scheme="Country", narrower_count=0
+        )
+    ]
 
 
-def test_search_concepts_matches_label_case_insensitively():
+def test_list_concepts_in_scheme_flags_concepts_with_narrower_children():
+    """A concept with a nonzero narrower_count is often a category header
+    with no definition of its own — flagging it as structured data (not a
+    string the agent has to parse) lets it recognise that without stalling
+    on a definition that was never going to exist, and without risking it
+    mis-extracting the local_ref from a formatted display string."""
+    tools, indexed = _browsing_fixture()
+    rct_ref = next(c.local_ref for c in indexed.concepts if c.label == "RCT")
+    cua_ref = next(
+        c.local_ref for c in indexed.concepts if c.label == "Cost-utility analysis"
+    )
+
+    result = {c.local_ref: c for c in tools.list_concepts_in_scheme("Study Design")}
+
+    assert result[rct_ref].narrower_count == 1
+    assert result[cua_ref].narrower_count == 0  # leaf
+
+
+def test_list_concepts_in_scheme_raises_for_unknown_scheme():
+    tools, _ = _browsing_fixture()
+    with pytest.raises(ValueError, match="No such scheme: 'Countrie'"):
+        tools.list_concepts_in_scheme("Countrie")
+
+
+def test_list_concepts_in_scheme_suggests_close_matches():
+    tools, _ = _browsing_fixture()
+    with pytest.raises(ValueError, match="Did you mean: Country"):
+        tools.list_concepts_in_scheme("Countrie")
+
+
+def test_list_concepts_in_scheme_omits_suggestions_when_none_are_close():
+    tools, _ = _browsing_fixture()
+    with pytest.raises(ValueError) as exc_info:
+        tools.list_concepts_in_scheme("xyz totally unrelated")
+    assert "Did you mean" not in str(exc_info.value)
+
+
+def test_lookup_concepts_matches_label_case_insensitively():
     tools, indexed = _browsing_fixture()
     rct_ref = next(c.local_ref for c in indexed.concepts if c.label == "RCT")
 
-    result = tools.search_concepts("rct")
+    result = tools.lookup_concepts("rct")
 
-    assert result == [f"{rct_ref}: RCT (Study Design)"]
+    assert result == [
+        ConceptSummary(
+            local_ref=rct_ref, label="RCT", scheme="Study Design", narrower_count=1
+        )
+    ]
 
 
-def test_search_concepts_matches_alt_labels_too():
+def test_lookup_concepts_matches_alt_labels_too():
     tools, indexed = _browsing_fixture()
     rct_ref = next(c.local_ref for c in indexed.concepts if c.label == "RCT")
 
-    result = tools.search_concepts("randomised controlled")
+    result = tools.lookup_concepts("randomised controlled")
 
-    assert result == [f"{rct_ref}: RCT (Study Design)"]
+    assert result == [
+        ConceptSummary(
+            local_ref=rct_ref, label="RCT", scheme="Study Design", narrower_count=1
+        )
+    ]
+
+
+def test_lookup_concepts_raises_when_nothing_matches_the_whole_phrase():
+    """lookup_concepts is whole-phrase substring matching, so a query like
+    "cost-benefit RCT" won't match the label "RCT" even though the agent's
+    intent is clearly related — this should surface as a clear exception
+    with a suggestion, not a silently empty list (which the agent sees as
+    a bare "N/A" once rendered back into its trajectory)."""
+    tools, _ = _browsing_fixture()
+    with pytest.raises(
+        ValueError, match="No concepts found matching 'cost-benefit rct'"
+    ):
+        tools.lookup_concepts("cost-benefit rct")
+
+
+def test_lookup_concepts_suggests_labels_matching_individual_tokens():
+    tools, _ = _browsing_fixture()
+    with pytest.raises(
+        ValueError, match="Did you mean one of: Cost-utility analysis, RCT"
+    ):
+        tools.lookup_concepts("cost-benefit rct")
+
+
+def test_lookup_concepts_omits_suggestions_when_no_token_is_long_enough():
+    tools, _ = _browsing_fixture()
+    with pytest.raises(ValueError) as exc_info:
+        tools.lookup_concepts("xy")
+    assert "Did you mean" not in str(exc_info.value)
 
 
 def test_get_concept_detail_includes_alt_labels_and_definition():
@@ -416,14 +493,16 @@ def test_get_concept_detail_includes_alt_labels_and_definition():
 
     result = tools.get_concept_detail(rct_ref)
 
-    assert "label: RCT" in result
-    assert "alt labels: Randomised controlled trial" in result
-    assert "detail: A randomised controlled trial." in result
+    assert result.label == "RCT"
+    assert result.alt_labels == ["Randomised controlled trial"]
+    assert result.detail == "A randomised controlled trial."
+    assert result.narrower_count == 1
 
 
-def test_get_concept_detail_reports_unknown_ref():
+def test_get_concept_detail_raises_for_unknown_ref():
     tools, _ = _browsing_fixture()
-    assert tools.get_concept_detail("nonexistent") == "No such concept: nonexistent"
+    with pytest.raises(ValueError, match="No such concept: nonexistent"):
+        tools.get_concept_detail("nonexistent")
 
 
 def test_get_narrower_follows_hierarchy():
@@ -433,7 +512,14 @@ def test_get_narrower_follows_hierarchy():
         c.local_ref for c in indexed.concepts if c.label == "Cost-utility analysis"
     )
 
-    assert tools.get_narrower(rct_ref) == [f"{cua_ref}: Cost-utility analysis"]
+    assert tools.get_narrower(rct_ref) == [
+        ConceptSummary(
+            local_ref=cua_ref,
+            label="Cost-utility analysis",
+            scheme="Study Design",
+            narrower_count=0,
+        )
+    ]
 
 
 def test_get_broader_follows_hierarchy():
@@ -443,7 +529,11 @@ def test_get_broader_follows_hierarchy():
         c.local_ref for c in indexed.concepts if c.label == "Cost-utility analysis"
     )
 
-    assert tools.get_broader(cua_ref) == [f"{rct_ref}: RCT"]
+    assert tools.get_broader(cua_ref) == [
+        ConceptSummary(
+            local_ref=rct_ref, label="RCT", scheme="Study Design", narrower_count=1
+        )
+    ]
 
 
 def test_get_broader_empty_for_top_level_concept():

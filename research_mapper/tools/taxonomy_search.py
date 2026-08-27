@@ -8,11 +8,11 @@ from rdflib import SKOS, Graph, URIRef
 
 from research_mapper.config import get_destiny_client
 from research_mapper.destiny import evidence_from_destiny_reference
+from research_mapper.models.common import EvidencePage, RetrievalPageResult
 from research_mapper.models.taxonomy_search import (
     ClarificationOptions,
     Concept,
     ConceptDetail,
-    ConceptSearchPage,
     ConceptSummary,
     IndexedVocab,
 )
@@ -193,7 +193,7 @@ def retrieve_evidence_by_concepts(
     community: RepoCommunity,
     concepts: list[str | list[str]],
     page: Annotated[int, "The page number of results to retrieve."] = 1,
-) -> ConceptSearchPage:
+) -> EvidencePage:
     """
     Retrieves a page of DESTINY evidence matching the given resolved concept filters,
     scoped to a single repository community via its domain-inclusion annotation. No
@@ -225,7 +225,7 @@ def retrieve_evidence_by_concepts(
 
     evidence = [evidence_from_destiny_reference(ref) for ref in result.references]
     logger.debug("retrieve_evidence_by_concepts returned %d results", len(evidence))
-    return ConceptSearchPage(
+    return EvidencePage(
         evidence=evidence,
         total_count=result.total.count,
         is_total_lower_bound=result.total.is_lower_bound,
@@ -253,13 +253,10 @@ class RetrieveEvidenceByConceptsTool:
 
     def retrieve_evidence(
         self, page: Annotated[int, "The page number of results to retrieve."] = 1
-    ) -> str:
-        """Retrieve DESTINY evidence matching the fixed concept filters. Reports how many
-        results were found on this page and in total, to help decide when to stop."""
+    ) -> RetrievalPageResult:
+        """Retrieve DESTINY evidence matching the fixed concept filters, as a page of
+        structured summaries (title/abstract/year/venue) plus pagination metadata —
+        enough to judge relevance and decide when to stop."""
         page_result = retrieve_evidence_by_concepts(self.community, self.concepts, page)
         self.retrieved.update({ev.destiny_id: ev for ev in page_result.evidence})
-        bound = "+" if page_result.is_total_lower_bound else ""
-        return (
-            f"Page {page}: {len(page_result.evidence)} result(s) on this page "
-            f"(total matching: {page_result.total_count}{bound})"
-        )
+        return RetrievalPageResult.from_page(page_result)

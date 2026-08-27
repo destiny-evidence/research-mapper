@@ -5,7 +5,7 @@ from destiny_sdk.search import AnnotationFilter
 from rdflib import RDF, SKOS, Graph, Literal, URIRef
 from rdflib.namespace import DCTERMS
 
-from research_mapper.models.common import Evidence
+from research_mapper.models.common import Evidence, EvidenceSummary, RetrievalPageResult
 from research_mapper.models.sparse_search import LuceneQuery
 from research_mapper.models.taxonomy_search import ClarificationOptions, ConceptSummary
 from research_mapper.taxonomy import RepoCommunity, build_concept_index
@@ -33,8 +33,10 @@ def test_search_references_returns_evidence(mock_destiny_client, mock_reference)
         query = LuceneQuery(query="climate AND health")
         result = search_references(query=query, community=RepoCommunity.HPV)
 
-    assert len(result) == 1
-    assert isinstance(result[0], Evidence)
+    assert len(result.evidence) == 1
+    assert isinstance(result.evidence[0], Evidence)
+    assert result.total_count == 1
+    assert result.is_total_lower_bound is False
 
 
 def test_search_references_passes_args(mock_destiny_client):
@@ -103,6 +105,7 @@ def test_search_references_scopes_by_community(mock_destiny_client):
 
 def test_search_references_empty_results(mock_destiny_client):
     mock_destiny_client.search.return_value.references = []
+    mock_destiny_client.search.return_value.total.count = 0
     with patch(
         "research_mapper.tools.sparse_search.get_destiny_client",
         return_value=mock_destiny_client,
@@ -111,7 +114,8 @@ def test_search_references_empty_results(mock_destiny_client):
             query=LuceneQuery(query="climate AND health"), community=RepoCommunity.HPV
         )
 
-    assert result == []
+    assert result.evidence == []
+    assert result.total_count == 0
 
 
 # ---------------------------------------------------------------------------
@@ -178,10 +182,40 @@ def test_search_references_tool_accumulates_retrieved(
         "research_mapper.tools.sparse_search.get_destiny_client",
         return_value=mock_destiny_client,
     ):
-        results = tool.search_references()
+        tool.search_references()
 
     assert len(tool.retrieved) == 1
-    assert list(tool.retrieved.values()) == results
+    assert isinstance(next(iter(tool.retrieved.values())), Evidence)
+
+
+def test_search_references_tool_returns_structured_summaries(
+    mock_destiny_client, mock_reference
+):
+    """The agent needs title/abstract/year/venue to judge relevance and
+    decide whether to keep paginating — not the full Evidence record
+    (identifiers, URLs, pagination metadata), which self.retrieved already
+    holds for downstream use."""
+    query = LuceneQuery(query="climate AND health")
+    tool = SearchReferencesTool(query, RepoCommunity.HPV)
+
+    with patch(
+        "research_mapper.tools.sparse_search.get_destiny_client",
+        return_value=mock_destiny_client,
+    ):
+        result = tool.search_references()
+
+    assert result == RetrievalPageResult(
+        results=[
+            EvidenceSummary(
+                title="Test Paper Title",
+                abstract="This is a test abstract.",
+                year=2023,
+                venue=None,
+            )
+        ],
+        total_count=1,
+        is_total_lower_bound=False,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -300,20 +334,34 @@ def test_retrieve_evidence_by_concepts_tool_accumulates_retrieved(
     assert len(tool.retrieved) == 1
 
 
-def test_retrieve_evidence_by_concepts_tool_reports_page_and_total(
-    mock_destiny_client,
+def test_retrieve_evidence_by_concepts_tool_returns_structured_summaries(
+    mock_destiny_client, mock_reference
 ):
+    """The agent needs title/abstract/year/venue to judge relevance and
+    decide whether to keep paginating — not the full Evidence record
+    (identifiers, URLs, pagination metadata), which self.retrieved already
+    holds for downstream use. Previously this only reported a page's result
+    count, giving the agent no way to judge relevance at all."""
     tool = RetrieveEvidenceByConceptsTool(RepoCommunity.HPV, [])
 
     with patch(
         "research_mapper.tools.taxonomy_search.get_destiny_client",
         return_value=mock_destiny_client,
     ):
-        summary = tool.retrieve_evidence(page=2)
+        result = tool.retrieve_evidence(page=2)
 
-    assert "Page 2" in summary
-    assert "1 result" in summary
-    assert "total matching: 1" in summary
+    assert result == RetrievalPageResult(
+        results=[
+            EvidenceSummary(
+                title="Test Paper Title",
+                abstract="This is a test abstract.",
+                year=2023,
+                venue=None,
+            )
+        ],
+        total_count=1,
+        is_total_lower_bound=False,
+    )
 
 
 # ---------------------------------------------------------------------------

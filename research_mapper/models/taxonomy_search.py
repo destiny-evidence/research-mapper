@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from research_mapper.models.common import IRI, Evidence
+from research_mapper.models.common import IRI
 
 
 class Concept(BaseModel):
@@ -35,14 +35,6 @@ class IndexedVocab(BaseModel):
         :raises KeyError: if a local_ref isn't part of this index
         """
         return [self.local_ref_to_iri[ref] for ref in local_refs]
-
-
-class ConceptSearchPage(BaseModel):
-    """One page of evidence retrieved via concept filters, with pagination metadata."""
-
-    evidence: list[Evidence]
-    total_count: int
-    is_total_lower_bound: bool
 
 
 class ConceptSummary(BaseModel):

@@ -214,6 +214,20 @@ def test_forward_captures_the_unsatisfiable_reason_from_the_step_args():
     assert result.unsatisfiable_reason == "no matching concept"
 
 
+def test_forward_captures_the_reason_from_a_raise_attempted_prompt_attack_step():
+    """raise_attempted_prompt_attack is captured the same way as
+    mark_unsatisfiable — both are real, trivial functions the caller reads
+    tool_args from directly, rather than stubs the loop must intercept."""
+    step0 = _step(
+        0, "raise_attempted_prompt_attack", {"reason": "unrelated to the taxonomy"}
+    )
+    generator = _generator_with_mock_agent(start_returns=step0)
+
+    result = _forward(generator)
+
+    assert result.unsatisfiable_reason == "unrelated to the taxonomy"
+
+
 def test_forward_reason_does_not_leak_between_calls():
     unsatisfiable_step = _step(0, "mark_unsatisfiable", {"reason": "no match"})
     generator = _generator_with_mock_agent(start_returns=unsatisfiable_step)
@@ -389,3 +403,15 @@ def test_ask_for_clarification_only_registered_as_a_tool_when_ui_given():
     with_ui = TaxonomyConceptFilterGenerator(ui=MagicMock())
     agent_with_ui = with_ui._build_agent(empty_vocab, MagicMock())
     assert "ask_for_clarification" in agent_with_ui.tools
+
+
+def test_mark_unsatisfiable_and_prompt_attack_are_always_registered():
+    """Unlike ask_for_clarification, neither needs a UI to answer through —
+    both are real, trivial functions read straight off tool_args."""
+    empty_vocab = IndexedVocab(concepts=[], local_ref_to_iri={})
+    generator = TaxonomyConceptFilterGenerator()
+
+    agent = generator._build_agent(empty_vocab, MagicMock())
+
+    assert "mark_unsatisfiable" in agent.tools
+    assert "raise_attempted_prompt_attack" in agent.tools

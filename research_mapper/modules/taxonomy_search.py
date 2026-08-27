@@ -22,6 +22,7 @@ from research_mapper.tools.taxonomy_search import (
     TaxonomyBrowsingTools,
     ask_for_clarification,
     mark_unsatisfiable,
+    raise_attempted_prompt_attack,
 )
 from research_mapper.ui.tui import TerminalUI
 
@@ -74,7 +75,10 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
         while isinstance(result, Step):
             if self.ui is not None:
                 self.ui.print_reasoning(f"Step {result.idx}", result.thought)
-            if result.tool_name == "mark_unsatisfiable":
+            if result.tool_name in {
+                "mark_unsatisfiable",
+                "raise_attempted_prompt_attack",
+            }:
                 unsatisfiable_reason = result.tool_args["reason"]
             elif result.tool_name == "ask_for_clarification" and self.ui is not None:
                 answer = self._prompt_clarification(
@@ -139,6 +143,7 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
             browsing.get_broader,
             browsing.get_narrower,
             mark_unsatisfiable,
+            raise_attempted_prompt_attack,
         ]
         if self.ui is not None:
             tools.append(ask_for_clarification)

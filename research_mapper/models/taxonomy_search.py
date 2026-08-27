@@ -45,6 +45,29 @@ class ConceptSearchPage(BaseModel):
     is_total_lower_bound: bool
 
 
+class ConceptSummary(BaseModel):
+    """
+    Enough to cite and recognise a concept — returned by the taxonomy browsing
+    tools (listing/search/broader/narrower) as structured data, not a
+    formatted display string the agent would have to parse apart to recover
+    local_ref from. `narrower_count` flags concepts that group others
+    underneath them — often category headers with no definition of their
+    own, rather than concepts meant to be cited directly.
+    """
+
+    local_ref: str
+    label: str
+    scheme: str
+    narrower_count: int = 0
+
+
+class ConceptDetail(ConceptSummary):
+    """The full detail for one concept, returned by get_concept_detail."""
+
+    alt_labels: list[str] = []
+    detail: str | None = None
+
+
 class ClarificationOptions(BaseModel):
     """A question with a fixed set of options for the user to choose from."""
 

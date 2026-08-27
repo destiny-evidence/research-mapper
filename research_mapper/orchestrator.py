@@ -279,14 +279,14 @@ class ResearchMappingOrchestrator:
         :return: the LLM-facing filter groups, and their concept IRIs resolved (AND'd
             across entries, OR'd within an entry)
         """
-        vocab = taxonomy.get_taxonomy(community)
-        indexed = taxonomy.build_concept_index(vocab)
+        graph = taxonomy.get_graph(community)
+        indexed = taxonomy.build_concept_index(graph)
         if self.tui:
             self.tui.print_info(
                 "Generating concept filters — you may be asked clarifying questions..."
             )
         prediction = self.concept_filter_generator(
-            user_query=user_query, taxonomy_concepts=indexed.concepts
+            user_query=user_query, indexed=indexed, graph=graph
         )
         if self.tui:
             self.tui.print_reasoning("Concept filters", prediction.reasoning)
@@ -524,8 +524,8 @@ class ResearchMappingOrchestrator:
         :param community: the repository community to draw taxonomy schemes from
         :return: an EvidenceMap of the evidence that could be mapped
         """
-        vocab = taxonomy.get_taxonomy(community)
-        indexed = taxonomy.build_concept_index(vocab)
+        graph = taxonomy.get_graph(community)
+        indexed = taxonomy.build_concept_index(graph)
         iri_to_concept = {
             indexed.local_ref_to_iri[concept.local_ref]: concept
             for concept in indexed.concepts

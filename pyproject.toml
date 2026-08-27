@@ -13,6 +13,7 @@ dependencies = [
     "pydantic>=2.12.5",
     "psycopg[binary]>=3.2.0",
     "pyld>=3.1.0",
+    "rdflib>=7.1.1",
     "rich>=14.3.3",
     "rispy>=0.10.0",
     "uuid>=1.30",

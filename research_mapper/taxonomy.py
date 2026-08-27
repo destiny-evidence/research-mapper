@@ -1,17 +1,17 @@
 """Fetches and indexes taxonomy/vocabulary JSON-LD for concept-filter generation."""
 
+import json
 import logging
 from enum import StrEnum, auto
 from functools import lru_cache
 
 import httpx
-from pyld import jsonld
+from rdflib import RDF, SKOS, Graph, URIRef
+from rdflib.namespace import DCTERMS
 
 from research_mapper.models.taxonomy_search import Concept, IndexedVocab
 
 logger = logging.getLogger(__name__)
-
-_SKOS = "http://www.w3.org/2004/02/skos/core#"
 
 
 class RepoCommunity(StrEnum):
@@ -62,60 +62,78 @@ def get_taxonomy(community: RepoCommunity) -> dict:
         raise TaxonomyFetchError(f"Invalid JSON from {url}") from exc
 
 
-def _literal(node: dict, predicate: str) -> str | None:
+@lru_cache
+def get_graph(community: RepoCommunity) -> Graph:
     """
-    Reads a single literal (string) value off an expanded JSON-LD node.
-    :param node: an expanded JSON-LD node, as produced by pyld.jsonld.expand
-    :param predicate: the full predicate IRI to read, e.g. the expanded form of skos:prefLabel
-    :return: the first literal value for that predicate, or None if absent
+    Fetches (via get_taxonomy) and parses a community's vocabulary into an rdflib Graph
+    — the single loader both `build_concept_index` (a flat structure for non-agent
+    consumers: direct evidence-to-scheme mapping, subtopic pulling) and the taxonomy
+    browsing tools (organic, on-demand exploration for the concept-filter-generation
+    agent) are built from. Cached for the same reason get_taxonomy is.
+    :param community: the repository community to fetch/parse the taxonomy for
+    :return: the vocabulary as an rdflib Graph
     """
-    values = node.get(predicate, [])
-    return values[0]["@value"] if values else None
+    vocab = get_taxonomy(community)
+    graph = Graph()
+    graph.parse(data=json.dumps(vocab), format="json-ld")
+    return graph
 
 
-def _ref(node: dict, predicate: str) -> str | None:
+def _first_literal(graph: Graph, subject: URIRef, *predicates: URIRef) -> str | None:
     """
-    Reads a single node reference (an @id) off an expanded JSON-LD node.
-    :param node: an expanded JSON-LD node, as produced by pyld.jsonld.expand
-    :param predicate: the full predicate IRI to read, e.g. the expanded form of skos:inScheme
-    :return: the @id of the referenced node, or None if absent
+    Reads the first present literal value off a subject, trying each predicate in
+    order — e.g. preferring skos:definition, falling back to skos:scopeNote.
+    :param graph: the graph to read from
+    :param subject: the subject node to read predicates off
+    :param predicates: candidate predicates to try, in priority order
+    :return: the first literal value found, or None if none of the predicates are set
     """
-    values = node.get(predicate, [])
-    return values[0]["@id"] if values else None
+    for predicate in predicates:
+        value = graph.value(subject, predicate)
+        if value is not None:
+            return str(value)
+    return None
 
 
-def build_concept_index(vocab: dict) -> IndexedVocab:
+@lru_cache
+def build_concept_index(graph: Graph) -> IndexedVocab:
     """
-    Expands a vocabulary JSON-LD document and builds a flat, internal concept index.
+    Builds a flat, internal concept index from a taxonomy's rdflib Graph — the
+    representation non-agent consumers need (a direct IRI/local_ref-to-Concept lookup),
+    as opposed to the taxonomy browsing tools, which query the same graph on demand.
 
     The returned Concepts never carry their IRI directly;
     `IndexedVocab.local_ref_to_iri`/`resolve` is the only way back to it.
 
-    :param vocab: the raw vocabulary JSON-LD document, as returned by get_taxonomy
+    Cached — like get_taxonomy/get_graph, called at both concept-filter-generation and
+    (taxonomy-scheme) mapping stages within a single run. Graph hashes/compares by
+    identity, and get_graph is itself cached per community, so this correctly hits for
+    repeat calls on the same community within a run.
+
+    :param graph: the taxonomy's rdflib Graph, as returned by get_graph
     :return: the taxonomy's concepts, indexed with local references with IRI resolution
     """
-    expanded = jsonld.expand(vocab)
-
     scheme_titles = {
-        node["@id"]: _literal(node, "http://purl.org/dc/terms/title")
-        for node in expanded
-        if _SKOS + "ConceptScheme" in node.get("@type", [])
+        str(scheme): _first_literal(graph, scheme, DCTERMS.title)
+        for scheme in graph.subjects(RDF.type, SKOS.ConceptScheme)
     }
 
-    raw_concepts = [
-        {
-            "iri": node["@id"],
-            "scheme": scheme_titles.get(_ref(node, _SKOS + "inScheme")) or "Other",
-            "label": _literal(node, _SKOS + "prefLabel") or "",
-            "alt_labels": [v["@value"] for v in node.get(_SKOS + "altLabel", [])],
-            "detail": (
-                _literal(node, _SKOS + "definition")
-                or _literal(node, _SKOS + "scopeNote")
-            ),
-        }
-        for node in expanded
-        if _SKOS + "Concept" in node.get("@type", [])
-    ]
+    raw_concepts = []
+    for concept in graph.subjects(RDF.type, SKOS.Concept):
+        scheme = graph.value(concept, SKOS.inScheme)
+        raw_concepts.append(
+            {
+                "iri": str(concept),
+                "scheme": scheme_titles.get(str(scheme), "Other")
+                if scheme
+                else "Other",
+                "label": _first_literal(graph, concept, SKOS.prefLabel) or "",
+                "alt_labels": [str(o) for o in graph.objects(concept, SKOS.altLabel)],
+                "detail": _first_literal(
+                    graph, concept, SKOS.definition, SKOS.scopeNote
+                ),
+            }
+        )
     raw_concepts.sort(key=lambda c: (c["scheme"], c["label"]))
 
     local_ref_to_iri: dict[str, str] = {}

@@ -1,12 +1,15 @@
+import json
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
+from rdflib import Graph
 
 from research_mapper.taxonomy import (
     RepoCommunity,
     TaxonomyFetchError,
     build_concept_index,
+    get_graph,
     get_taxonomy,
 )
 
@@ -31,6 +34,14 @@ def _vocab(graph: list[dict]) -> dict:
     return {"@context": _CONTEXT, "@graph": graph}
 
 
+def _graph(vocab: dict) -> Graph:
+    """Parses a vocab dict into an rdflib Graph the same way get_graph does —
+    build_concept_index takes a Graph, not a raw JSON-LD dict."""
+    graph = Graph()
+    graph.parse(data=json.dumps(vocab), format="json-ld")
+    return graph
+
+
 # ---------------------------------------------------------------------------
 # build_concept_index — expanding JSON-LD into a flat, LLM-facing concept index
 # ---------------------------------------------------------------------------
@@ -53,7 +64,7 @@ def test_build_concept_index_extracts_labels_and_scheme():
         ]
     )
 
-    indexed = build_concept_index(vocab)
+    indexed = build_concept_index(_graph(vocab))
 
     assert len(indexed.concepts) == 1
     concept = indexed.concepts[0]
@@ -80,7 +91,7 @@ def test_build_concept_index_prefers_definition_over_scope_note():
         ]
     )
 
-    indexed = build_concept_index(vocab)
+    indexed = build_concept_index(_graph(vocab))
 
     assert indexed.concepts[0].detail == "A randomised controlled trial."
 
@@ -97,7 +108,7 @@ def test_build_concept_index_falls_back_to_scope_note_without_definition():
         ]
     )
 
-    indexed = build_concept_index(vocab)
+    indexed = build_concept_index(_graph(vocab))
 
     assert indexed.concepts[0].detail == "Use for randomised designs."
 
@@ -113,7 +124,7 @@ def test_build_concept_index_handles_missing_definition_and_scope_note():
         ]
     )
 
-    indexed = build_concept_index(vocab)
+    indexed = build_concept_index(_graph(vocab))
 
     assert indexed.concepts[0].detail is None
 
@@ -136,7 +147,7 @@ def test_build_concept_index_normalises_single_and_multiple_alt_labels():
         ]
     )
 
-    indexed = build_concept_index(vocab)
+    indexed = build_concept_index(_graph(vocab))
 
     by_label = {c.label: c for c in indexed.concepts}
     assert by_label["A"].alt_labels == ["SingleAlt"]
@@ -154,7 +165,7 @@ def test_build_concept_index_defaults_scheme_to_other_when_missing():
         ]
     )
 
-    indexed = build_concept_index(vocab)
+    indexed = build_concept_index(_graph(vocab))
 
     assert indexed.concepts[0].scheme == "Other"
 
@@ -172,7 +183,7 @@ def test_build_concept_index_excludes_non_skos_nodes():
         ]
     )
 
-    indexed = build_concept_index(vocab)
+    indexed = build_concept_index(_graph(vocab))
 
     assert len(indexed.concepts) == 1
     assert indexed.concepts[0].label == "A"
@@ -206,7 +217,7 @@ def test_build_concept_index_sorts_by_scheme_then_label():
         ]
     )
 
-    indexed = build_concept_index(vocab)
+    indexed = build_concept_index(_graph(vocab))
 
     assert [c.scheme for c in indexed.concepts] == ["Alpha", "Zeta"]
     assert indexed.concepts[0].local_ref == "C0"
@@ -229,7 +240,7 @@ def test_build_concept_index_resolve_maps_local_refs_to_correct_iris():
         ]
     )
 
-    indexed = build_concept_index(vocab)
+    indexed = build_concept_index(_graph(vocab))
 
     a = next(c for c in indexed.concepts if c.label == "A")
     b = next(c for c in indexed.concepts if c.label == "B")
@@ -237,6 +248,47 @@ def test_build_concept_index_resolve_maps_local_refs_to_correct_iris():
         "https://example.org/vocab/A",
         "https://example.org/vocab/B",
     ]
+
+
+# ---------------------------------------------------------------------------
+# get_graph — the single rdflib-backed loader build_concept_index and the
+# taxonomy browsing tools are both built from
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _clear_graph_cache():
+    get_graph.cache_clear()
+    yield
+    get_graph.cache_clear()
+
+
+def test_get_graph_parses_the_fetched_vocab_into_a_graph():
+    vocab = _vocab(
+        [
+            {
+                "@id": "https://example.org/vocab/A",
+                "@type": "skos:Concept",
+                "skos:prefLabel": "A",
+            }
+        ]
+    )
+
+    with patch("research_mapper.taxonomy.get_taxonomy", return_value=vocab):
+        graph = get_graph(RepoCommunity.HPV)
+
+    indexed = build_concept_index(graph)
+    assert [c.label for c in indexed.concepts] == ["A"]
+
+
+def test_get_graph_is_cached():
+    with patch(
+        "research_mapper.taxonomy.get_taxonomy", return_value=_vocab([])
+    ) as mock_get_taxonomy:
+        get_graph(RepoCommunity.HPV)
+        get_graph(RepoCommunity.HPV)
+
+    mock_get_taxonomy.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

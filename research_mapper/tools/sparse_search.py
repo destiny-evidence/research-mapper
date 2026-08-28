@@ -5,7 +5,7 @@ from destiny_sdk.search import AnnotationFilter
 
 from research_mapper.config import get_destiny_client
 from research_mapper.destiny import evidence_from_destiny_reference
-from research_mapper.models.common import Evidence
+from research_mapper.models.common import EvidencePage, RetrievalPageResult
 from research_mapper.models.sparse_search import LuceneQuery
 from research_mapper.taxonomy import COMMUNITY_ANNOTATION_LABELS, RepoCommunity
 
@@ -22,10 +22,10 @@ def search_references(
         "The field to sort the results by. Prefix a field with '-' to sort in descending order. If omitted, will sort by relevance score descending.",
     ] = None,
     page: Annotated[int, "The page number of the results to retrieve."] = 1,
-) -> list[Evidence]:
+) -> EvidencePage:
     """Search the DESTINY evidence repository for references, scoped to a single
     repository community via its domain-inclusion annotation.
-    Returns a page of matching references with metadata."""
+    Returns a page of matching references, plus total-match metadata."""
     logger.debug(
         "search_references(query=%s, community=%s, start_year=%s, end_year=%s, sort=%s, page=%s)",
         query.query,
@@ -53,7 +53,11 @@ def search_references(
 
     evidence = [evidence_from_destiny_reference(ref) for ref in result.references]
     logger.debug("search_references returned %d results", len(evidence))
-    return evidence
+    return EvidencePage(
+        evidence=evidence,
+        total_count=result.total.count,
+        is_total_lower_bound=result.total.is_lower_bound,
+    )
 
 
 class SearchReferencesTool:
@@ -84,10 +88,11 @@ class SearchReferencesTool:
             "The field to sort the results by. Prefix a field with '-' to sort in descending order. If omitted, will sort by relevance score descending.",
         ] = None,
         page: Annotated[int, "The page number of the results to retrieve."] = 1,
-    ) -> list[Evidence]:
-        """Search the DESTINY evidence repository for references.
-        Returns a page of matching references with metadata."""
-        results = search_references(
+    ) -> RetrievalPageResult:
+        """Search the DESTINY evidence repository for references, as a page of
+        structured summaries (title/abstract/year/venue) plus pagination metadata —
+        enough to judge relevance and decide when to stop."""
+        page_result = search_references(
             query=self.query,
             community=self.community,
             start_year=start_year,
@@ -95,5 +100,5 @@ class SearchReferencesTool:
             sort=sort,
             page=page,
         )
-        self.retrieved.update({ev.destiny_id: ev for ev in results})
-        return results
+        self.retrieved.update({ev.destiny_id: ev for ev in page_result.evidence})
+        return RetrievalPageResult.from_page(page_result)

@@ -105,9 +105,9 @@ def test_generate_concept_filters_does_not_wrap_generator_in_live_streaming():
             UserQuery(query="test"), taxonomy.RepoCommunity.HPV
         )
 
-    agent.concept_filter_generator.assert_called_once_with(
-        user_query=UserQuery(query="test"), taxonomy_concepts=indexed.concepts
-    )
+    call_kwargs = agent.concept_filter_generator.call_args.kwargs
+    assert call_kwargs["user_query"] == UserQuery(query="test")
+    assert call_kwargs["indexed"] == indexed
     mock_tui.run_with_status.assert_not_called()
     mock_tui.print_reasoning.assert_called_once_with(
         "Concept filters", "some reasoning"

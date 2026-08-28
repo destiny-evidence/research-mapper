@@ -1,20 +1,20 @@
 import dspy
 
 from research_mapper.models.common import UserQuery
-from research_mapper.models.taxonomy_search import Concept, ConceptFilterGroup
+from research_mapper.models.taxonomy_search import ConceptFilterGroup
 
 
 class TaxonomyConceptFiltersFromUserQuery(dspy.Signature):
     """
     Select concept filters from a vocabulary/taxonomy that narrows academic
-    evidence/references relevant to the user's query. If the available concepts
-    genuinely cannot express the user's (clarified) intent, call the mark_unsatisfiable
-    tool instead of forcing a poor-fit mapping, and leave filter_groups empty.
+    evidence/references that help answer the user's query. Use the available tools to
+    clarify the user's intent, explore the taxonomy, and help them navigate it.
     """
 
     user_query: UserQuery = dspy.InputField(desc="The user's original query/question.")
-    taxonomy_concepts: list[Concept] = dspy.InputField(
-        desc="The taxonomy's concepts to choose from."
+    available_concepts: str = dspy.InputField(
+        desc="Every concept in the taxonomy, one per line as 'scheme: label' "
+        "(labels repeat across schemes, hence the prefix)."
     )
     filter_groups: list[ConceptFilterGroup] = dspy.OutputField(
         desc="The collection of concept filters to apply, grouped by scheme, with accompanying justifications. Leave empty if mark_unsatisfiable was called."

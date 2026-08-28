@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from research_mapper.models.common import IRI, Evidence
+from research_mapper.models.common import IRI
 
 
 class Concept(BaseModel):
@@ -37,12 +37,27 @@ class IndexedVocab(BaseModel):
         return [self.local_ref_to_iri[ref] for ref in local_refs]
 
 
-class ConceptSearchPage(BaseModel):
-    """One page of evidence retrieved via concept filters, with pagination metadata."""
+class ConceptSummary(BaseModel):
+    """
+    Enough to cite and recognise a concept — returned by the taxonomy browsing
+    tools (listing/search/broader/narrower) as structured data, not a
+    formatted display string the agent would have to parse apart to recover
+    local_ref from. `narrower_count` flags concepts that group others
+    underneath them — often category headers with no definition of their
+    own, rather than concepts meant to be cited directly.
+    """
 
-    evidence: list[Evidence]
-    total_count: int
-    is_total_lower_bound: bool
+    local_ref: str
+    label: str
+    scheme: str
+    narrower_count: int = 0
+
+
+class ConceptDetail(ConceptSummary):
+    """The full detail for one concept, returned by get_concept_detail."""
+
+    alt_labels: list[str] = []
+    detail: str | None = None
 
 
 class ClarificationOptions(BaseModel):

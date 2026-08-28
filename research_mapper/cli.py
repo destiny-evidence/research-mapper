@@ -1,13 +1,11 @@
 import argparse
 import logging
-import os
 import sys
 from pathlib import Path
 
 from research_mapper.config import (
-    check_database_connection,
     configure_dspy,
-    get_destiny_client,
+    init_destiny_client,
     load_environment,
 )
 from research_mapper.export import export_mapped_evidence_to_ris
@@ -41,10 +39,8 @@ def initialise(env_file: str | None) -> None:
     :return: Nothing.
     """
     load_environment(env_file)
-    get_destiny_client()
+    init_destiny_client()
     logger.info("Destiny client ready")
-    if os.environ.get("MAPPER_DESTINY_ENV") == "staging":
-        check_database_connection()
     configure_dspy()
 
 
@@ -162,7 +158,7 @@ def run() -> None:
     log_path = _configure_logging()
     try:
         main()
-    except (KeyboardInterrupt, EOFError):
+    except KeyboardInterrupt, EOFError:
         print("\nExiting...")
         sys.exit(130)
     except NoEvidenceToActOnError as exc:

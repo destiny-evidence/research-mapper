@@ -67,7 +67,7 @@ def read_session(db: DbSession, research_session: SessionOr404) -> SessionDetail
     return SessionDetail(
         **SessionSummary.model_validate(research_session).model_dump(),
         params=research_session.params,
-        artifacts={row[0]: row[1] for row in artifacts},
+        artifacts={row.type: row.version for row in artifacts},
     )
 
 

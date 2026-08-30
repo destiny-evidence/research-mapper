@@ -59,8 +59,13 @@ def step(name, body):
     )
 
 
+def plain_context(workflow, operation_id, session_factory) -> StepContext:
+    """Stand in for the worker's factory. The engine ships no workflow of its own."""
+    return StepContext(operation_id, session_factory)
+
+
 def run(operation, session_factory):
-    runner.run_operation(operation.id, session_factory, StepContext)
+    runner.run_operation(operation.id, session_factory, plain_context)
 
 
 def enqueue(operation, session_factory):
@@ -390,6 +395,49 @@ def test_an_unknown_operation_type_fails_the_operation(db, scenario, session_fac
         run(operation, session_factory)
 
     assert reload(db, operation).status == OperationStatus.FAILED
+
+
+def test_the_context_is_built_for_the_workflow_the_session_declares(
+    db, scenario, session_factory
+):
+    """The claim carries the workflow name out, so the factory can pick a context."""
+    user, session = scenario
+    step("counts", lambda self, ctx, params: {"n": 7})
+    operation = make_operation(db, session, user, type="counts")
+    asked_for = []
+
+    def remembering_context(workflow, operation_id, factory) -> StepContext:
+        asked_for.append(workflow)
+        return StepContext(operation_id, factory)
+
+    runner.run_operation(operation.id, session_factory, remembering_context)
+
+    assert asked_for == [session.workflow]
+    assert reload(db, operation).status == OperationStatus.COMPLETE
+
+
+def test_an_operation_whose_context_cannot_be_built_fails(
+    db, scenario, session_factory
+):
+    """A workflow this deployment can't build for must not hold the session shut."""
+    user, session = scenario
+    step("counts", lambda self, ctx, params: {"n": 7})
+    unbuildable = make_operation(db, session, user, type="counts")
+
+    def refusing_context(workflow, operation_id, factory) -> StepContext:
+        msg = f"no workflow registered under {workflow!r}"
+        raise LookupError(msg)
+
+    with pytest.raises(LookupError):
+        runner.run_operation(unbuildable.id, session_factory, refusing_context)
+
+    assert reload(db, unbuildable).status == OperationStatus.FAILED
+    assert reload(db, unbuildable).error is not None
+
+    # The running slot was released, so the session is still usable.
+    later = make_operation(db, session, user, type="counts")
+    run(later, session_factory)
+    assert reload(db, later).status == OperationStatus.COMPLETE
 
 
 def test_an_invalid_answer_is_rejected_without_touching_the_operation(

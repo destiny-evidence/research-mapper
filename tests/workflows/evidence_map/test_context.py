@@ -94,3 +94,10 @@ def test_references_can_be_filtered_by_stage(ctx):
     assert {r.destiny_id for r in ctx.references()} == {ONE, TWO}
     gathered = ctx.references(SessionReferenceStage.GATHERED)
     assert [r.destiny_id for r in gathered] == [ONE]
+
+
+def test_the_workflow_declares_this_context():
+    """The worker builds contexts from the registry, so the pairing lives there."""
+    from research_mapper import workflows
+
+    assert workflows.WORKFLOWS["evidence_map"].context is EvidenceMapContext

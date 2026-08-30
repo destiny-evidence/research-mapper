@@ -22,7 +22,7 @@ from research_mapper.engine.models import (
 
 logger = logging.getLogger(__name__)
 
-ContextFactory = Callable[[UUID, SessionFactory], StepContext]
+ContextFactory = Callable[[str, UUID, SessionFactory], StepContext]
 
 
 # A job only comes back round when pgqueuer decided the worker holding it was
@@ -38,7 +38,14 @@ class SessionBusy(Exception):
     """Another operation holds this session's running slot. Try again later."""
 
 
-def _claim(session_factory: SessionFactory, operation_id: UUID) -> bool:
+def _claim(session_factory: SessionFactory, operation_id: UUID) -> str | None:
+    """Take the session's running slot, returning the workflow the session declares."""
+    declared_workflow = (
+        select(ResearchSession.workflow)
+        .where(ResearchSession.id == Operation.research_session_id)
+        .correlate(Operation)
+        .scalar_subquery()
+    )
     with session_factory() as db:
         try:
             claimed = db.execute(
@@ -46,7 +53,7 @@ def _claim(session_factory: SessionFactory, operation_id: UUID) -> bool:
                 .where(Operation.id == operation_id)
                 .where(Operation.status.in_(CLAIMABLE))
                 .values(status=OperationStatus.RUNNING, error=None)
-                .returning(Operation.id)
+                .returning(declared_workflow)
             ).scalar_one_or_none()
             db.commit()
         except IntegrityError as exc:
@@ -56,7 +63,7 @@ def _claim(session_factory: SessionFactory, operation_id: UUID) -> bool:
                 raise
             msg = f"another operation is running on {operation_id}'s session"
             raise SessionBusy(msg) from exc
-    return claimed is not None
+    return claimed
 
 
 def _finish(session_factory: SessionFactory, operation_id: UUID, result: dict) -> None:
@@ -133,10 +140,16 @@ def run_operation(
     context_factory: ContextFactory,
 ) -> None:
     """Run one operation to completion, to a decision, or to failure."""
-    if not _claim(session_factory, operation_id):
+    workflow = _claim(session_factory, operation_id)
+    if workflow is None:
         logger.info("operation %s is not runnable, leaving it alone", operation_id)
         return
-    ctx = context_factory(operation_id, session_factory)
+    try:
+        ctx = context_factory(workflow, operation_id, session_factory)
+    except Exception as exc:
+        logger.exception("operation %s has no context to run in", operation_id)
+        _fail(session_factory, operation_id, exc)
+        raise
     try:
         step_class = registry.get(ctx.operation_type)
         result = step_class().run(ctx, step_class.Params.model_validate(ctx.params))

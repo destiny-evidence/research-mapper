@@ -4,11 +4,11 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
+from research_mapper import workflows
 from research_mapper.api.app import app
 from research_mapper.api.deps import get_session_factory
 from research_mapper.config import init_database
 from research_mapper.engine import registry, runner
-from research_mapper.engine.context import StepContext
 from research_mapper.engine.registry import Step, register
 from research_mapper.engine.views import ArtifactSpec, AskSpec
 
@@ -80,7 +80,7 @@ def work(session_factory) -> None:
             db.query(Operation).filter_by(status=OperationStatus.PENDING).all()
         )
     for operation in pending:
-        runner.run_operation(operation.id, session_factory, StepContext)
+        runner.run_operation(operation.id, session_factory, workflows.context)
 
 
 def test_healthz_needs_no_database(client):

@@ -10,7 +10,7 @@ from research_mapper.models.common import IRI, UserQuery
 from research_mapper.models.mapping import MappingDimensionWithSubTopics
 from research_mapper.models.taxonomy_search import Concept
 from research_mapper.modules.taxonomy_mapping import TaxonomySchemeDimensionGenerator
-from research_mapper.taxonomy import RepoCommunity, build_concept_index, get_taxonomy
+from research_mapper.taxonomy import RepoCommunity, build_concept_index, get_graph
 from research_mapper.workflows.evidence_map import artifacts
 from research_mapper.workflows.evidence_map.context import EvidenceMapContext
 from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
@@ -41,7 +41,7 @@ class GenerateTaxonomyMap(Step[GenerateTaxonomyMapParams, EvidenceMapContext]):
             raise NothingToMap(msg)
 
         community = RepoCommunity(ctx.research_session.community)
-        indexed = build_concept_index(get_taxonomy(community))
+        indexed = build_concept_index(get_graph(community))
         by_iri = {
             indexed.local_ref_to_iri[concept.local_ref]: concept
             for concept in indexed.concepts

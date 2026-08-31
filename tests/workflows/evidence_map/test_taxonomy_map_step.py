@@ -1,4 +1,5 @@
 import uuid
+from unittest.mock import MagicMock
 
 import dspy
 import pytest
@@ -45,8 +46,8 @@ def ctx(db, session, session_factory):
 
 
 def taxonomy(monkeypatch):
-    monkeypatch.setattr(taxonomy_mapping, "get_taxonomy", lambda community: {})
-    monkeypatch.setattr(taxonomy_mapping, "build_concept_index", lambda vocab: VOCAB)
+    monkeypatch.setattr(taxonomy_mapping, "get_graph", lambda community: MagicMock())
+    monkeypatch.setattr(taxonomy_mapping, "build_concept_index", lambda graph: VOCAB)
 
 
 def annotate(monkeypatch, **by_reference):

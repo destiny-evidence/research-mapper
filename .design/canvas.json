@@ -1,0 +1,208 @@
+{
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "MVP"
+    },
+    {
+      "id": "page-2",
+      "name": "Artifacts"
+    },
+    {
+      "id": "page-3",
+      "name": "Not chosen"
+    }
+  ],
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "title": "Running",
+      "page": "page-1",
+      "x": 0,
+      "y": 0,
+      "w": 1180,
+      "h": 900
+    },
+    {
+      "file": "Failed.dc.html",
+      "title": "Failed step",
+      "page": "page-1",
+      "x": 1260,
+      "y": 0,
+      "w": 1180,
+      "h": 760
+    },
+    {
+      "file": "Entry.dc.html",
+      "title": "Sessions",
+      "page": "page-1",
+      "x": 2520,
+      "y": 0,
+      "w": 1180,
+      "h": 560
+    },
+    {
+      "file": "AskSelect.dc.html",
+      "title": "Ask — the agent's own question",
+      "page": "page-1",
+      "x": 0,
+      "y": 1020,
+      "w": 1180,
+      "h": 1180
+    },
+    {
+      "file": "AskEditList.dc.html",
+      "title": "Ask — three at once",
+      "page": "page-1",
+      "x": 1260,
+      "y": 1020,
+      "w": 1180,
+      "h": 950
+    },
+    {
+      "file": "Complete.dc.html",
+      "title": "Done — workflow collapsed",
+      "page": "page-1",
+      "x": 2520,
+      "y": 1020,
+      "w": 1180,
+      "h": 880
+    },
+    {
+      "file": "Reopened.dc.html",
+      "title": "Done — workflow reopened",
+      "page": "page-1",
+      "x": 0,
+      "y": 2320,
+      "w": 1180,
+      "h": 1460
+    },
+    {
+      "file": "ArtQueries.dc.html",
+      "title": "Search queries",
+      "page": "page-2",
+      "x": 0,
+      "y": 0,
+      "w": 1100,
+      "h": 500
+    },
+    {
+      "file": "ArtCriteria.dc.html",
+      "title": "Screening criteria",
+      "page": "page-2",
+      "x": 1180,
+      "y": 0,
+      "w": 1100,
+      "h": 500
+    },
+    {
+      "file": "ArtConcepts.dc.html",
+      "title": "Concept filters",
+      "page": "page-2",
+      "x": 2360,
+      "y": 0,
+      "w": 1100,
+      "h": 580
+    },
+    {
+      "file": "ArtDimensions.dc.html",
+      "title": "Map dimensions",
+      "page": "page-2",
+      "x": 3540,
+      "y": 0,
+      "w": 1100,
+      "h": 520
+    },
+    {
+      "file": "DirectionB.dc.html",
+      "title": "B · Pipeline — mid-run",
+      "page": "page-3",
+      "x": 0,
+      "y": 0,
+      "w": 1180,
+      "h": 840
+    },
+    {
+      "file": "DirectionBAsk.dc.html",
+      "title": "B · Pipeline — the ask",
+      "page": "page-3",
+      "x": 1260,
+      "y": 0,
+      "w": 1180,
+      "h": 840
+    },
+    {
+      "file": "DirectionC.dc.html",
+      "title": "C · Living document — mid-run",
+      "page": "page-3",
+      "x": 2520,
+      "y": 0,
+      "w": 1180,
+      "h": 840
+    },
+    {
+      "file": "DirectionCAsk.dc.html",
+      "title": "C · Living document — the ask",
+      "page": "page-3",
+      "x": 3780,
+      "y": 0,
+      "w": 1180,
+      "h": 840
+    },
+    {
+      "file": "ProvRaw.dc.html",
+      "title": "Raw instrument (not chosen)",
+      "page": "page-3",
+      "x": 5040,
+      "y": 0,
+      "w": 1180,
+      "h": 700
+    }
+  ],
+  "annotations": [
+    {
+      "id": "trace",
+      "page": "page-1",
+      "x": 0,
+      "y": -300,
+      "w": 580,
+      "text": "How it got here\n\nFinished iterations collapse to their tool call, which is the line that identifies them. The failed lookup keeps its colour so the signal survives collapsing. Only the unanswered step is open, and it is open because it is the one your answer lands in.\n\nSame chevron as every other panel — nothing here is a special widget."
+    },
+    {
+      "id": "llm",
+      "page": "page-1",
+      "x": 640,
+      "y": -300,
+      "w": 520,
+      "text": "LLM reasoning\n\nBoxed and labelled. It reads as a quotation from something else rather than as the product talking, which is the whole point — you should never have to work out whether a sentence came from us or from the model."
+    },
+    {
+      "id": "record",
+      "page": "page-1",
+      "x": 1220,
+      "y": -300,
+      "w": 540,
+      "text": "Full record\n\nNot a transcript — a transcript implies a conversation, and this is every operation, decision, artifact and the map. Record is the honest word.\n\nDemoted to a quiet link. It exists for the person who needs it and stays out of everyone else's way.\n\nStill assembled client-side from existing routes. The per-reference endpoint is not needed: nothing in the design surfaces per-reference reasoning any more."
+    },
+    {
+      "id": "art",
+      "page": "page-2",
+      "x": 0,
+      "y": -230,
+      "w": 700,
+      "text": "Everything renders from the artifact payload the client already has, plus a diff of suggested_X against X to mark your edits.\n\nOne line kept because nobody would guess it: concept groups are AND'd across schemes and OR'd within one."
+    },
+    {
+      "id": "rejected",
+      "page": "page-3",
+      "x": 0,
+      "y": -160,
+      "w": 660,
+      "text": "Kept for the record: pipeline, living document, and the raw-instrument provisionality treatment."
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "page-1"
+  }
+}

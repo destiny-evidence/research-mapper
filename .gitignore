@@ -20,3 +20,5 @@ wheels/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
+# Web UI (dist/ is already covered above)
+node_modules/

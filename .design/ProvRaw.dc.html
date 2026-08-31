@@ -1,0 +1,136 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; background: #f7f7f5; color: #4a4843;
+           font-family: 'IBM Plex Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #a8551a; } a:hover { color: #7d3d11; }
+    .m { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; }
+    .lab { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+           font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #a8a49c; }
+  </style>
+</helmet>
+<div class="m" style="width: 1180px; height: 700px; display: flex; flex-direction: column; overflow: hidden; background: #fbfaf8; color: #35332e;">
+
+  <div style="display: flex; align-items: center; gap: 14px; padding: 7px 16px; background: repeating-linear-gradient(135deg, #35332e 0 7px, #4a4740 7px 14px); flex-shrink: 0;">
+    <div style="font-size: 10.5px; letter-spacing: .16em; color: #fbfaf8; font-weight: 600; background: #35332e; padding: 3px 8px;">UNVALIDATED INSTRUMENT OUTPUT &mdash; NOT FOR DECISION-MAKING</div>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 0; padding: 0; border-bottom: 1px solid #c9c5bd; background: #f2f0ea; flex-shrink: 0;">
+    <div style="font-size: 11px; padding: 8px 14px; border-right: 1px solid #c9c5bd; color: #35332e; font-weight: 600;">research-mapper 0.4.1-dev</div>
+    <div style="font-size: 11px; padding: 8px 14px; border-right: 1px solid #c9c5bd; color: #6b6860;">workflow=evidence_map</div>
+    <div style="font-size: 11px; padding: 8px 14px; border-right: 1px solid #c9c5bd; color: #6b6860;">community=hpv</div>
+    <div style="font-size: 11px; padding: 8px 14px; border-right: 1px solid #c9c5bd; color: #6b6860;">head_version=3</div>
+    <div style="font-size: 11px; padding: 8px 14px; color: #6b6860;">session=0a3f9c21-4e7b-4d02-9a11-c8e5f0b7a913</div>
+    <div style="flex-grow: 1;"></div>
+    <div style="font-size: 11px; padding: 8px 14px; border-left: 1px solid #c9c5bd; color: #6b6860;">user=a.hamilton</div>
+  </div>
+
+  <div style="flex-grow: 1; overflow: hidden; display: flex;">
+
+    <div style="width: 430px; flex-shrink: 0; border-right: 1px solid #c9c5bd; overflow: hidden; display: flex; flex-direction: column;">
+
+      <div style="padding: 12px 16px; border-bottom: 1px solid #ddd9d2;">
+        <div style="font-size: 9.5px; letter-spacing: .14em; color: #9b978e; margin-bottom: 7px;">QUESTION</div>
+        <div style="font-size: 11.5px; line-height: 1.55; color: #35332e;">What barriers reduce HPV vaccination uptake among adolescent girls in low- and middle-income countries?</div>
+      </div>
+
+      <div style="padding: 12px 16px; border-bottom: 1px solid #ddd9d2;">
+        <div style="font-size: 9.5px; letter-spacing: .14em; color: #9b978e; margin-bottom: 8px;">OPERATIONS</div>
+        <div style="display: grid; grid-template-columns: 1fr 92px 26px 62px; gap: 4px 10px; font-size: 10.5px; line-height: 1.7;">
+          <div style="color: #9b978e;">type</div><div style="color: #9b978e;">status</div><div style="color: #9b978e;">att</div><div style="color: #9b978e;">progress</div>
+          <div>sparse_query</div><div style="color: #6b6860;">complete</div><div style="color: #6b6860;">1</div><div style="color: #6b6860;">6/6</div>
+          <div>retrieve</div><div style="color: #6b6860;">complete</div><div style="color: #a04030;">2</div><div style="color: #6b6860;">412/412</div>
+          <div>screening</div><div style="color: #6b6860;">complete</div><div style="color: #6b6860;">1</div><div style="color: #6b6860;">409/412 f=3</div>
+          <div>concept_filters</div><div style="color: #a8551a;">awaiting_input</div><div style="color: #6b6860;">1</div><div style="color: #6b6860;">&mdash;</div>
+          <div>taxonomy_mapping</div><div style="color: #6b6860;">complete</div><div style="color: #6b6860;">1</div><div style="color: #6b6860;">3/3</div>
+          <div>mapping</div><div style="color: #35332e;">running</div><div style="color: #6b6860;">1</div><div style="color: #6b6860;">61/94</div>
+        </div>
+      </div>
+
+      <div style="padding: 12px 16px; border-bottom: 1px solid #ddd9d2;">
+        <div style="font-size: 9.5px; letter-spacing: .14em; color: #9b978e; margin-bottom: 8px;">SESSION_REFERENCES BY STAGE</div>
+        <div style="display: grid; grid-template-columns: 90px 1fr; gap: 3px 12px; font-size: 10.5px; line-height: 1.7;">
+          <div style="color: #6b6860;">gathered</div><div>412</div>
+          <div style="color: #6b6860;">included</div><div>94</div>
+          <div style="color: #6b6860;">excluded</div><div>315</div>
+          <div style="color: #6b6860;">mapped</div><div>61</div>
+          <div style="color: #a04030;">failed</div><div style="color: #a04030;">3</div>
+        </div>
+      </div>
+
+      <div style="padding: 12px 16px;">
+        <div style="font-size: 9.5px; letter-spacing: .14em; color: #9b978e; margin-bottom: 8px;">ARTIFACTS</div>
+        <div style="display: grid; grid-template-columns: 1fr 34px; gap: 3px 10px; font-size: 10.5px; line-height: 1.7;">
+          <div>search_queries</div><div style="color: #6b6860;">v2</div>
+          <div>screening_criteria</div><div style="color: #6b6860;">v2</div>
+          <div>suggested_concept_filters</div><div style="color: #6b6860;">v1</div>
+          <div>dimensions</div><div style="color: #6b6860;">v1</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="flex-grow: 1; overflow: hidden; display: flex; flex-direction: column;">
+      <div style="padding: 12px 16px; border-bottom: 1px solid #ddd9d2;">
+        <div style="font-size: 9.5px; letter-spacing: .14em; color: #9b978e; margin-bottom: 6px;">MAPPED_EVIDENCE &mdash; COORDINATE COUNTS</div>
+        <div style="font-size: 10.5px; color: #6b6860; line-height: 1.5;">dim[0]=barrier &nbsp; dim[1]=delivery_setting &nbsp; dim[2]=study_design (collapsed)</div>
+      </div>
+
+      <div style="padding: 14px 16px; overflow: hidden;">
+        <div style="display: grid; grid-template-columns: 168px repeat(3, minmax(0, 1fr)); gap: 0;">
+          <div style="font-size: 9.5px; color: #9b978e; padding: 6px 8px; border-bottom: 1px solid #c9c5bd;"></div>
+          <div style="font-size: 9.5px; color: #9b978e; padding: 6px 8px; border-bottom: 1px solid #c9c5bd; border-left: 1px solid #ddd9d2;">school_based</div>
+          <div style="font-size: 9.5px; color: #9b978e; padding: 6px 8px; border-bottom: 1px solid #c9c5bd; border-left: 1px solid #ddd9d2;">health_facility</div>
+          <div style="font-size: 9.5px; color: #9b978e; padding: 6px 8px; border-bottom: 1px solid #c9c5bd; border-left: 1px solid #ddd9d2;">community_outreach</div>
+
+          <div style="font-size: 10.5px; padding: 9px 8px; border-bottom: 1px solid #e4e1db;">cost_and_access</div>
+          <div style="font-size: 12px; padding: 9px 8px; border-bottom: 1px solid #e4e1db; border-left: 1px solid #ddd9d2;">9</div>
+          <div style="font-size: 12px; padding: 9px 8px; border-bottom: 1px solid #e4e1db; border-left: 1px solid #ddd9d2;">14</div>
+          <div style="font-size: 12px; padding: 9px 8px; border-bottom: 1px solid #e4e1db; border-left: 1px solid #ddd9d2;">4</div>
+
+          <div style="font-size: 10.5px; padding: 9px 8px; border-bottom: 1px solid #e4e1db;">vaccine_hesitancy</div>
+          <div style="font-size: 12px; padding: 9px 8px; border-bottom: 1px solid #e4e1db; border-left: 1px solid #ddd9d2;">12</div>
+          <div style="font-size: 12px; padding: 9px 8px; border-bottom: 1px solid #e4e1db; border-left: 1px solid #ddd9d2;">7</div>
+          <div style="font-size: 12px; padding: 9px 8px; border-bottom: 1px solid #e4e1db; border-left: 1px solid #ddd9d2; color: #c2beb5;">0</div>
+
+          <div style="font-size: 10.5px; padding: 9px 8px; border-bottom: 1px solid #e4e1db;">parental_refusal</div>
+          <div style="font-size: 12px; padding: 9px 8px; border-bottom: 1px solid #e4e1db; border-left: 1px solid #ddd9d2;">11</div>
+          <div style="font-size: 12px; padding: 9px 8px; border-bottom: 1px solid #e4e1db; border-left: 1px solid #ddd9d2;">4</div>
+          <div style="font-size: 12px; padding: 9px 8px; border-bottom: 1px solid #e4e1db; border-left: 1px solid #ddd9d2; color: #c2beb5;">0</div>
+
+          <div style="font-size: 10.5px; padding: 9px 8px; border-bottom: 1px solid #e4e1db; color: #9b978e;">health_system_capacity</div>
+          <div style="font-size: 10.5px; padding: 9px 8px; border-bottom: 1px solid #e4e1db; border-left: 1px solid #ddd9d2; color: #9b978e;">pending</div>
+          <div style="font-size: 10.5px; padding: 9px 8px; border-bottom: 1px solid #e4e1db; border-left: 1px solid #ddd9d2; color: #9b978e;">pending</div>
+          <div style="font-size: 10.5px; padding: 9px 8px; border-bottom: 1px solid #e4e1db; border-left: 1px solid #ddd9d2; color: #9b978e;">pending</div>
+
+          <div style="font-size: 10.5px; padding: 9px 8px; color: #9b978e;">misinformation</div>
+          <div style="font-size: 12px; padding: 9px 8px; border-left: 1px solid #ddd9d2; color: #c2beb5;">0</div>
+          <div style="font-size: 12px; padding: 9px 8px; border-left: 1px solid #ddd9d2; color: #c2beb5;">0</div>
+          <div style="font-size: 12px; padding: 9px 8px; border-left: 1px solid #ddd9d2; color: #c2beb5;">0</div>
+        </div>
+
+        <div style="font-size: 10px; color: #6b6860; margin-top: 14px; line-height: 1.6; max-width: 560px; border-left: 2px solid #c9c5bd; padding-left: 10px;">0 = no included reference carried this coordinate. Absence here is not evidence of absence in the literature. 33 of 94 included references carry no coordinate at all and appear nowhere in this table.</div>
+      </div>
+
+      <div style="flex-grow: 1;"></div>
+
+      <div style="display: flex; align-items: center; gap: 12px; padding: 9px 16px; border-top: 1px solid #c9c5bd; background: #f2f0ea; flex-shrink: 0;">
+        <div style="font-size: 10.5px; color: #a8551a;">concept_filters awaiting_input &mdash; decision key=filter_groups type=select_many</div>
+        <div style="flex-grow: 1;"></div>
+        <div style="font-size: 10.5px; color: #fbfaf8; background: #35332e; padding: 6px 14px;">RESPOND</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<div style="width: 1180px; height: 880px; display: flex; flex-direction: column; overflow: hidden; background: #f7f7f5;">
+<div style="display: flex; align-items: center; gap: 14px; height: 54px; padding: 0 20px; background: #ffffff; border-bottom: 1px solid #ddd9d2; flex-shrink: 0;">
+  <div style="display: flex; align-items: center; gap: 9px;">
+    <div class="m" style="width: 22px; height: 22px; border-radius: 3px; background: #2b2a27; color: #f7f7f5; display: grid; place-items: center; font-size: 10px; font-weight: 600;">RM</div>
+    <div style="font-size: 13px; font-weight: 500; color: #2b2a27;">research-mapper</div>
+  </div>
+  <div style="color: #cfcbc3; font-size: 13px;">/</div>
+  <div style="font-size: 12.5px; color: #86837c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 520px;">Barriers to HPV vaccination uptake in LMICs</div>
+  <div style="flex-grow: 1;"></div>
+  <div class="m" style="width: 24px; height: 24px; border-radius: 50%; background: #e9e7e2; color: #86837c; display: grid; place-items: center; font-size: 9.5px;">AH</div>
+</div>
+<div style="display: flex; align-items: stretch; background: #fdf6ec; border-bottom: 1px solid #e3c9a8; flex-shrink: 0;">
+  <div style="width: 5px; background: repeating-linear-gradient(135deg, #a8551a 0 4px, #d9a45f 4px 8px); flex-shrink: 0;"></div>
+  <div style="display: flex; align-items: center; gap: 12px; padding: 9px 18px; flex-grow: 1;">
+    <div class="m" style="font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #a8551a; font-weight: 600; flex-shrink: 0;">Draft</div>
+    <div style="font-size: 12.5px; color: #7d3d11; line-height: 1.45;">This is an experimental workflow that is still being built. Nothing here has been checked. Do not use it to make decisions.</div>
+    <div style="flex-grow: 1;"></div>
+    <div style="font-size: 12.5px; color: #a8551a; text-decoration: underline; flex-shrink: 0;">What this means</div>
+  </div>
+</div>
+
+  <div style="flex-grow: 1; overflow: hidden; display: flex; justify-content: center; padding: 0 24px;">
+    <div style="width: 830px; display: flex; flex-direction: column; padding-top: 20px;">
+
+      <div style="display: flex; gap: 14px; opacity: .55;">
+        <div style="display: flex; flex-direction: column; align-items: center; width: 22px; flex-shrink: 0;">
+          <div style="width: 22px; height: 22px; border-radius: 50%; border: 1px solid #b3b0a9; background: #ffffff; display: grid; place-items: center;"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#6f6b63" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.4 L4.6 9 L10 3"></path></svg></div>
+          <div style="flex-grow: 1; width: 1px; background: #ddd9d2;"></div>
+        </div>
+        <div style="flex-grow: 1; padding-bottom: 18px;">
+          <div style="font-size: 14px; color: #2b2a27; font-weight: 500;">Decided which references to keep</div>
+          <div style="font-size: 12.5px; color: #86837c; margin-top: 3px;">Keeping 94 &middot; setting aside 315 &middot; could not decide 3</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 14px;">
+        <div style="display: flex; flex-direction: column; align-items: center; width: 22px; flex-shrink: 0;">
+          <div style="width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #a8551a; background: #fdf6ec; display: grid; place-items: center;"><svg width="9" height="9" viewBox="0 0 10 10" fill="#a8551a"><rect x="2" y="1.5" width="2.2" height="7" rx="0.6"></rect><rect x="5.8" y="1.5" width="2.2" height="7" rx="0.6"></rect></svg></div>
+          <div style="flex-grow: 1; width: 1px; background: #ddd9d2;"></div>
+        </div>
+        <div style="flex-grow: 1; padding-bottom: 16px;">
+          <div style="background: #ffffff; border: 1.5px solid #a8551a; border-radius: 4px; overflow: hidden;">
+
+            <div style="padding: 17px 20px 15px 20px;">
+              <div class="lab" style="color: #a8551a; margin-bottom: 9px;">Waiting for you</div>
+              <div style="font-size: 16.5px; line-height: 1.4; color: #2b2a27; font-weight: 500; max-width: 620px; text-wrap: pretty;">Which groups of concepts should the map sort your references by?</div>
+              <div style="font-size: 12.5px; line-height: 1.5; color: #86837c; margin-top: 8px; max-width: 640px; text-wrap: pretty;">You can change this later and the map will be rebuilt.</div>
+
+              <div style="margin-top: 15px; padding-left: 15px; border-left: 1px solid #ddd9d2;">
+                <div class="lab" style="margin-bottom: 6px;">In its own words</div>
+                <div class="said" style="max-width: 680px; text-wrap: pretty;">I looked for concepts about equity and found nothing usable in this vocabulary, so the map will not be able to separate studies that way. The first two groups are the ones that actually divide your 94 references. The other two either apply to nearly every reference or to almost none, so they would make a thin map.</div>
+                <div style="display: flex; align-items: center; gap: 7px; margin-top: 11px;">
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#a8551a" stroke-width="1.5" stroke-linecap="round"><path d="M3 4.8 L6 7.8 L9 4.8"></path></svg>
+                  <div style="font-size: 12px; color: #a8551a;">Show the 7 steps it took to work this out</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="border-top: 1px solid #ecebe6; padding: 15px 20px; display: flex; flex-direction: column; gap: 9px;">
+              <div style="display: flex; gap: 12px; align-items: flex-start; background: #fdf9f3; border: 1px solid #e3c9a8; border-radius: 3px; padding: 12px 14px;">
+                <div style="width: 15px; height: 15px; border-radius: 3px; background: #a8551a; display: grid; place-items: center; flex-shrink: 0; margin-top: 2px;"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.4 L4.6 9 L10 3"></path></svg></div>
+                <div style="flex-grow: 1;">
+                  <div style="font-size: 13.5px; color: #2b2a27; font-weight: 500;">Barriers to vaccination</div>
+                  <div style="font-size: 12.5px; color: #4a4843; margin-top: 4px; line-height: 1.45;">vaccine hesitancy, misinformation, parental refusal</div>
+                </div>
+                <div style="font-size: 12px; color: #86837c; flex-shrink: 0; margin-top: 2px;">61 of 94</div>
+              </div>
+
+              <div style="display: flex; gap: 12px; align-items: flex-start; background: #fdf9f3; border: 1px solid #e3c9a8; border-radius: 3px; padding: 12px 14px;">
+                <div style="width: 15px; height: 15px; border-radius: 3px; background: #a8551a; display: grid; place-items: center; flex-shrink: 0; margin-top: 2px;"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.4 L4.6 9 L10 3"></path></svg></div>
+                <div style="flex-grow: 1;">
+                  <div style="font-size: 13.5px; color: #2b2a27; font-weight: 500;">Where the vaccine is given</div>
+                  <div style="font-size: 12.5px; color: #4a4843; margin-top: 4px; line-height: 1.45;">school-based, health facility, community outreach</div>
+                </div>
+                <div style="font-size: 12px; color: #86837c; flex-shrink: 0; margin-top: 2px;">58 of 94</div>
+              </div>
+
+              <div style="display: flex; gap: 12px; align-items: flex-start; border: 1px solid #e4e1db; border-radius: 3px; padding: 12px 14px;">
+                <div style="width: 15px; height: 15px; border-radius: 3px; border: 1px solid #b3b0a9; background: #ffffff; flex-shrink: 0; margin-top: 2px;"></div>
+                <div style="flex-grow: 1;">
+                  <div style="font-size: 13.5px; color: #2b2a27; font-weight: 500;">Who was studied</div>
+                  <div style="font-size: 12.5px; color: #4a4843; margin-top: 4px; line-height: 1.45;">adolescent girls, caregivers, health workers</div>
+                </div>
+                <div style="font-size: 12px; color: #86837c; flex-shrink: 0; margin-top: 2px;">94 of 94</div>
+              </div>
+
+              <div style="display: flex; gap: 12px; align-items: flex-start; border: 1px solid #e4e1db; border-radius: 3px; padding: 12px 14px;">
+                <div style="width: 15px; height: 15px; border-radius: 3px; border: 1px solid #b3b0a9; background: #ffffff; flex-shrink: 0; margin-top: 2px;"></div>
+                <div style="flex-grow: 1;">
+                  <div style="font-size: 13.5px; color: #2b2a27; font-weight: 500;">What was measured</div>
+                  <div style="font-size: 12.5px; color: #4a4843; margin-top: 4px; line-height: 1.45;">dose completion, coverage rate, intention to vaccinate</div>
+                </div>
+                <div style="font-size: 12px; color: #86837c; flex-shrink: 0; margin-top: 2px;">12 of 94</div>
+              </div>
+            </div>
+
+            <div style="border-top: 1px solid #ecebe6; background: #fbfaf7; padding: 14px 20px; display: flex; align-items: center; gap: 12px;">
+              <div style="font-size: 12.5px; color: #86837c;">Choose between 1 and 3</div>
+              <div style="flex-grow: 1;"></div>
+              <div style="font-size: 12.5px; color: #86837c; padding: 8px 12px;">Ask for different groups</div>
+              <div style="font-size: 12.5px; color: #f7f7f5; background: #2b2a27; border-radius: 3px; padding: 9px 20px; font-weight: 500;">Continue</div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 14px;">
+        <div style="display: flex; flex-direction: column; align-items: center; width: 22px; flex-shrink: 0;">
+          <div style="width: 22px; height: 22px; border-radius: 50%; border: 1px dashed #cfcbc3; background: #f7f7f5;"></div>
+          <div style="flex-grow: 1; width: 1px; background: #e9e7e2;"></div>
+        </div>
+        <div style="flex-grow: 1; padding-bottom: 14px;">
+          <div style="display: flex; align-items: baseline; gap: 10px;">
+            <div style="font-size: 13.5px; color: #a8a49c;">Agree the map's three dimensions</div>
+            <div class="lab" style="color: #b8b4ac;">will ask you</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 14px;">
+        <div style="display: flex; flex-direction: column; align-items: center; width: 22px; flex-shrink: 0;">
+          <div style="width: 22px; height: 22px; border-radius: 50%; border: 1px dashed #cfcbc3; background: #f7f7f5;"></div>
+        </div>
+        <div style="flex-grow: 1;">
+          <div style="font-size: 13.5px; color: #a8a49c;">Place the evidence on the map</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

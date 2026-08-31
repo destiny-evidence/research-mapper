@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Literata:opsz,wght@7..72,400&display=swap">
+  <style>
+    body { margin: 0; background: #f4f3f0; color: #4a4843;
+           font-family: 'IBM Plex Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #a8551a; } a:hover { color: #7d3d11; }
+    .m { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; }
+    .lab { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+           font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase; color: #a09c94; }
+    .said { font-family: 'Literata', Charter, Georgia, ui-serif, serif;
+            font-size: 11.5px; line-height: 1.5; color: #8a867e; }
+  </style>
+</helmet>
+<div style="width: 1100px; box-sizing: border-box; padding: 30px 40px; background: #f4f3f0; display: flex; flex-direction: column;">
+  <div style="background: #ffffff; border: 1px solid #d6d2ca;">
+    <div style="display: flex; align-items: center; gap: 13px; padding: 11px 14px; border-bottom: 1px solid #e0ddd6; background: #f7f6f2;">
+      <div style="width: 18px; height: 18px; border-radius: 50%; border: 1px solid #b3b0a9; background: #ffffff; display: grid; place-items: center; flex-shrink: 0;"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#6f6b63" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.4 L4.6 9 L10 3"></path></svg></div>
+      <div style="font-size: 13px; color: #2b2a27; font-weight: 500; width: 168px; flex-shrink: 0;">Concept filters</div>
+      <div style="font-size: 12.5px; color: #86837c; flex-grow: 1;">2 groups &middot; 6 concepts</div>
+      <div style="width: 20px; height: 20px; border: 1px solid #b3b0a9; background: #ebe8e2; display: grid; place-items: center; flex-shrink: 0;"><svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#4a4843" stroke-width="1.6" stroke-linecap="round"><path d="M3 7.5 L6 4.5 L9 7.5"></path></svg></div>
+    </div>
+    <div style="padding: 14px 14px 16px 45px;">
+      <div style="padding-bottom: 14px; border-bottom: 1px solid #e6e3dc;">
+        <div style="display: flex; align-items: baseline; gap: 10px;">
+          <div style="font-size: 13.5px; color: #2b2a27; font-weight: 500;">hpv-barriers</div>
+          <div class="lab" style="color: #a09c94;">scheme</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 3px; margin-top: 9px;">
+          <div style="display: flex; align-items: baseline; gap: 12px;"><div style="font-size: 12.5px; color: #2b2a27; width: 220px;">Vaccine Hesitancy</div><div class="m" style="font-size: 11px; color: #a09c94;">b12</div></div>
+          <div style="display: flex; align-items: baseline; gap: 12px;"><div style="font-size: 12.5px; color: #2b2a27; width: 220px;">Parental Refusal</div><div class="m" style="font-size: 11px; color: #a09c94;">b13</div></div>
+          <div style="display: flex; align-items: baseline; gap: 12px;"><div style="font-size: 12.5px; color: #2b2a27; width: 220px;">Out-of-pocket Cost</div><div class="m" style="font-size: 11px; color: #a09c94;">b04</div></div>
+        </div>
+        <div style="background: #f2f0eb; border: 1px solid #e0ddd6; padding: 9px 11px; max-width: 640px; margin-top: 9px;"><span class="m" style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #a09c94;">LLM reasoning:</span> <span class="said">&ldquo;The three barrier concepts the question turns on, kept at the parent level rather than their narrower children so the map does not fragment.&rdquo;</span></div>
+      </div>
+      <div style="padding: 14px 0 0 0;">
+        <div style="display: flex; align-items: baseline; gap: 10px;">
+          <div style="font-size: 13.5px; color: #2b2a27; font-weight: 500;">delivery-setting</div>
+          <div class="lab" style="color: #a09c94;">scheme</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 3px; margin-top: 9px;">
+          <div style="display: flex; align-items: baseline; gap: 12px;"><div style="font-size: 12.5px; color: #2b2a27; width: 220px;">School-based Delivery</div><div class="m" style="font-size: 11px; color: #a09c94;">d02</div></div>
+          <div style="display: flex; align-items: baseline; gap: 12px;"><div style="font-size: 12.5px; color: #2b2a27; width: 220px;">Health Facility Delivery</div><div class="m" style="font-size: 11px; color: #a09c94;">d03</div></div>
+          <div style="display: flex; align-items: baseline; gap: 12px;"><div style="font-size: 12.5px; color: #2b2a27; width: 220px;">Community Outreach</div><div class="m" style="font-size: 11px; color: #a09c94;">d05</div></div>
+        </div>
+        <div style="background: #f2f0eb; border: 1px solid #e0ddd6; padding: 9px 11px; max-width: 640px; margin-top: 9px;"><span class="m" style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #a09c94;">LLM reasoning:</span> <span class="said">&ldquo;You asked for both readings kept apart, so delivery setting comes in as its own group rather than being folded into barriers.&rdquo;</span></div>
+      </div>
+      <div style="background: #f2f0eb; border: 1px solid #e0ddd6; padding: 9px 11px; max-width: 640px; margin-top: 18px;"><span class="m" style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #a09c94;">LLM reasoning:</span> <span class="said">&ldquo;Groups are AND&#39;d across schemes and OR&#39;d within one, so a reference needs a barrier concept and a delivery concept to be kept. Nothing in this vocabulary expresses equity, so the map cannot split on it.&rdquo;</span></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

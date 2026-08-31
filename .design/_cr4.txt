@@ -1,0 +1,31 @@
+    <div style="display: flex; align-items: center; gap: 13px; padding: 11px 14px; border-bottom: 1px solid #e0ddd6; background: #f7f6f2;">
+      <div style="width: 18px; height: 18px; border-radius: 50%; border: 1px solid #b3b0a9; background: #ffffff; display: grid; place-items: center; flex-shrink: 0;"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#6f6b63" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.4 L4.6 9 L10 3"></path></svg></div>
+      <div style="font-size: 13px; color: #2b2a27; font-weight: 500; width: 168px; flex-shrink: 0;">Screening criteria</div>
+      <div style="font-size: 12.5px; color: #86837c; flex-grow: 1;">kept 4 of 5, added 1</div>
+      <div style="width: 20px; height: 20px; border: 1px solid #b3b0a9; background: #ebe8e2; display: grid; place-items: center; flex-shrink: 0;"><svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#4a4843" stroke-width="1.6" stroke-linecap="round"><path d="M3 7.5 L6 4.5 L9 7.5"></path></svg></div>
+    </div>
+    <div style="padding: 14px 14px 16px 45px;">
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px;">
+        <div>
+          <div class="lab" style="color: #3d3b36; padding-bottom: 7px; border-bottom: 1px solid #d6d2ca;">Inclusion</div>
+          <div style="font-size: 12.5px; color: #2b2a27; line-height: 1.5; padding: 10px 0; border-bottom: 1px solid #eeebe5;">Reports HPV vaccination uptake or coverage as an outcome</div>
+          <div style="font-size: 12.5px; color: #2b2a27; line-height: 1.5; padding: 10px 0; border-bottom: 1px solid #eeebe5;">Study setting is a low- or middle-income country</div>
+          <div style="font-size: 12.5px; color: #2b2a27; line-height: 1.5; padding: 10px 0; border-bottom: 1px solid #eeebe5;">Participants include adolescent girls, caregivers, or the health workers vaccinating them</div>
+          <div style="display: flex; align-items: flex-start; gap: 10px; padding: 10px 0;">
+            <div style="font-size: 12.5px; color: #2b2a27; line-height: 1.5; flex-grow: 1;">Names at least one barrier, whether or not it measures one</div>
+            <div class="lab" style="color: #a8551a; flex-shrink: 0; margin-top: 2px;">you added</div>
+          </div>
+        </div>
+        <div>
+          <div class="lab" style="color: #3d3b36; padding-bottom: 7px; border-bottom: 1px solid #d6d2ca;">Exclusion</div>
+          <div style="font-size: 12.5px; color: #2b2a27; line-height: 1.5; padding: 10px 0; border-bottom: 1px solid #eeebe5;">Published before 2010</div>
+          <div style="font-size: 12.5px; color: #2b2a27; line-height: 1.5; padding: 10px 0; border-bottom: 1px solid #eeebe5;">Every study site is in a high-income country</div>
+          <div style="display: flex; align-items: flex-start; gap: 10px; padding: 10px 0;">
+            <div style="font-size: 12.5px; color: #b8b4ac; line-height: 1.5; flex-grow: 1; text-decoration: line-through;">Modelling study with no primary data</div>
+            <div class="lab" style="color: #a09c94; flex-shrink: 0; margin-top: 2px;">you removed</div>
+          </div>
+        </div>
+      </div>
+      <div class="lab" style="margin: 18px 0 5px 0;">Reasoning</div>
+      <div class="said" style="max-width: 660px;">I added a criterion requiring a reported uptake figure. Not confident about this one. Qualitative studies often describe barriers without any uptake number and it will exclude them.</div>
+    </div>

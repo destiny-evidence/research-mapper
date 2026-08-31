@@ -1,0 +1,78 @@
+    <div style="display: flex; align-items: center; gap: 13px; padding: 11px 14px; border-bottom: 1px solid #e0ddd6; background: #f7f6f2;">
+      <div style="width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #2b2a27; background: #ffffff; display: grid; place-items: center; flex-shrink: 0;"><svg width="8" height="8" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#2b2a27"></circle></svg></div>
+      <div style="font-size: 13px; color: #2b2a27; font-weight: 500; width: 168px; flex-shrink: 0;">How it got there</div>
+      <div style="font-size: 12.5px; color: #86837c; flex-grow: 1;">6 steps run &middot; 1 proposed</div>
+      <div style="width: 20px; height: 20px; border: 1px solid #b3b0a9; background: #ebe8e2; display: grid; place-items: center; flex-shrink: 0;"><svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#4a4843" stroke-width="1.6" stroke-linecap="round"><path d="M3 7.5 L6 4.5 L9 7.5"></path></svg></div>
+    </div>
+
+    <div style="padding: 6px 14px 16px 45px;">
+
+      <div style="display: flex; gap: 14px; padding: 13px 0; border-bottom: 1px solid #eeebe5;">
+        <div class="m" style="font-size: 11px; color: #c4c0b8; width: 16px; flex-shrink: 0; padding-top: 2px;">1</div>
+        <div style="flex-grow: 1;">
+          <div class="said" style="max-width: 640px; font-size: 12.5px;">Start with the barrier language, since that is what the question turns on.</div>
+          <div class="m" style="font-size: 11.5px; color: #2b2a27; background: #f2f0eb; padding: 7px 10px; margin-top: 9px; display: inline-block;">taxonomy_search(query="vaccine hesitancy", scheme="hpv")</div>
+          <div class="m" style="font-size: 11px; color: #86837c; margin-top: 7px;">&rarr; 14 concepts</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 14px; padding: 13px 0; border-bottom: 1px solid #eeebe5;">
+        <div class="m" style="font-size: 11px; color: #c4c0b8; width: 16px; flex-shrink: 0; padding-top: 2px;">2</div>
+        <div style="flex-grow: 1;">
+          <div class="said" style="max-width: 640px; font-size: 12.5px;">Hesitancy and refusal are separate concepts in this vocabulary. Check refusal too.</div>
+          <div class="m" style="font-size: 11.5px; color: #2b2a27; background: #f2f0eb; padding: 7px 10px; margin-top: 9px; display: inline-block;">taxonomy_search(query="parental refusal", scheme="hpv")</div>
+          <div class="m" style="font-size: 11px; color: #86837c; margin-top: 7px;">&rarr; 6 concepts</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 14px; padding: 13px 0; border-bottom: 1px solid #eeebe5;">
+        <div class="m" style="font-size: 11px; color: #c4c0b8; width: 16px; flex-shrink: 0; padding-top: 2px;">3</div>
+        <div style="flex-grow: 1;">
+          <div class="said" style="max-width: 640px; font-size: 12.5px;">Twenty concepts is more than the map can use. Find out which ones the kept references actually carry.</div>
+          <div class="m" style="font-size: 11.5px; color: #2b2a27; background: #f2f0eb; padding: 7px 10px; margin-top: 9px; display: inline-block;">count_annotations(concepts=[20 IRIs], stage="included")</div>
+          <div class="m" style="font-size: 11px; color: #86837c; margin-top: 7px;">&rarr; 3 concepts on more than 15 refs, 17 on fewer than 5</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 14px; padding: 13px 0; border-bottom: 1px solid #eeebe5; background: #fbf7f6; margin: 0 -8px; padding-left: 8px; padding-right: 8px;">
+        <div class="m" style="font-size: 11px; color: #c48b80; width: 16px; flex-shrink: 0; padding-top: 2px;">4</div>
+        <div style="flex-grow: 1;">
+          <div class="said" style="max-width: 640px; font-size: 12.5px;">Equity is usually a dimension in this literature. Worth a look.</div>
+          <div class="m" style="font-size: 11.5px; color: #2b2a27; background: #f2f0eb; padding: 7px 10px; margin-top: 9px; display: inline-block;">taxonomy_search(query="equity", scheme="hpv")</div>
+          <div class="m" style="font-size: 11px; color: #9c3a2f; margin-top: 7px;">&rarr; 0 concepts</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 14px; padding: 13px 0; border-bottom: 1px solid #eeebe5;">
+        <div class="m" style="font-size: 11px; color: #c4c0b8; width: 16px; flex-shrink: 0; padding-top: 2px;">5</div>
+        <div style="flex-grow: 1;">
+          <div class="said" style="max-width: 640px; font-size: 12.5px;">Nothing there. This vocabulary has no equity axis, so the map cannot have one. Move to delivery setting.</div>
+          <div class="m" style="font-size: 11.5px; color: #2b2a27; background: #f2f0eb; padding: 7px 10px; margin-top: 9px; display: inline-block;">taxonomy_search(query="delivery setting", scheme="hpv")</div>
+          <div class="m" style="font-size: 11px; color: #86837c; margin-top: 7px;">&rarr; 9 concepts</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 14px; padding: 13px 0; border-bottom: 1px solid #d6d2ca;">
+        <div class="m" style="font-size: 11px; color: #c4c0b8; width: 16px; flex-shrink: 0; padding-top: 2px;">6</div>
+        <div style="flex-grow: 1;">
+          <div class="said" style="max-width: 640px; font-size: 12.5px;">Same coverage check on the delivery concepts.</div>
+          <div class="m" style="font-size: 11.5px; color: #2b2a27; background: #f2f0eb; padding: 7px 10px; margin-top: 9px; display: inline-block;">count_annotations(concepts=[9 IRIs], stage="included")</div>
+          <div class="m" style="font-size: 11px; color: #86837c; margin-top: 7px;">&rarr; 3 concepts on 58 of 94 refs</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 14px; padding: 15px 12px; margin: 14px -12px 0 -12px; border: 1px dashed #a8551a; background: #fdfaf5;">
+        <div class="m" style="font-size: 11px; color: #a8551a; width: 16px; flex-shrink: 0; padding-top: 2px;">7</div>
+        <div style="flex-grow: 1;">
+          <div class="lab" style="color: #a8551a; margin-bottom: 7px;">Proposed &mdash; not run yet</div>
+          <div class="said" style="max-width: 640px; font-size: 12.5px;">Enough to offer a choice. Four groups, ordered by how well each one divides the 94.</div>
+          <div class="m" style="font-size: 11.5px; color: #2b2a27; background: #ffffff; border: 1px solid #ddc59d; padding: 7px 10px; margin-top: 9px; display: inline-block;">propose_filter_groups(groups=4, min_coverage=0.1)</div>
+          <div style="display: flex; align-items: center; gap: 10px; margin-top: 13px;">
+            <div style="font-size: 12px; color: #f4f3f0; background: #2b2a27; padding: 7px 16px; font-weight: 500;">Let it run</div>
+            <div style="font-size: 12px; color: #4a4843; border: 1px solid #b3b0a9; padding: 7px 13px; background: #ffffff;">Change the arguments</div>
+            <div style="font-size: 12px; color: #4a4843; border: 1px solid #b3b0a9; padding: 7px 13px; background: #ffffff;">Stop here</div>
+          </div>
+        </div>
+      </div>
+
+    </div>

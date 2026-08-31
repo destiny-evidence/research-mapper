@@ -1,0 +1,19 @@
+<div style="display: flex; align-items: center; gap: 14px; height: 54px; padding: 0 20px; background: #ffffff; border-bottom: 1px solid #ddd9d2; flex-shrink: 0;">
+  <div style="display: flex; align-items: center; gap: 9px;">
+    <div class="m" style="width: 22px; height: 22px; border-radius: 3px; background: #2b2a27; color: #f7f7f5; display: grid; place-items: center; font-size: 10px; font-weight: 600;">RM</div>
+    <div style="font-size: 13px; font-weight: 500; color: #2b2a27;">research-mapper</div>
+  </div>
+  <div style="color: #cfcbc3; font-size: 13px;">/</div>
+  <div style="font-size: 12.5px; color: #86837c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 520px;">Barriers to HPV vaccination uptake in LMICs</div>
+  <div style="flex-grow: 1;"></div>
+  <div class="m" style="width: 24px; height: 24px; border-radius: 50%; background: #e9e7e2; color: #86837c; display: grid; place-items: center; font-size: 9.5px;">AH</div>
+</div>
+<div style="display: flex; align-items: stretch; background: #fdf6ec; border-bottom: 1px solid #e3c9a8; flex-shrink: 0;">
+  <div style="width: 5px; background: repeating-linear-gradient(135deg, #a8551a 0 4px, #d9a45f 4px 8px); flex-shrink: 0;"></div>
+  <div style="display: flex; align-items: center; gap: 12px; padding: 9px 18px; flex-grow: 1;">
+    <div class="m" style="font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #a8551a; font-weight: 600; flex-shrink: 0;">Draft</div>
+    <div style="font-size: 12.5px; color: #7d3d11; line-height: 1.45;">This is an experimental workflow that is still being built. Nothing here has been checked. Do not use it to make decisions.</div>
+    <div style="flex-grow: 1;"></div>
+    <div style="font-size: 12.5px; color: #a8551a; text-decoration: underline; flex-shrink: 0;">What this means</div>
+  </div>
+</div>

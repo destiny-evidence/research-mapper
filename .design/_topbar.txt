@@ -1,0 +1,12 @@
+<div style="display: flex; align-items: center; gap: 14px; height: 54px; padding: 0 20px; background: #ffffff; border-bottom: 1px solid #ddd9d2; flex-shrink: 0;">
+  <div style="display: flex; align-items: center; gap: 9px;">
+    <div class="m" style="width: 22px; height: 22px; border-radius: 3px; background: #2b2a27; color: #f7f7f5; display: grid; place-items: center; font-size: 10px; font-weight: 600;">RM</div>
+    <div style="font-size: 13px; font-weight: 500; color: #2b2a27;">research-mapper</div>
+  </div>
+  <div style="color: #cfcbc3; font-size: 13px;">/</div>
+  <div style="font-size: 12.5px; color: #86837c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 480px;">Barriers to HPV vaccination uptake in LMICs</div>
+  <div style="flex-grow: 1;"></div>
+  <div class="m" style="font-size: 10px; letter-spacing: .08em; color: #86837c; border: 1px solid #ddd9d2; border-radius: 2px; padding: 3px 7px;">HPV</div>
+  <div class="m" style="font-size: 10px; letter-spacing: .08em; color: #a8551a; border: 1px solid #e3c9a8; background: #fdf6ec; border-radius: 2px; padding: 3px 7px;">DRAFT</div>
+  <div class="m" style="width: 24px; height: 24px; border-radius: 50%; background: #e9e7e2; color: #86837c; display: grid; place-items: center; font-size: 9.5px;">AH</div>
+</div>

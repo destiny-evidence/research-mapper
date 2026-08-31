@@ -59,7 +59,7 @@ describe('step body', () => {
         onAnswer={noop}
       />,
     )
-    expect(html).toContain('LLM reasoning:')
+    expect(html).toContain('LLM reasoning')
     expect(html).toContain('One search per barrier family.')
   })
 
@@ -73,7 +73,7 @@ describe('step body', () => {
       />,
     )
     expect(html).toContain('hesitanc* AND HPV')
-    expect(html).toContain('LLM reasoning:')
+    expect(html).toContain('LLM reasoning')
   })
 
   it('shows a working bar and no counter when a step has nothing to count', () => {
@@ -197,5 +197,76 @@ describe('step body', () => {
       <Body row={row({ type: 'retrieve_sparse_evidence', operation: { id: 'o4' } })} artifact={() => null} onAnswer={noop} />,
     )
     expect(html).toContain('Nothing to show')
+  })
+})
+
+describe('edit list', () => {
+  const decision = (options) => ({
+    id: 1,
+    key: 'dimensions',
+    type: 'edit_list',
+    prompt: 'Edit the dimensions.',
+    options,
+    constraints: { min: 1, allow_new: true },
+  })
+
+  const untouched = (options) =>
+    render(
+      <Body
+        row={row({ state: 'ask', type: 'generate_map_dimensions', operation: { id: 'o1', decisions: [] }, questions: [decision(options)] })}
+        artifact={() => null}
+        onAnswer={noop}
+      />,
+    )
+
+  it('names accepting the model list as its own act rather than calling it a save', () => {
+    const html = untouched([{ id: 'a', value: { name: 'Setting' } }, { id: 'b', value: { name: 'Channel' } }])
+    expect(html).toContain('Accept all 2 as proposed')
+    expect(html).not.toContain('>Save<')
+  })
+})
+
+describe('edit list rationale', () => {
+  const withDescriptions = render(
+    <Body
+      row={row({
+        state: 'ask',
+        type: 'generate_map_dimensions',
+        operation: { id: 'o1', decisions: [] },
+        questions: [{
+          id: 1,
+          key: 'dimensions',
+          type: 'edit_list',
+          prompt: 'Edit the dimensions.',
+          options: [{ id: 'a', value: { name: 'Setting', description: 'Where the study took place.' } }],
+          constraints: { min: 1, allow_new: true },
+        }],
+      })}
+      artifact={() => null}
+      onAnswer={noop}
+    />,
+  )
+
+  it("shows each item's own rationale where the choice is made", () => {
+    expect(withDescriptions).toContain('Setting')
+    expect(withDescriptions).toContain('Where the study took place.')
+  })
+})
+
+describe('result counts', () => {
+  const html = render(
+    <Body
+      row={row({ state: 'done', type: 'retrieve_sparse_evidence', operation: { result: { queries: 4, failed: 1, references: 212 } } })}
+      artifact={() => null}
+      onAnswer={noop}
+    />,
+  )
+
+  it('reads what the step produced before what went wrong with it', () => {
+    expect(html.indexOf('references')).toBeLessThan(html.indexOf('failed'))
+  })
+
+  it('marks the failure count as a problem rather than a plain number', () => {
+    expect(html).toContain('class="bad"')
   })
 })

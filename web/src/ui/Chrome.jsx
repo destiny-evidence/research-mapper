@@ -1,10 +1,9 @@
-import { Barrier } from "./Icons.jsx";
+import { Warning, Info } from "./Icons.jsx";
 
-/** Top bar plus the construction banner, which is on every screen by design.
- * The title is the way back to the session list. */
-export function Chrome({ onHome, children }) {
+/** Home bar and persistent disclaimer */
+export function Chrome({ onHome, onTerms, children }) {
   return (
-    <>
+    <div class="chrome">
       <div class="topbar">
         <button type="button" class="home" onClick={onHome}>
           <span class="mark">RM</span>
@@ -15,10 +14,18 @@ export function Chrome({ onHome, children }) {
       </div>
       <div class="hazard" />
       <div class="banner">
-        <Barrier />
-        <span class="lab">Under construction</span>
-        <span>This is an experimental feature.</span>
+        <Warning />
+        <span class="lab">Research prototype</span>
+        <span>
+          This tool has not been evaluated for completeness or accuracy. For
+          expert research scoping and exploration only.
+        </span>
+        <span class="grow" />
+        <button type="button" class="banner-info" onClick={onTerms}>
+          <Info />
+          <span>What this means</span>
+        </button>
       </div>
-    </>
+    </div>
   );
 }

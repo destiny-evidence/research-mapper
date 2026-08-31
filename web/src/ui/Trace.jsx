@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks'
 import { Toggle } from './Panel.jsx'
+import { Reasoning } from './Reasoning.jsx'
 
 const brief = (value, limit = 220) => {
   const text = typeof value === 'string' ? value : JSON.stringify(value)
@@ -75,10 +76,7 @@ function Pending({ row }) {
     <div class="trace-open">
       <span class="trace-idx" style="color: var(--amber);">{row.index}</span>
       <div style="flex-grow: 1;">
-        <div class="reasoning" style="margin-top: 0;">
-          <span class="lab">LLM reasoning: </span>
-          <q>{row.thought}</q>
-        </div>
+        <Reasoning text={row.thought} />
         <div class="call" style="margin-top: 7px;">{row.call}</div>
         <div class="obs pending">waiting</div>
       </div>

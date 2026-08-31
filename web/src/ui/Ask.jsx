@@ -11,8 +11,8 @@ const label = (option) => option.label ?? option.value?.name ?? JSON.stringify(o
 export function Question({ decision, onAnswer, saving }) {
   const Body = decision.type === 'edit_list' ? EditList : SelectMany
   return (
-    <div class="question">
-      <div class="option-label" style="font-weight: 500; margin-top: 14px;">{decision.prompt}</div>
+    <div class="decision">
+      <div class="decision-prompt">{decision.prompt}</div>
       <Body decision={decision} onAnswer={onAnswer} saving={saving} />
     </div>
   )
@@ -42,7 +42,7 @@ function SelectMany({ decision, onAnswer, saving }) {
           const on = picked.some((item) => same(item, option.value))
           return (
             <button type="button" class={`option ${on ? 'on' : ''}`} key={option.id} onClick={() => toggle(option.value)}>
-              <span class={`box ${on ? 'on' : ''}`}>{on ? <Tick colour="#fff" size={9} /> : null}</span>
+              <span class={`box ${on ? 'on' : ''}`}>{on ? <Tick colour="#fff" size={11} /> : null}</span>
               <span class="option-label">{label(option)}</span>
             </button>
           )
@@ -63,7 +63,8 @@ const constraintHint = (min, max) => {
 }
 
 function EditList({ decision, onAnswer, saving }) {
-  const [items, setItems] = useState(decision.options.map((option) => option.value))
+  const suggested = decision.options.map((option) => option.value)
+  const [items, setItems] = useState(suggested)
   const [draft, setDraft] = useState({ name: '', description: '' })
   const allowNew = Boolean(decision.constraints?.allow_new)
   const min = decision.constraints?.min ?? 0
@@ -79,19 +80,26 @@ function EditList({ decision, onAnswer, saving }) {
 
   return (
     <>
-      <div class="chips" style="margin-top: 10px;">
+      {/* Each item's own description is the model's account of why it is here,
+          and it is the only rationale at this granularity — the step's blob of
+          reasoning explains the set, not the item you are about to keep or
+          drop. It belongs next to the item, while the choice is being made. */}
+      <div class="edit-list">
         {items.map((item, i) => (
-          <span class="tag" key={i} style="display: flex; align-items: center; gap: 7px;">
-            {item.name ?? JSON.stringify(item)}
+          <div class="edit-row" key={i}>
+            <div class="grow">
+              <div class="edit-name">{item.name ?? JSON.stringify(item)}</div>
+              {item.description ? <div class="edit-why">{item.description}</div> : null}
+            </div>
             <button
               type="button"
-              style="background: none; border: 0; padding: 0; display: flex;"
+              class="edit-drop"
               aria-label={`remove ${item.name}`}
               onClick={() => setItems(items.filter((_, index) => index !== i))}
             >
               <Remove />
             </button>
-          </span>
+          </div>
         ))}
       </div>
       {allowNew ? (
@@ -114,7 +122,11 @@ function EditList({ decision, onAnswer, saving }) {
         </div>
       ) : null}
       <div class="actions">
-        <button class="btn" disabled={items.length < min || saving} onClick={() => onAnswer(items)}>Save</button>
+        {/* Taking the model's list untouched is a decision, so the button says
+            so rather than hiding it behind "Save". */}
+        <button class="btn" disabled={items.length < min || saving} onClick={() => onAnswer(items)}>
+          {same(items, suggested) ? `Accept all ${items.length} as proposed` : `Save ${items.length}`}
+        </button>
         <span class="hint">{items.length < min ? `at least ${min}` : ''}</span>
       </div>
     </>

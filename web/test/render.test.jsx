@@ -3,6 +3,7 @@ import render from 'preact-render-to-string'
 import { Panel } from '../src/ui/Panel.jsx'
 import { Reasoning } from '../src/ui/Reasoning.jsx'
 import { Trace, iterations } from '../src/ui/Trace.jsx'
+import { Tick, Info } from '../src/ui/Icons.jsx'
 import { Breakable } from '../src/ui/text.jsx'
 
 describe('Panel', () => {
@@ -34,7 +35,7 @@ describe('Panel', () => {
 describe('Reasoning', () => {
   it('labels model prose so it cannot be read as ours', () => {
     const html = render(<Reasoning text="One search per barrier family." />)
-    expect(html).toContain('LLM reasoning:')
+    expect(html).toContain('LLM reasoning')
     expect(html).toContain('One search per barrier family.')
   })
 
@@ -81,5 +82,26 @@ describe('Breakable', () => {
 
   it('leaves an ordinary label alone', () => {
     expect(render(<Breakable>Vaccine hesitancy</Breakable>)).toBe('Vaccine hesitancy')
+  })
+})
+
+describe('icons', () => {
+  // Preact passes camelCase props through verbatim on an <svg> root, so
+  // strokeLinecap there is dropped without an error and every icon quietly
+  // loses its round caps and its stroke width.
+  it('kebab-cases stroke attributes on the svg root so they survive', () => {
+    const html = render(<Tick />)
+    expect(html).toContain('stroke-linecap="round"')
+    expect(html).toContain('stroke-width="1.7"')
+    expect(html).not.toContain('strokeLinecap')
+  })
+
+  it('draws icon dots as circles, not zero-length paths that need a round cap', () => {
+    // The ring and the bang's dot. Coordinates are free to move; what must not
+    // come back is a dot drawn as a degenerate path, which renders as nothing
+    // the moment a round cap is missing.
+    const html = render(<Info />)
+    expect(html.match(/<circle/g)).toHaveLength(2)
+    expect(html).not.toMatch(/d="M([\d.]+) ([\d.]+) L\1 \2"/)
   })
 })

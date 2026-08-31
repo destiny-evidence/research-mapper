@@ -24,6 +24,7 @@ import {
 } from './artifacts/index.jsx'
 import { Reasoning } from './Reasoning.jsx'
 import { Download } from './Icons.jsx'
+import { Scope } from './Scope.jsx'
 
 const MOVING = new Set(['pending', 'running'])
 
@@ -156,6 +157,7 @@ export function Session({ id }) {
           <div class="meta">
             {session.community.toUpperCase()} · {new Date(session.created_at).toLocaleString()}
           </div>
+          <Scope community={session.community} />
         </div>
         <button class="quiet" onClick={() => downloadRecord(id)}>
           <Download /> Full record
@@ -175,7 +177,7 @@ export function Session({ id }) {
             </button>
             {workflowOpen ? <div class="workflow-steps">{stepList}</div> : null}
           </div>
-          <EvidenceMap map={map} included={included} />
+          <EvidenceMap map={map} included={included} community={session.community} />
         </>
       ) : (
         stepList
@@ -186,14 +188,22 @@ export function Session({ id }) {
 
 const overview = (rows) => `${rows.filter((row) => row.state === 'done').length} steps`
 
+// What went wrong is not what the step produced, so it reads last whatever
+// order the step happened to return its keys in.
+const PROBLEM = new Set(['failed', 'dropped', 'errors', 'skipped'])
+
 /** A step's own result, for the steps that produce no artifact to render. */
 function Result({ result }) {
   const entries = Object.entries(result ?? {}).filter(([key]) => key !== 'version')
   if (!entries.length) return null
+  const ordered = [
+    ...entries.filter(([key]) => !PROBLEM.has(key)),
+    ...entries.filter(([key]) => PROBLEM.has(key)),
+  ]
   return (
     <div class="counts">
-      {entries.map(([key, value]) => (
-        <div key={key}>
+      {ordered.map(([key, value]) => (
+        <div key={key} class={PROBLEM.has(key) ? 'bad' : undefined}>
           <div class="lab">{key.replace(/_/g, ' ')}</div>
           <div class="n">{value}</div>
         </div>

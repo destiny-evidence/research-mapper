@@ -22,7 +22,8 @@ The dev server proxies `/api` because the API has no CORS. In production the two
 one hostname, or the API needs `CORSMiddleware` — see §5 of the plan.
 
 `MAPPER_API_TARGET` points the dev proxy somewhere else; `VITE_API_BASE` changes the prefix the app
-calls.
+calls. `VITE_TERMS=always` pins the disclaimer open and `VITE_TERMS=never` suppresses it, both for
+development only — see `.env.example`.
 
 ## Where things are
 

@@ -4,6 +4,8 @@ import { Chrome } from './ui/Chrome.jsx'
 import { Sessions } from './ui/Sessions.jsx'
 import { NewSession } from './ui/NewSession.jsx'
 import { Session } from './ui/Session.jsx'
+import { Disclaimer } from './ui/Disclaimer.jsx'
+import { accepted, accept } from './terms.js'
 
 // Two views, so a hash fragment and a switch rather than a router.
 const routeOf = (hash) => {
@@ -21,6 +23,9 @@ export function App() {
   const [sessions, setSessions] = useState([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  // 'accept' until the terms have been agreed to, then null, then 'review'
+  // whenever they are reopened from the banner.
+  const [terms, setTerms] = useState(accepted() ? null : 'accept')
 
   useEffect(() => {
     const onHash = () => setRoute(routeOf(window.location.hash))
@@ -52,7 +57,17 @@ export function App() {
 
   return (
     <>
-      <Chrome onHome={() => go('#/')} />
+      <Chrome onHome={() => go('#/')} onTerms={() => setTerms('review')} />
+      {terms ? (
+        <Disclaimer
+          mode={terms}
+          onAccept={() => {
+            accept()
+            setTerms(null)
+          }}
+          onClose={() => setTerms(null)}
+        />
+      ) : null}
       {error ? <div class="page"><div class="error" style="margin-top: 20px;">{String(error.message)}</div></div> : null}
       {route.view === 'session' ? (
         <Session id={route.id} />

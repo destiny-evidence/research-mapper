@@ -97,3 +97,17 @@ variable "llm_api_key" {
   type        = string
   sensitive   = true
 }
+
+# Keycloak
+
+variable "keycloak_url" {
+  description = "Base URL of the Keycloak instance"
+  type        = string
+  default     = "https://auth.evidence-repository.org"
+}
+
+variable "keycloak_realm" {
+  description = "Keycloak realm holding the research-mapper client"
+  type        = string
+  default     = "destiny"
+}

@@ -59,8 +59,11 @@ There are two separate authentication paths, and they are unrelated to each othe
 | Variable                                      | For                                       |
 | --------------------------------------------- | ----------------------------------------- |
 | `MAPPER_AUTH_ISSUER`, `MAPPER_AUTH_CLIENT_ID` | the issuer and client to validate against |
+| `MAPPER_CORS_ORIGINS`                         | origins allowed to call the API from a browser |
 
 This one is off unless both are set. With it off, the API accepts every request and attributes it all to a single local user.
+
+`MAPPER_CORS_ORIGINS` is a comma-separated list and is likewise off when unset. It is needed because the deployed UI is served from a storage static-website endpoint and so calls the API cross-origin; locally the dev server proxies `/api` and nothing is cross-origin.
 
 ## The terminal app
 

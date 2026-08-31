@@ -9,6 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "keycloak-js": "^26.2.4",
     "preact": "^10.25.0"
   },
   "devDependencies": {

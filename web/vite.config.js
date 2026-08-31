@@ -9,8 +9,9 @@ export default defineConfig({
   server: {
     // Listen on every interface so the dev server works from inside a container.
     host: true,
-    // The API has no CORS. In development we borrow the demo's trick and proxy;
-    // in production both must sit behind one hostname (docs/08 §5).
+    // Same-origin in development, so no CORS and no preflight. Deployed, the
+    // app is on a storage static-website endpoint and the API allows it by
+    // origin via MAPPER_CORS_ORIGINS (docs/08 §5).
     proxy: {
       '/api': {
         target: process.env.MAPPER_API_TARGET ?? 'http://127.0.0.1:8080',

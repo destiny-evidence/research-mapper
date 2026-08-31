@@ -5,6 +5,8 @@ import { Reasoning } from '../src/ui/Reasoning.jsx'
 import { Trace, iterations } from '../src/ui/Trace.jsx'
 import { Tick, Info } from '../src/ui/Icons.jsx'
 import { Breakable } from '../src/ui/text.jsx'
+import { Chrome } from '../src/ui/Chrome.jsx'
+import { useAdapter } from '../src/auth.js'
 
 describe('Panel', () => {
   it('shows its summary and hides its body when collapsed', () => {
@@ -103,5 +105,40 @@ describe('icons', () => {
     const html = render(<Info />)
     expect(html.match(/<circle/g)).toHaveLength(2)
     expect(html).not.toMatch(/d="M([\d.]+) ([\d.]+) L\1 \2"/)
+  })
+})
+
+describe('Chrome', () => {
+  const signedInAs = (tokenParsed) => useAdapter({ tokenParsed })
+
+  it('shows nobody when Keycloak is off, as in development', () => {
+    useAdapter(null)
+    expect(render(<Chrome />)).not.toContain('Sign out')
+  })
+
+  it('names the signed-in user and offers a way out', () => {
+    signedInAs({ name: 'Adam Hamilton', email: 'adam@futureevidence.org' })
+    const html = render(<Chrome />)
+    expect(html).toContain('Adam Hamilton')
+    expect(html).toContain('Sign out')
+    // The email is the tooltip, not a second line of chrome.
+    expect(html).toContain('title="adam@futureevidence.org"')
+  })
+
+  it('falls back to the username, then to the email', () => {
+    signedInAs({ preferred_username: 'ahamilton' })
+    expect(render(<Chrome />)).toContain('ahamilton')
+    signedInAs({ email: 'adam@futureevidence.org' })
+    expect(render(<Chrome />)).toContain('adam@futureevidence.org')
+  })
+
+  it('does not repeat the email as its own tooltip', () => {
+    signedInAs({ email: 'adam@futureevidence.org' })
+    expect(render(<Chrome />)).not.toContain('title="adam@futureevidence.org"')
+  })
+
+  it('stays out of the way when the token names nobody', () => {
+    signedInAs({ sub: 'abc' })
+    expect(render(<Chrome />)).not.toContain('Sign out')
   })
 })

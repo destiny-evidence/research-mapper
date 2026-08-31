@@ -15,7 +15,7 @@ export class ApiError extends Error {
 async function request(path, { method = 'GET', body } = {}) {
   const response = await fetch(BASE + path, {
     method,
-    headers: { ...authHeaders(), ...(body ? { 'content-type': 'application/json' } : {}) },
+    headers: { ...(await authHeaders()), ...(body ? { 'content-type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   })
   if (!response.ok) {

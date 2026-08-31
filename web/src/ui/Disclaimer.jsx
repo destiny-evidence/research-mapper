@@ -5,10 +5,13 @@ import { Warning, Tick } from './Icons.jsx'
  * Terms of use, shown before a user can reach anything the tool produces and
  * reachable again from the banner afterwards.
  *
- * Written for Stage 1 (controlled research use): basic testing done, formal
- * benchmarking not. If the stage moves, the header label, the permitted and
- * prohibited sections, and the accountability obligations all move with it —
- * Table 2 of the framework is the source for all four.
+ * Written for Stage 0 (internal development): the only condition met is that
+ * the tool produces coherent outputs. If the stage moves, the header label and
+ * the stage, permitted, prohibited and accountability sections all move with
+ * it — Table 2 of the framework is the source for every one of them. Stage 1
+ * in particular widens the audience to research partners and adds two standing
+ * obligations (a named researcher per use, structured feedback after each
+ * use) that do not exist yet.
  *
  * COPY IS NOT WRITTEN. Each section below carries the points it has to cover
  * and why; someone who can speak for the project fills in `body`. Sections with
@@ -19,14 +22,15 @@ const SECTIONS = [
   {
     id: 'stage',
     heading: 'What this is and who it is for',
-    // - Stage 1, controlled research use, per the stage-gated framework
-    // - basic testing done and limitations documented; NOT formally
-    //   benchmarked — that is Stage 2's condition, not this one
-    // - so accuracy and completeness are still unknown quantities, not merely
+    // - Stage 0, internal development, per the stage-gated framework
+    // - the only condition met is that it produces coherent outputs; there has
+    //   been no testing, no benchmarking, no evaluation of any kind
+    // - so accuracy and completeness are unknown quantities, not merely
     //   imperfect ones
-    // - it is for research partners with domain expertise, and expert
-    //   judgement at the approval points is what makes the output usable
-    // - the outputs are a starting point for expert work, not a result
+    // - the audience is the development team. Anyone else reading this is
+    //   outside the intended audience and should say so
+    // - the outputs are material for building and testing the tool, not
+    //   findings about the evidence
     body: [],
   },
   {
@@ -38,29 +42,29 @@ const SECTIONS = [
     // - screening happens on title and abstract only, never full text
     // - the repository's own coverage, inclusion criteria and gaps are a
     //   separate document — link it once it exists
-    // - say what supplementary searching is recommended, specifically, rather
-    //   than a general caution that it may not find everything (P2.5)
     body: [],
   },
   {
     id: 'permitted',
     heading: 'What you may use the output for',
-    // Table 2, Stage 1: expert research scoping and exploration only.
-    // - orienting yourself in an unfamiliar area
-    // - generating candidate search strings you will review and run yourself
-    // - drafting eligibility criteria you will revise
-    // - forming hypotheses about where evidence may be concentrated
+    // Table 2, Stage 0: internal development and testing only.
+    // - building, debugging and evaluating the tool itself
+    // - judging whether a step behaves sensibly, so the next gate has evidence
+    // - nothing whose subject is the evidence rather than the tool
     body: [],
   },
   {
     id: 'prohibited',
     heading: 'What you must not use it for',
-    // Table 2, Stage 1 — outputs cannot be used for:
-    // - policy decisions
-    // - systematic reviews
-    // - the sole evidence base for any decision
-    // - sharing beyond research partners
-    // And the three from the gate review, section 1.2, which still stand:
+    // Table 2, Stage 0 is a single sweeping line: anything beyond internal
+    // development. Worth spelling out what that rules out in practice, because
+    // "internal" gets stretched:
+    // - showing an output to anyone outside the development team, including
+    //   colleagues on the wider project and stakeholders asking for a preview
+    // - any synthesis, briefing, slide or document, however caveated
+    // - informing a decision, including a decision about what to research next
+    // And the three from the gate review, section 1.2, which stand at every
+    // stage:
     // - primary search or screening for any synthesis that will be published
     //   or used to inform a decision
     // - clinical, legal or regulatory decisions where completeness of the
@@ -84,16 +88,14 @@ const SECTIONS = [
   {
     id: 'accountability',
     heading: 'What you are accountable for',
-    // Stage 1 governance is "named researcher for each use; structured
-    // feedback required after each use", so both are obligations, not asks:
-    // - you are the named researcher for every session you start
-    // - structured feedback after each use is required, not optional — say
-    //   how it is given and to whom
+    // Stage 0 governance is the development team, and rollback conditions are
+    // "not applicable" — so the obligations here are ordinary care, not the
+    // formal ones Stage 1 introduces.
     // - every approval step is yours and is recorded against the session;
     //   approving a suggestion you have not read is still your decision
-    // - if you share an output the caveats travel with it, or you removed them
-    // - name who to contact when the tool produces something wrong, and say
-    //   that reporting it is expected (it is also a rollback trigger)
+    // - an output that leaves the team is your doing, not the tool's
+    // - what breaks here is what the next gate is decided on, so say when
+    //   something looks wrong; name where that goes
     body: [],
   },
 ]
@@ -127,7 +129,7 @@ export function Disclaimer({ mode = 'accept', onAccept, onClose }) {
           <Warning />
           <span id="terms-title" class="terms-title">Before you use this tool</span>
           <span class="grow" />
-          <span class="lab">Stage 1 · controlled research use</span>
+          <span class="lab">Stage 0 · internal development</span>
         </div>
 
         <div class="terms-body">

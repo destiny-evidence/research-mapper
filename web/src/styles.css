@@ -75,6 +75,16 @@ input, textarea, select {
 .home:hover .brand { color: var(--amber); }
 .grow { flex-grow: 1; }
 
+.who { display: flex; align-items: center; gap: 12px; }
+.who-name { font-size: 12.5px; color: var(--text); }
+/* Not .btn.plain: that is form-sized, and equal specificity would make the
+   override depend on where in this file it landed. */
+.signout {
+  padding: 4px 11px; font-size: 12px;
+  background: var(--panel); color: var(--ink); border: 1px solid #b3b0a9;
+}
+.signout:hover { border-color: var(--ink); }
+
 .hazard { height: 7px; background: repeating-linear-gradient(45deg, var(--amber-line) 0 7px, #3d3b36 7px 14px); }
 .banner {
   display: flex; align-items: center; gap: 10px;

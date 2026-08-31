@@ -16,3 +16,13 @@ output "identity_principal_id" {
 output "database_fqdn" {
   value = azurerm_postgresql_flexible_server.this.fqdn
 }
+
+output "web_url" {
+  description = "The UI"
+  value       = azurerm_storage_account.web.primary_web_endpoint
+}
+
+output "api_url" {
+  description = "The API the UI calls, behind Keycloak bearer tokens"
+  value       = "https://${azurerm_container_app.api.ingress[0].fqdn}"
+}

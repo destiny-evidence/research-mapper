@@ -1,7 +1,6 @@
 # ---------------------------------------------------------------------------
-# TEMPORARY. The container app serves research-mapper's terminal UI over the
-# web via ttyd. Once we have an authenticated API in this app this should be
-# removed in favour of a Keycloak integration.
+# TEMPORARY for the research-mapper's terminal UI only.
+# Other containers use Keycloak auth.
 # ---------------------------------------------------------------------------
 
 resource "azuread_application_registration" "easyauth" {

@@ -9,3 +9,10 @@ locals {
     "Region"      = var.region
   }
 }
+
+locals {
+  keycloak_client_id = "research-mapper-ui-${var.environment}"
+  keycloak_issuer    = "${var.keycloak_url}/realms/${var.keycloak_realm}"
+
+  web_origin = trimsuffix(azurerm_storage_account.web.primary_web_endpoint, "/")
+}

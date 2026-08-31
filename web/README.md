@@ -18,11 +18,19 @@ npm test
 npm run build    # dist/, ready to upload
 ```
 
-The dev server proxies `/api` because the API has no CORS. In production the two must sit behind
-one hostname, or the API needs `CORSMiddleware` — see §5 of the plan.
+The dev server proxies `/api`, so development is same-origin and needs no CORS. Deployed, the app
+is served from a storage static-website endpoint and calls the API cross-origin; the API allows that
+origin through `MAPPER_CORS_ORIGINS` — see §5 of the plan.
 
 `MAPPER_API_TARGET` points the dev proxy somewhere else; `VITE_API_BASE` changes the prefix the app
-calls. `VITE_TERMS=always` pins the disclaimer open and `VITE_TERMS=never` suppresses it, both for
+calls — deployed it is the API's full origin rather than `/api`.
+
+`VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM` and `VITE_KEYCLOAK_CLIENT_ID` turn on sign-in. All three
+or none: unset, `auth.js` sends no bearer token, which is what an API with `MAPPER_AUTH_*` unset
+expects. Vite inlines them at build time, so changing one means a rebuild — the deploy workflow
+takes them from Terraform-published GitHub environment variables.
+
+`VITE_TERMS=always` pins the disclaimer open and `VITE_TERMS=never` suppresses it, both for
 development only — see `.env.example`.
 
 ## Where things are
@@ -30,6 +38,7 @@ development only — see `.env.example`.
 | Path | What it holds |
 | --- | --- |
 | `src/api.js` | Every HTTP call. Nothing else knows about routes. |
+| `src/auth.js` | Keycloak sign-in and the bearer token. Off unless configured. |
 | `src/plan.js` | Step order and titles, mirroring `demo/app.js` PLAN. The API has no plan of its own. |
 | `src/derive.js` | Pure functions: step states and summaries, artifact diffs, map bucketing. |
 | `src/record.js` | Assembles the Full record download from existing routes. |

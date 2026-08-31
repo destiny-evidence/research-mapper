@@ -31,6 +31,18 @@ resource "azurerm_role_assignment" "github_actions_container_app" {
   role_definition_name = "Contributor"
 }
 
+resource "azurerm_role_assignment" "github_actions_api" {
+  principal_id         = azuread_service_principal.github_actions.object_id
+  scope                = azurerm_container_app.api.id
+  role_definition_name = "Contributor"
+}
+
+resource "azurerm_role_assignment" "github_actions_web_blobs" {
+  principal_id         = azuread_service_principal.github_actions.object_id
+  scope                = azurerm_storage_account.web.id
+  role_definition_name = "Storage Blob Data Contributor"
+}
+
 resource "azurerm_role_assignment" "github_actions_worker" {
   principal_id         = azuread_service_principal.github_actions.object_id
   scope                = azurerm_container_app.worker.id
@@ -70,10 +82,18 @@ locals {
     APP_NAME              = var.app_name
     RESOURCE_GROUP        = azurerm_resource_group.this.name
     CONTAINER_APP_NAME    = azurerm_container_app.this.name
+    API_APP_NAME          = azurerm_container_app.api.name
     WORKER_APP_NAME       = azurerm_container_app.worker.name
     ENVIRONMENT_NAME      = var.environment
     CONTAINER_APP_ENV     = azurerm_container_app_environment.this.name
     MIGRATE_JOB_NAME      = azurerm_container_app_job.migrate.name
+
+    # Vite bakes these into the web bundle at build time.
+    WEB_STORAGE_ACCOUNT = azurerm_storage_account.web.name
+    API_BASE_URL        = "https://${azurerm_container_app.api.ingress[0].fqdn}"
+    KEYCLOAK_URL        = var.keycloak_url
+    KEYCLOAK_REALM      = var.keycloak_realm
+    KEYCLOAK_CLIENT_ID  = local.keycloak_client_id
   }
 }
 

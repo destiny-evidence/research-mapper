@@ -221,8 +221,8 @@ resource "azurerm_container_app" "worker" {
       # Placeholder only. The deploy workflow owns the image from then on, and
       # the lifecycle block below stops Terraform reverting it.
       image   = "mcr.microsoft.com/k8se/quickstart:latest"
-      cpu     = 1.0
-      memory  = "2Gi"
+      cpu     = 2.0
+      memory  = "4Gi"
       command = ["python", "-m", "research_mapper", "worker"]
 
       dynamic "env" {

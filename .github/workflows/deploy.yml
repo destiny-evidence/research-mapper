@@ -2,9 +2,7 @@ name: Deploy
 
 on:
   push:
-    # TODO: drop `infra` before merging -- only here so the workflow can be
-    # exercised before it exists on main, where workflow_dispatch registers.
-    branches: [main, infra]
+    branches: main
   workflow_dispatch:
 
 permissions:

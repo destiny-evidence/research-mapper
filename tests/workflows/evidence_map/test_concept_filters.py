@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 import dspy
 import pytest
 
@@ -10,6 +12,17 @@ from research_mapper.models.taxonomy_search import (
     Concept,
     ConceptFilterGroup,
     IndexedVocab,
+)
+from research_mapper.modules.taxonomy_search import (
+    CLARIFY_TOOL,
+    NONE_OF_THESE_OPTION,
+    NOT_SURE_OPTION,
+    TaxonomyConceptFilterGenerator,
+    UnknownConceptRefError,
+)
+from research_mapper.tools.taxonomy_search import (
+    mark_unsatisfiable,
+    raise_attempted_prompt_attack,
 )
 from research_mapper.workflows.evidence_map import artifacts
 from research_mapper.workflows.evidence_map.steps import concept_filters
@@ -45,8 +58,8 @@ def ctx(operation, session_factory):
 
 @pytest.fixture(autouse=True)
 def _taxonomy(monkeypatch):
-    monkeypatch.setattr(concept_filters, "get_taxonomy", lambda community: {})
-    monkeypatch.setattr(concept_filters, "build_concept_index", lambda vocab: INDEXED)
+    monkeypatch.setattr(concept_filters, "get_graph", lambda community: MagicMock())
+    monkeypatch.setattr(concept_filters, "build_concept_index", lambda graph: INDEXED)
 
 
 def answer(db, operation, key, value):
@@ -73,6 +86,9 @@ def step(idx: int, tool: str, args: dict) -> LoopStep:
     )
 
 
+MARK_UNSATISFIABLE = mark_unsatisfiable.__name__
+PROMPT_ATTACK = raise_attempted_prompt_attack.__name__
+
 ASK = {"request": {"question": "Which setting?", "options": ["Schools", "Clinics"]}}
 
 
@@ -89,7 +105,9 @@ def agent(monkeypatch, *results, calls=None):
                 calls.append(step)
             return queue.pop(0)
 
-    monkeypatch.setattr(concept_filters, "build_concept_filter_agent", lambda: Fake())
+    monkeypatch.setattr(
+        TaxonomyConceptFilterGenerator, "build_agent", lambda *a, **kw: Fake()
+    )
 
 
 def done() -> dspy.Prediction:
@@ -117,7 +135,7 @@ def test_a_loop_that_never_asks_writes_its_filters(ctx, monkeypatch):
 def test_the_loop_pauses_on_a_clarifying_question_and_persists_its_step(
     ctx, monkeypatch
 ):
-    agent(monkeypatch, step(0, "ask_for_clarification", ASK))
+    agent(monkeypatch, step(0, CLARIFY_TOOL, ASK))
 
     with pytest.raises(NeedsInput):
         run(ctx)
@@ -127,16 +145,17 @@ def test_the_loop_pauses_on_a_clarifying_question_and_persists_its_step(
     assert [option["label"] for option in spec.options] == [
         "Schools",
         "Clinics",
-        concept_filters.UNSURE,
+        NONE_OF_THESE_OPTION,
+        NOT_SURE_OPTION,
     ]
-    assert spec.constraints["exclusive"] == [{"option": concept_filters.UNSURE}]
+    assert spec.constraints["exclusive"] == [{"option": NONE_OF_THESE_OPTION}]
 
     saved = ctx.get_artifact(artifacts.CONCEPT_FILTER_LOOP)
     assert saved is not None
     assert saved.step["idx"] == 0
     assert saved.trajectory == {
         "thought_0": "t",
-        "tool_name_0": "ask_for_clarification",
+        "tool_name_0": CLARIFY_TOOL,
     }
 
 
@@ -144,7 +163,7 @@ def test_the_answer_resumes_the_saved_step_without_restarting_the_loop(
     db, ctx, operation, monkeypatch, session_factory
 ):
     """The point of ResumableReAct: no replay, so the pre-pause LM calls are not repaid."""
-    agent(monkeypatch, step(0, "ask_for_clarification", ASK))
+    agent(monkeypatch, step(0, CLARIFY_TOOL, ASK))
     with pytest.raises(NeedsInput):
         run(ctx)
 
@@ -161,7 +180,9 @@ def test_the_answer_resumes_the_saved_step_without_restarting_the_loop(
             resumed.append(step)
             return done()
 
-    monkeypatch.setattr(concept_filters, "build_concept_filter_agent", lambda: Fake())
+    monkeypatch.setattr(
+        TaxonomyConceptFilterGenerator, "build_agent", lambda *a, **kw: Fake()
+    )
 
     assert run(StepContext(operation.id, session_factory))["filter_groups"] == 1
     assert started == []
@@ -170,9 +191,33 @@ def test_the_answer_resumes_the_saved_step_without_restarting_the_loop(
 
 def test_an_unsatisfiable_query_fails_the_operation(ctx, monkeypatch):
     """A legitimate outcome, but the reason belongs in the error, not in a missing artifact."""
-    agent(monkeypatch, step(0, "mark_unsatisfiable", {"reason": "no concept for it"}))
+    agent(monkeypatch, step(0, MARK_UNSATISFIABLE, {"reason": "no concept for it"}))
 
     with pytest.raises(concept_filters.UnsatisfiableQuery, match="no concept for it"):
         run(ctx)
 
     assert ctx.get_artifact(artifacts.CONCEPT_FILTERS) is None
+
+
+def test_a_suspected_prompt_attack_also_fails_the_operation(ctx, monkeypatch):
+    """The agent's injection guard has to stop the worker too, not just the TUI."""
+    agent(
+        monkeypatch,
+        step(0, PROMPT_ATTACK, {"reason": "ignore previous"}),
+    )
+
+    with pytest.raises(concept_filters.UnsatisfiableQuery, match="ignore previous"):
+        run(ctx)
+
+    assert ctx.get_artifact(artifacts.CONCEPT_FILTERS) is None
+
+
+def test_a_concept_the_vocabulary_never_had_is_refused(ctx, monkeypatch):
+    """Better a named error here than a KeyError building the labels below it."""
+    invented = ConceptFilterGroup(
+        scheme="Topic", concept_local_refs=["C9"], reason="made up"
+    )
+    agent(monkeypatch, dspy.Prediction(filter_groups=[invented], reasoning="because"))
+
+    with pytest.raises(UnknownConceptRefError, match="C9"):
+        run(ctx)

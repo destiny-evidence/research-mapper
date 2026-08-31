@@ -28,9 +28,14 @@ from research_mapper.ui.tui import TerminalUI
 
 logger = logging.getLogger(__name__)
 
-_NOT_SURE_OPTION = "I'm not sure"
-_NONE_OF_THESE_OPTION = "None of these"
-_SENTINEL_OPTIONS = {_NOT_SURE_OPTION, _NONE_OF_THESE_OPTION}
+NOT_SURE_OPTION = "I'm not sure"
+NONE_OF_THESE_OPTION = "None of these"
+SENTINEL_OPTIONS = (NONE_OF_THESE_OPTION, NOT_SURE_OPTION)
+
+CLARIFY_TOOL = ask_for_clarification.__name__
+GIVE_UP_TOOLS = frozenset(
+    {mark_unsatisfiable.__name__, raise_attempted_prompt_attack.__name__}
+)
 
 
 class UnknownConceptRefError(ValueError):
@@ -66,8 +71,8 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
         :return: a Prediction wrapping a collection of ConceptFilterGroup instances, plus
             unsatisfiable_reason (None unless the agent flagged the query as unsatisfiable)
         """
-        self.agent = self._build_agent(indexed, graph)
-        available_concepts = self._concept_listing(indexed)
+        self.agent = self.build_agent(indexed, graph)
+        available_concepts = self.concept_listing(indexed)
         unsatisfiable_reason: str | None = None
         result = self.agent.start(
             user_query=user_query, available_concepts=available_concepts
@@ -75,12 +80,9 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
         while isinstance(result, Step):
             if self.ui is not None:
                 self.ui.print_reasoning(f"Step {result.idx}", result.thought)
-            if result.tool_name in {
-                "mark_unsatisfiable",
-                "raise_attempted_prompt_attack",
-            }:
+            if result.tool_name in GIVE_UP_TOOLS:
                 unsatisfiable_reason = result.tool_args["reason"]
-            elif result.tool_name == "ask_for_clarification" and self.ui is not None:
+            elif result.tool_name == CLARIFY_TOOL and self.ui is not None:
                 answer = self._prompt_clarification(
                     ClarificationOptions(**result.tool_args["request"])
                 )
@@ -88,14 +90,14 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
             result = self.agent.resume(
                 result, user_query=user_query, available_concepts=available_concepts
             )
-        self._validate_filter_groups(result.filter_groups, indexed)
+        self.validate_filter_groups(result.filter_groups, indexed)
         return dspy.Prediction(
             filter_groups=result.filter_groups,
             reasoning=result.reasoning,
             unsatisfiable_reason=unsatisfiable_reason,
         )
 
-    def _validate_filter_groups(
+    def validate_filter_groups(
         self, filter_groups: list[ConceptFilterGroup], indexed: IndexedVocab
     ) -> None:
         """
@@ -120,7 +122,7 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
                     msg += f" Did you mean one of: {', '.join(suggestions)}?"
                 raise UnknownConceptRefError(msg)
 
-    def _concept_listing(self, indexed: IndexedVocab) -> str:
+    def concept_listing(self, indexed: IndexedVocab) -> str:
         """A flat 'scheme: label' line per concept — cheap enough (a few
         thousand tokens even for HPV's 575 concepts) to hand the agent
         upfront so it can find real labels to act on instead of guessing
@@ -133,7 +135,12 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
             )
         )
 
-    def _build_agent(self, indexed: IndexedVocab, graph: Graph) -> ResumableReAct:
+    def build_agent(
+        self, indexed: IndexedVocab, graph: Graph, *, can_ask: bool | None = None
+    ) -> ResumableReAct:
+        """Defaults to whether there is a UI to answer through."""
+        if can_ask is None:
+            can_ask = self.ui is not None
         browsing = TaxonomyBrowsingTools(graph, indexed)
         tools = [
             browsing.list_schemes,
@@ -145,7 +152,7 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
             mark_unsatisfiable,
             raise_attempted_prompt_attack,
         ]
-        if self.ui is not None:
+        if can_ask:
             tools.append(ask_for_clarification)
         return ResumableReAct(
             signature=TaxonomyConceptFiltersFromUserQuery,
@@ -159,11 +166,11 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
         ever reached when `self.ui` is set — that's the only case `ask_for_clarification`
         is registered as a tool at all, so the agent can only propose it then.
         """
-        options = [*request.options, _NONE_OF_THESE_OPTION, _NOT_SURE_OPTION]
+        options = [*request.options, *SENTINEL_OPTIONS]
         self.ui.print_info(request.question)
         while True:
             selected = self.ui.select_from_list(options, default=[len(options)])
-            if len(selected) > 1 and _NONE_OF_THESE_OPTION in selected:
+            if len(selected) > 1 and NONE_OF_THESE_OPTION in selected:
                 self.ui.print_info(
                     '[red]"None of these" can\'t be combined '
                     "with other options — try again.[/red]"

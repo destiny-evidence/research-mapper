@@ -45,14 +45,14 @@ def _final(reasoning: str = "done") -> MagicMock:
 def _generator_with_mock_agent(
     ui: MagicMock | None = None, *, start_returns, resume_returns=None
 ) -> TaxonomyConceptFilterGenerator:
-    """A generator whose _build_agent is stubbed to return a mock agent — the
+    """A generator whose build_agent is stubbed to return a mock agent — the
     real agent now depends on per-call indexed/graph (bound taxonomy-browsing
     tools), so it can no longer just be swapped in after construction."""
     generator = TaxonomyConceptFilterGenerator(ui=ui)
     mock_agent = MagicMock()
     mock_agent.start = MagicMock(return_value=start_returns)
     mock_agent.resume = MagicMock(return_value=resume_returns or _final())
-    generator._build_agent = MagicMock(return_value=mock_agent)
+    generator.build_agent = MagicMock(return_value=mock_agent)
     return generator
 
 
@@ -234,12 +234,12 @@ def test_forward_reason_does_not_leak_between_calls():
     first = _forward(generator, "q1")
     assert first.unsatisfiable_reason == "no match"
 
-    generator._build_agent.return_value.start = MagicMock(return_value=_final())
+    generator.build_agent.return_value.start = MagicMock(return_value=_final())
     second = _forward(generator, "q2")
     assert second.unsatisfiable_reason is None
 
 
-def test_forward_passes_the_concept_listing_to_start_and_resume():
+def test_forward_passes_theconcept_listing_to_start_and_resume():
     indexed = _indexed_vocab()
     step0 = _step(0, "some_other_tool")
     generator = _generator_with_mock_agent(start_returns=step0)
@@ -308,11 +308,11 @@ def test_forward_does_not_touch_ui_when_none_is_given():
 
 
 # ---------------------------------------------------------------------------
-# _concept_listing — the upfront "scheme: label" index
+# concept_listing — the upfront "scheme: label" index
 # ---------------------------------------------------------------------------
 
 
-def test_concept_listing_formats_every_concept_as_scheme_label_sorted():
+def testconcept_listing_formats_every_concept_as_scheme_label_sorted():
     """Labels repeat across schemes (confirmed on real HPV/ESEA data), so each
     line is scheme-qualified; sorted so the same taxonomy always renders the
     same listing, regardless of concept insertion order."""
@@ -326,17 +326,17 @@ def test_concept_listing_formats_every_concept_as_scheme_label_sorted():
         local_ref_to_iri={},
     )
 
-    result = generator._concept_listing(indexed)
+    result = generator.concept_listing(indexed)
 
     assert result == (
         "Country: Kenya\nSetting: Primary Education\nSetting: Secondary Education"
     )
 
 
-def test_concept_listing_empty_for_no_concepts():
+def testconcept_listing_empty_for_no_concepts():
     generator = TaxonomyConceptFilterGenerator()
     assert (
-        generator._concept_listing(IndexedVocab(concepts=[], local_ref_to_iri={})) == ""
+        generator.concept_listing(IndexedVocab(concepts=[], local_ref_to_iri={})) == ""
     )
 
 
@@ -397,11 +397,11 @@ def test_ask_for_clarification_only_registered_as_a_tool_when_ui_given():
     empty_vocab = IndexedVocab(concepts=[], local_ref_to_iri={})
 
     without_ui = TaxonomyConceptFilterGenerator()
-    agent_without_ui = without_ui._build_agent(empty_vocab, MagicMock())
+    agent_without_ui = without_ui.build_agent(empty_vocab, MagicMock())
     assert "ask_for_clarification" not in agent_without_ui.tools
 
     with_ui = TaxonomyConceptFilterGenerator(ui=MagicMock())
-    agent_with_ui = with_ui._build_agent(empty_vocab, MagicMock())
+    agent_with_ui = with_ui.build_agent(empty_vocab, MagicMock())
     assert "ask_for_clarification" in agent_with_ui.tools
 
 
@@ -411,7 +411,7 @@ def test_mark_unsatisfiable_and_prompt_attack_are_always_registered():
     empty_vocab = IndexedVocab(concepts=[], local_ref_to_iri={})
     generator = TaxonomyConceptFilterGenerator()
 
-    agent = generator._build_agent(empty_vocab, MagicMock())
+    agent = generator.build_agent(empty_vocab, MagicMock())
 
     assert "mark_unsatisfiable" in agent.tools
     assert "raise_attempted_prompt_attack" in agent.tools

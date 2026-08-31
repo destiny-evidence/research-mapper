@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from functools import lru_cache
 from pathlib import Path
 
@@ -12,6 +13,12 @@ from research_mapper import local_destiny_auth
 from research_mapper.db.session import db_manager
 
 logger = logging.getLogger(__name__)
+
+HEALTHCHECK_TIMEOUT = 30.0
+
+
+class NoDestinyCredential(RuntimeError):
+    """Nothing is configured to authenticate to DESTINY, and nobody can be asked."""
 
 
 def _global_env_path() -> Path:
@@ -100,9 +107,22 @@ def get_destiny_client() -> OAuthClient:
     startup, not silently wait to surface on a user's first request.
     """
     env = os.environ.get("MAPPER_DESTINY_ENV", "production")
-    client = OAuthClient(auth=_destiny_auth(env), env=env)
+    auth = _destiny_auth(env)
+
+    interactive = sys.stdin.isatty()
+    if auth is None and not interactive:
+        msg = (
+            "No DESTINY credential and no terminal to log in from. Set "
+            f"{local_destiny_auth.REFRESH_TOKEN_VAR} (run "
+            "`uv run python -m research_mapper login`), or AZURE_CLIENT_ID and "
+            "MAPPER_DESTINY_APPLICATION_ID to use a managed identity."
+        )
+        raise NoDestinyCredential(msg)
+
+    client = OAuthClient(auth=auth, env=env)
     logger.debug("Triggering eagerly OAuth token fetch via health check")
-    client.get_client().get("/v1/system/healthcheck/")
+    timeout = httpx.USE_CLIENT_DEFAULT if auth is None else HEALTHCHECK_TIMEOUT
+    client.get_client().get("/v1/system/healthcheck/", timeout=timeout)
     logger.info("Destiny client authenticated and healthy")
     return client
 

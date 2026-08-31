@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,19 @@ from research_mapper.workflows.evidence_map.hydrate import get_evidence
 from research_mapper.workflows.evidence_map.models import SessionReference
 
 router = APIRouter(tags=["evidence map"])
+
+
+class SessionReferenceOut(BaseModel):
+    """One reference and everything the session recorded about it."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    destiny_id: UUID
+    stage: SessionReferenceStage
+    provenance: list[dict]
+    screening: dict | None
+    coordinate: dict | None
+    mapping: dict | None
 
 
 def _coordinates(db: Session, session_id: UUID) -> dict[UUID, dict[str, list[str]]]:
@@ -36,8 +50,16 @@ def _hydrate(destiny_ids: list[UUID]) -> dict[UUID, Evidence]:
 
 
 @router.get("/sessions/{session_id}/map/")
-def read_map(db: DbSession, research_session: SessionOr404) -> EvidenceMap:
-    """Get the screened evidence map."""
+def read_map(
+    db: DbSession, research_session: SessionOr404, include_evidence: bool = True
+) -> EvidenceMap:
+    """Get the screened evidence map.
+
+    Hydrating the evidence means a DESTINY lookup per hundred references, which
+    is most of the time this takes. A caller that only needs the shape of the
+    map — counts per cell — can ask for `include_evidence=false` and get the
+    same structure with nothing but ids in it.
+    """
     artifact = db.execute(
         select(CurrentArtifact)
         .where(CurrentArtifact.research_session_id == research_session.id)
@@ -53,7 +75,11 @@ def read_map(db: DbSession, research_session: SessionOr404) -> EvidenceMap:
     first, second, third = dimensions
 
     coordinates = _coordinates(db, research_session.id)
-    evidence = _hydrate(list(coordinates))
+    evidence = (
+        _hydrate(list(coordinates))
+        if include_evidence
+        else {destiny_id: Evidence(destiny_id=destiny_id) for destiny_id in coordinates}
+    )
     return EvidenceMap(
         dimensions=(first, second, third),
         mapped_evidence=[
@@ -62,3 +88,22 @@ def read_map(db: DbSession, research_session: SessionOr404) -> EvidenceMap:
             if destiny_id in evidence
         ],
     )
+
+
+@router.get("/sessions/{session_id}/references/")
+def list_references(
+    db: DbSession, research_session: SessionOr404
+) -> list[SessionReferenceOut]:
+    """Every reference in the session, at whatever stage it reached.
+
+    Deliberately dumb: every row, every stage, no paging, no filtering, and no
+    DESTINY lookup. It exists so the record download carries the per-reference
+    screening and mapping reasoning, which is the only place that says *why* a
+    given reference was set aside. Add paging when something reads it directly.
+    """
+    rows = db.execute(
+        select(SessionReference)
+        .where(SessionReference.research_session_id == research_session.id)
+        .order_by(SessionReference.id)
+    ).scalars()
+    return [SessionReferenceOut.model_validate(row) for row in rows]

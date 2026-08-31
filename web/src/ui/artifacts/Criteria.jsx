@@ -1,5 +1,4 @@
 import { diffChoice } from '../../derive.js'
-import { Reasoning } from '../Reasoning.jsx'
 
 const key = (item) => `${item.criterion_type}:${item.description}`
 
@@ -42,7 +41,6 @@ export function Criteria({ payload, suggested }) {
           removed={of('exclusion', removed)}
         />
       </div>
-      <Reasoning text={payload.reasoning} />
     </>
   )
 }

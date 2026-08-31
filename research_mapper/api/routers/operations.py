@@ -44,12 +44,9 @@ def _out(db: Session, operation: Operation) -> OperationOut:
         **{
             field: getattr(operation, field)
             for field in OperationOut.model_fields
-            if field not in ("pending_question", "decisions")
+            if field not in ("pending_questions", "decisions")
         },
-        # A step can open several at once (e.g. GenerateMapSubtopics asks one
-        # per dimension via ctx.ask_all), and clients that need every open
-        # question should filter `decisions` themselves.
-        pending_question=open_decisions[0] if open_decisions else None,
+        pending_questions=open_decisions,
         decisions=decisions,
     )
 

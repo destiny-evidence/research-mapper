@@ -1,8 +1,18 @@
 from unittest.mock import MagicMock, patch
 
+import sys
+
+import httpx
 import pytest
 
-from research_mapper.config import configure_dspy, get_destiny_client, load_environment
+from research_mapper import local_destiny_auth
+from research_mapper.config import (
+    HEALTHCHECK_TIMEOUT,
+    NoDestinyCredential,
+    configure_dspy,
+    get_destiny_client,
+    load_environment,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +107,16 @@ def test_configure_dspy_warns_on_an_empty_response_but_still_configures(response
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture
+def _no_credential(monkeypatch):
+    for name in (
+        "AZURE_CLIENT_ID",
+        "MAPPER_DESTINY_APPLICATION_ID",
+        local_destiny_auth.REFRESH_TOKEN_VAR,
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture(autouse=True)
 def _clear_destiny_client_cache():
     get_destiny_client.cache_clear()
@@ -104,9 +124,10 @@ def _clear_destiny_client_cache():
     get_destiny_client.cache_clear()
 
 
-def test_get_destiny_client_triggers_auth_eagerly(monkeypatch):
-    monkeypatch.delenv("AZURE_CLIENT_ID", raising=False)
-    monkeypatch.delenv("MAPPER_DESTINY_APPLICATION_ID", raising=False)
+def test_get_destiny_client_triggers_auth_eagerly(monkeypatch, _no_credential):
+    # With no credential the SDK opens a browser, which is only allowed at a
+    # terminal — so this is the interactive path.
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
 
     with patch("research_mapper.config.OAuthClient") as mock_oauth_client:
         mock_instance = mock_oauth_client.return_value
@@ -114,7 +135,7 @@ def test_get_destiny_client_triggers_auth_eagerly(monkeypatch):
         get_destiny_client()
 
         mock_instance.get_client.return_value.get.assert_called_once_with(
-            "/v1/system/healthcheck/"
+            "/v1/system/healthcheck/", timeout=httpx.USE_CLIENT_DEFAULT
         )
 
 
@@ -139,9 +160,60 @@ def test_get_destiny_client_uses_managed_identity_when_configured(monkeypatch):
         )
 
 
-def test_get_destiny_client_is_cached():
+def test_get_destiny_client_is_cached(monkeypatch, _no_credential):
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     with patch("research_mapper.config.OAuthClient"):
         first = get_destiny_client()
         second = get_destiny_client()
 
         assert first is second
+
+
+# A missing DESTINY credential used to hang forever: the SDK falls back to
+# opening a browser, and a worker container has nobody to open it for.
+# ---------------------------------------------------------------------------
+
+
+def test_no_credential_without_a_terminal_fails_instead_of_waiting(
+    monkeypatch, _no_credential
+):
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+
+    with patch("research_mapper.config.OAuthClient") as mock_oauth_client:
+        with pytest.raises(NoDestinyCredential, match="no terminal"):
+            get_destiny_client()
+
+        # It gives up before building anything, so nothing can block.
+        mock_oauth_client.assert_not_called()
+
+
+def test_the_error_says_how_to_fix_it(monkeypatch, _no_credential):
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+
+    with patch("research_mapper.config.OAuthClient"):
+        with pytest.raises(NoDestinyCredential) as raised:
+            get_destiny_client()
+
+    message = str(raised.value)
+    assert local_destiny_auth.REFRESH_TOKEN_VAR in message
+    assert "research_mapper login" in message
+
+
+def test_a_stored_token_needs_no_terminal_and_bounds_the_healthcheck(monkeypatch):
+    monkeypatch.delenv("AZURE_CLIENT_ID", raising=False)
+    monkeypatch.delenv("MAPPER_DESTINY_APPLICATION_ID", raising=False)
+    monkeypatch.setenv(local_destiny_auth.REFRESH_TOKEN_VAR, "a-token")
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+
+    with (
+        patch("research_mapper.config.OAuthClient") as mock_oauth_client,
+        patch.object(local_destiny_auth, "RefreshTokenAuth"),
+        patch.object(local_destiny_auth, "auth_code_flow"),
+    ):
+        get_destiny_client()
+
+        # Nothing here waits on a human, so an unreachable DESTINY must time out
+        # rather than hang the worker.
+        mock_oauth_client.return_value.get_client.return_value.get.assert_called_once_with(
+            "/v1/system/healthcheck/", timeout=HEALTHCHECK_TIMEOUT
+        )

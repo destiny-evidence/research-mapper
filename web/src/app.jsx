@@ -29,6 +29,10 @@ export function App() {
   }, [])
 
   useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [route.view, route.id])
+
+  useEffect(() => {
     if (route.view !== 'list') return
     api.listSessions().then(setSessions, setError)
   }, [route.view])
@@ -48,10 +52,10 @@ export function App() {
 
   return (
     <>
-      <Chrome />
+      <Chrome onHome={() => go('#/')} />
       {error ? <div class="page"><div class="error" style="margin-top: 20px;">{String(error.message)}</div></div> : null}
       {route.view === 'session' ? (
-        <Session id={route.id} onBack={() => go('#/')} />
+        <Session id={route.id} />
       ) : (
         <div class="page">
           {route.view === 'new' ? (

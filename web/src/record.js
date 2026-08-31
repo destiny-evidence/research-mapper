@@ -15,12 +15,16 @@ export async function buildRecord(sessionId, client = api) {
   const operations = await Promise.all(operationIds.map((id) => client.getOperation(id)))
   const types = Object.keys(session.artifacts ?? {})
   const payloads = await Promise.all(types.map((type) => client.getArtifact(sessionId, type)))
+  // Nothing in the UI shows these, but they carry why each reference was set
+  // aside, which is the question the map provokes.
+  const references = await client.listReferences(sessionId).catch(() => [])
 
   return {
     exported_at: new Date().toISOString(),
     session,
     operations,
     artifacts: Object.fromEntries(types.map((type, i) => [type, payloads[i]])),
+    references,
     // A session without a map is the normal case for most of its life.
     map: await client.getMap(sessionId).catch(() => null),
   }

@@ -3,6 +3,14 @@
 The Preact UI for the evidence-map workflow. Plan and reasoning:
 [`docs/08-web-ui-plan.md`](../docs/08-web-ui-plan.md).
 
+With the rest of the stack:
+
+```sh
+docker compose up          # UI on localhost:5173, API on :8080
+```
+
+On its own, against an API you are already running:
+
 ```sh
 npm install
 npm run dev      # localhost:5173, proxying /api to localhost:8080
@@ -13,7 +21,8 @@ npm run build    # dist/, ready to upload
 The dev server proxies `/api` because the API has no CORS. In production the two must sit behind
 one hostname, or the API needs `CORSMiddleware` — see §5 of the plan.
 
-`VITE_API_BASE` overrides the API prefix if you need it to point somewhere else.
+`MAPPER_API_TARGET` points the dev proxy somewhere else; `VITE_API_BASE` changes the prefix the app
+calls.
 
 ## Where things are
 

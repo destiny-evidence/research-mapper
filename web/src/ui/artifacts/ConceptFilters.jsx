@@ -25,7 +25,6 @@ export function ConceptFilters({ payload }) {
         </div>
       ))}
       <div class="note">Groups are AND&rsquo;d across schemes and OR&rsquo;d within one.</div>
-      <Reasoning text={payload.reasoning} />
     </>
   )
 }

@@ -56,5 +56,21 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  web:
+    image: node:24-alpine
+    working_dir: /app
+    command: sh -c "npm install --no-audit --no-fund && npm run dev"
+    environment:
+      MAPPER_API_TARGET: http://api:8080
+    volumes:
+      - ./web:/app
+      - web-modules:/app/node_modules
+    ports:
+      - "${MAPPER_WEB_PORT:-5173}:5173"
+    depends_on:
+      api:
+        condition: service_started
+
 volumes:
   db-data:
+  web-modules:

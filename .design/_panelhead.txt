@@ -1,2 +1,0 @@
-<div style="width: 1100px; box-sizing: border-box; padding: 30px 40px; background: #f4f3f0; display: flex; flex-direction: column;">
-  <div style="background: #ffffff; border: 1px solid #d6d2ca;">

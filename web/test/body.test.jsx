@@ -43,6 +43,26 @@ describe('step body', () => {
     expect(html).toContain('1 of 3 saved')
   })
 
+  it('shows the suggestion’s reasoning while the question is still open', () => {
+    const questions = [{ id: 1, key: 'select_queries', type: 'select_many', prompt: 'Which searches?', options: [], constraints: {} }]
+    const html = render(
+      <Body
+        row={row({
+          type: 'enhance_sparse_query',
+          state: 'ask',
+          questions,
+          operation: { id: 'o7', decisions: questions },
+        })}
+        artifact={(type) =>
+          type === 'suggested_search_queries' ? { reasoning: 'One search per barrier family.' } : null
+        }
+        onAnswer={noop}
+      />,
+    )
+    expect(html).toContain('LLM reasoning:')
+    expect(html).toContain('One search per barrier family.')
+  })
+
   it('renders the artifact a completed step produced', () => {
     const payload = { queries: [{ query: 'hesitanc* AND HPV' }], reasoning: 'One search per family.' }
     const html = render(
@@ -54,6 +74,122 @@ describe('step body', () => {
     )
     expect(html).toContain('hesitanc* AND HPV')
     expect(html).toContain('LLM reasoning:')
+  })
+
+  it('shows a working bar and no counter when a step has nothing to count', () => {
+    const html = render(
+      <Body
+        row={row({
+          type: 'enhance_sparse_query',
+          state: 'running',
+          operation: { id: 'o5', status: 'running', progress: { done: 0, total: null, failed: 0 } },
+        })}
+        artifact={() => null}
+        onAnswer={noop}
+      />,
+    )
+    expect(html).toContain('bar working')
+    expect(html).toContain('Thinking')
+    expect(html).not.toContain('class="counts"')
+  })
+
+  it('counts only once there is a total to count against', () => {
+    const html = render(
+      <Body
+        row={row({
+          state: 'running',
+          operation: { id: 'o6', status: 'running', progress: { done: 254, total: 530, failed: 3 } },
+        })}
+        artifact={() => null}
+        onAnswer={noop}
+      />,
+    )
+    expect(html).toContain('254 of 530')
+    expect(html).toContain('3 failed')
+    expect(html).not.toContain('bar working')
+  })
+
+  it('shows what a step produced even when it has no artifact to render', () => {
+    const html = render(
+      <Body
+        row={row({
+          type: 'screen_evidence',
+          operation: { id: 'o8', result: { screened: 530, included: 94, failed: 3, version: 2 } },
+        })}
+        artifact={() => null}
+        onAnswer={noop}
+      />,
+    )
+    expect(html).toContain('screened')
+    expect(html).toContain('530')
+    // version is plumbing, not a result
+    expect(html).not.toContain('version')
+  })
+
+  it('falls back to the suggestion when the step never captured its reasoning', () => {
+    // generate_map_subtopics writes Dimensions without a reasoning field.
+    const html = render(
+      <Body
+        row={row({ type: 'generate_map_subtopics', operation: { id: 'o9', result: {} } })}
+        artifact={(type) =>
+          type === 'dimensions'
+            ? { dimensions: [{ name: 'Barrier', description: '', subtopics: [] }], reasoning: '' }
+            : type === 'suggested_dimension_subtopics'
+              ? { reasoning: 'Three dimensions that cut across each other.' }
+              : null
+        }
+        onAnswer={noop}
+      />,
+    )
+    expect(html).toContain('Three dimensions that cut across each other.')
+  })
+
+  it('offers both ways to build the map at the branch', () => {
+    const html = render(
+      <Body
+        row={row({
+          type: 'choose-how-to-map',
+          state: 'ask',
+          branch: {
+            suggested: { head: 'generate_map_dimensions', label: 'Let it suggest dimensions', detail: 'a' },
+            taxonomy: { head: 'generate_taxonomy_map', label: "Use the taxonomy's own schemes", detail: 'b' },
+          },
+        })}
+        artifact={() => null}
+        onAnswer={noop}
+      />,
+    )
+    expect(html).toContain('Let it suggest dimensions')
+    expect(html).toContain('Use the taxonomy')
+  })
+
+  it('offers the other approach when a mapping step fails, since retrying will not help', () => {
+    const html = render(
+      <Body
+        row={row({
+          type: 'generate_taxonomy_map',
+          state: 'failed',
+          operation: { id: 'o10', error: { message: 'annotated against 1 taxonomy scheme(s)' } },
+        })}
+        artifact={() => null}
+        onAnswer={noop}
+      />,
+    )
+    expect(html).toContain('annotated against 1 taxonomy scheme(s)')
+    expect(html).toContain('Retry')
+    expect(html).toContain('Let it suggest dimensions')
+  })
+
+  it('offers no such switch when an ordinary step fails', () => {
+    const html = render(
+      <Body
+        row={row({ state: 'failed', operation: { id: 'o11', error: { message: 'boom' } } })}
+        artifact={() => null}
+        onAnswer={noop}
+      />,
+    )
+    expect(html).toContain('Retry')
+    expect(html).not.toContain('taxonomy')
   })
 
   it('says so plainly when a completed step has nothing to show', () => {

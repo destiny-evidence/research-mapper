@@ -36,6 +36,17 @@ body {
 
 a { color: var(--amber); }
 button { font: inherit; color: inherit; cursor: pointer; }
+/* Form controls do not inherit type from the page on their own, and the
+   browser default is nothing like ours. */
+input, textarea, select {
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.field { padding: 6px 9px; border: 1px solid var(--line); background: var(--panel); }
+.field.grow { flex-grow: 1; max-width: 320px; }
+.field.block { display: block; width: 100%; max-width: 700px; margin-top: 20px; padding: 11px; font-size: 15px; resize: vertical; }
 .mono { font-family: var(--mono); }
 
 .lab {
@@ -58,6 +69,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   font-family: var(--mono); font-size: 9.5px; font-weight: 600;
 }
 .brand { font-size: 12.5px; font-weight: 500; color: var(--ink); }
+.home { display: flex; align-items: center; gap: 13px; background: none; border: 0; padding: 0; }
+.home:hover .brand { color: var(--amber); }
 .grow { flex-grow: 1; }
 
 .hazard { height: 7px; background: repeating-linear-gradient(45deg, var(--amber-line) 0 7px, #3d3b36 7px 14px); }
@@ -68,8 +81,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .banner .lab { color: var(--amber); font-weight: 600; }
 
-.page { padding: 0 80px 60px; }
-.page > * { max-width: 1020px; }
+.page { max-width: 1020px; margin: 0 auto; padding: 0 32px 60px; }
 
 /* session header ---------------------------------------------------------- */
 .session-head { display: flex; align-items: flex-start; gap: 24px; padding: 22px 0 16px; border-bottom: 1px solid var(--line); }
@@ -119,6 +131,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* shared bits ------------------------------------------------------------- */
 .bar { height: 4px; background: var(--chip); max-width: 560px; overflow: hidden; }
 .bar > div { height: 4px; background: var(--ink); }
+/* Nothing to count: show that it is working without inventing a number. */
+.bar.working > div { width: 32%; animation: sliding 1.5s ease-in-out infinite; }
+@keyframes sliding {
+  0%, 100% { margin-left: 0; }
+  50% { margin-left: 68%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar.working > div { animation: none; width: 100%; opacity: 0.35; }
+}
 .counts { display: flex; gap: 28px; margin-top: 14px; }
 .counts .n { font-family: var(--mono); font-size: 16px; color: var(--ink); margin-top: 2px; }
 .counts .bad .n { color: var(--red); }
@@ -145,7 +166,19 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .box.saved { background: var(--green); border-color: var(--green); }
 .option-label { font-size: 13px; color: var(--ink); }
 
-.actions { display: flex; align-items: center; gap: 12px; margin-top: 15px; }
+.actions { display: flex; align-items: center; gap: 12px; margin-top: 15px; flex-wrap: wrap; }
+
+/* A fork in the plan: two ways to build the map, and starting one is the choice. */
+.choices { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.choice {
+  display: flex; flex-direction: column; gap: 5px;
+  flex: 1 1 260px; max-width: 340px;
+  padding: 12px 14px; text-align: left;
+  background: var(--panel); border: 1px solid var(--line);
+}
+.choice:hover { border-color: var(--amber); }
+.choice-label { font-size: 13px; font-weight: 500; color: var(--ink); }
+.choice-detail { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
 .hint { font-size: 11.5px; color: var(--dim); }
 
 /* trace ------------------------------------------------------------------- */
@@ -159,16 +192,43 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .obs.pending { color: var(--amber); }
 
 /* map --------------------------------------------------------------------- */
-.map-head { display: flex; align-items: flex-end; gap: 20px; }
+.map-head { margin-bottom: 14px; }
 .map-title { font-size: 14px; color: var(--ink); font-weight: 600; }
-.facets { display: flex; gap: 4px; flex-shrink: 0; flex-wrap: wrap; }
-.facet { font-size: 11.5px; color: var(--text); background: var(--panel); border: 1px solid var(--line); padding: 5px 10px; }
+/* Axis pickers and facets share a row and wrap together — the facet list is as
+   long as the dimension has subtopics, so it cannot be allowed to push out. */
+.map-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-bottom: 4px; }
+.axis { display: flex; align-items: center; gap: 7px; }
+.axis .field { padding: 4px 6px; }
+.facets { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-width: 0; }
+.facets > .lab { margin-right: 2px; }
+.facet {
+  display: flex; align-items: baseline; gap: 7px;
+  font-size: 11.5px; color: var(--text);
+  background: var(--panel); border: 1px solid var(--line); padding: 4px 9px;
+}
+.facet .facet-n { font-family: var(--mono); font-size: 10.5px; color: var(--dim); }
 .facet.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.grid { display: grid; background: var(--panel); border-top: 1px solid var(--line); border-left: 1px solid var(--line); margin-top: 12px; }
+.facet.on .facet-n { color: #b3b0a9; }
+/* Enough subtopics and the columns would squash to nothing, so past a legible
+   size the map scrolls rather than degrading — with the headers pinned, since a
+   scrolled cell you cannot name is no use. */
+.grid-scroll { overflow: auto; max-height: 78vh; margin-top: 12px; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+/* No background here: once the tracks are wider than the element, this box
+   stops short of them and the page shows through. The cells paint themselves. */
+.grid { display: grid; }
 .grid > div { border-right: 1px solid var(--hair); border-bottom: 1px solid var(--hair); }
-.grid .col-head { padding: 9px 12px; }
-.grid .row-head { padding: 0 12px; display: flex; align-items: center; font-size: 12.5px; color: var(--ink); }
-.grid .cell { height: 70px; display: grid; place-items: center; }
+/* Row and column headers are the same kind of label and read as one set. */
+.grid .head {
+  position: sticky;
+  background: var(--panel);
+  font-size: 12px; color: var(--muted); line-height: 1.35; overflow-wrap: break-word;
+}
+.grid .col-head { top: 0; z-index: 2; padding: 9px 12px; align-self: stretch; display: flex; align-items: flex-end; }
+.grid .row-head { left: 0; z-index: 1; padding: 10px 12px; display: flex; align-items: center; }
+.grid .head.faded { color: var(--faint); }
+/* Where they meet, and so above both. */
+.grid .corner { position: sticky; top: 0; left: 0; z-index: 3; background: var(--panel); }
+.grid .cell { height: 70px; display: grid; place-items: center; background: var(--panel); }
 .grid .cell.zero { background: #faf9f6; }
 .bubble { border-radius: 50%; background: #3d3b36; color: var(--bg); display: grid; place-items: center; font-family: var(--mono); }
 .nothing { width: 9px; height: 9px; border-radius: 50%; border: 1px solid #cfcbc3; }

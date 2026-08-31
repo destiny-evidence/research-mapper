@@ -48,10 +48,18 @@ export const respond = (operationId, answers) =>
   request(`/operations/${operationId}/respond/`, { method: 'POST', body: { answers } })
 export const retry = (operationId) => request(`/operations/${operationId}/retry/`, { method: 'POST' })
 
-// Unanswered by default. This is how the client finds every open question while
-// OperationOut.pending_question is still singular (docs/08 §5).
+// Unanswered by default. Every open question in a session, across operations —
+// the session view reads them off each operation instead, but this is the cheap
+// way to answer "does this session need me?" in one call.
 export const listDecisions = (sessionId, { unanswered = true } = {}) =>
   request(`/sessions/${sessionId}/decisions/?unanswered=${unanswered}`)
 
 export const getArtifact = (sessionId, type) => request(`/sessions/${sessionId}/artifacts/${type}/`)
-export const getMap = (sessionId) => request(`/sessions/${sessionId}/map/`)
+// Hydrating the evidence is a DESTINY lookup per hundred references and most
+// of what this call costs. The map view only needs coordinates.
+// Every reference, every stage, no paging — the only source of per-reference
+// screening and mapping reasoning. Record download only for now.
+export const listReferences = (sessionId) => request(`/sessions/${sessionId}/references/`)
+
+export const getMap = (sessionId, { includeEvidence = true } = {}) =>
+  request(`/sessions/${sessionId}/map/?include_evidence=${includeEvidence}`)

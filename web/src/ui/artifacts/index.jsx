@@ -12,6 +12,7 @@ export const RENDERERS = {
   search_queries: { render: Queries, suggests: 'suggested_search_queries' },
   screening_criteria: { render: Criteria, suggests: 'suggested_screening_criteria' },
   concept_filters: { render: ConceptFilters, suggests: 'suggested_concept_filters' },
+  map_dimensions: { render: Dimensions, suggests: 'suggested_map_dimensions' },
   dimensions: { render: Dimensions, suggests: 'suggested_dimension_subtopics' },
 }
 
@@ -37,10 +38,37 @@ const Json = ({ payload }) => (
   </pre>
 )
 
+/**
+ * The suggestion an asking step is asking about. Written before the step parks,
+ * so its reasoning is available while the question is still open — which is
+ * when it is actually useful.
+ *
+ * generate_concept_filters is absent on purpose: its question comes from the
+ * ReAct loop, and the thinking behind it is the pending step's own thought,
+ * which the trace already shows.
+ */
+export const SUGGESTION_FOR_STEP = {
+  enhance_sparse_query: 'suggested_search_queries',
+  generate_screening_criteria: 'suggested_screening_criteria',
+  generate_map_dimensions: 'suggested_map_dimensions',
+  generate_map_subtopics: 'suggested_dimension_subtopics',
+}
+
+/** Every artifact type the session view fetches. */
+export const WANTED = new Set([
+  ...Object.keys(RENDERERS),
+  ...Object.values(RENDERERS).map((entry) => entry.suggests),
+  ...Object.values(SUGGESTION_FOR_STEP),
+  'concept_filter_loop',
+])
+
 /** The artifact a completed step is worth showing, if any. */
 export const ARTIFACT_FOR_STEP = {
   enhance_sparse_query: 'search_queries',
   generate_screening_criteria: 'screening_criteria',
   generate_concept_filters: 'concept_filters',
+  generate_map_dimensions: 'map_dimensions',
   generate_map_subtopics: 'dimensions',
+  // Picks its own axes from the taxonomy's schemes and writes the same artifact.
+  generate_taxonomy_map: 'dimensions',
 }

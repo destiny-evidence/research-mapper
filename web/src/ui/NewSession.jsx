@@ -20,18 +20,18 @@ export function NewSession({ onCreate, onCancel, busy }) {
         placeholder="What barriers reduce HPV vaccination uptake among adolescent girls in low- and middle-income countries?"
         onInput={(event) => setQuestion(event.currentTarget.value)}
         rows={3}
-        style="width: 100%; max-width: 700px; margin-top: 20px; font: inherit; font-size: 15px; line-height: 1.5; padding: 11px; border: 1px solid var(--line); background: var(--panel); resize: vertical;"
+        class="field block"
       />
       <div class="actions">
         <label class="hint">
           Community{' '}
-          <select value={community} onInput={(event) => setCommunity(event.currentTarget.value)} style="font: inherit; padding: 5px;">
+          <select class="field" value={community} onInput={(event) => setCommunity(event.currentTarget.value)}>
             {COMMUNITIES.map((option) => <option key={option} value={option}>{option.toUpperCase()}</option>)}
           </select>
         </label>
         <label class="hint">
           Search{' '}
-          <select value={mode} onInput={(event) => setMode(event.currentTarget.value)} style="font: inherit; padding: 5px;">
+          <select class="field" value={mode} onInput={(event) => setMode(event.currentTarget.value)}>
             <option value="both">by query and concept</option>
             <option value="sparse">by query only</option>
             <option value="taxonomy">by concept only</option>
@@ -42,7 +42,7 @@ export function NewSession({ onCreate, onCancel, busy }) {
         <button
           class="btn"
           disabled={!question.trim() || busy}
-          onClick={() => onCreate({ workflow: 'evidence_map', question: question.trim(), community, params: { mode, mapMode: 'suggested' } })}
+          onClick={() => onCreate({ workflow: 'evidence_map', question: question.trim(), community, params: { mode } })}
         >
           Start
         </button>

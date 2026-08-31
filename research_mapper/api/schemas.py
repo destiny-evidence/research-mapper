@@ -64,7 +64,7 @@ class OperationOut(BaseModel):
     progress: Progress
     result: dict | None
     error: dict | None
-    pending_question: DecisionOut | None
+    pending_questions: list[DecisionOut]
     decisions: list[DecisionOut]
 
 

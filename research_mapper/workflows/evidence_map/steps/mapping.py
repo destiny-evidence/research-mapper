@@ -130,7 +130,10 @@ class GenerateMapSubtopics(Step[GenerateMapSubtopicsParams, StepContext]):
         dimensions = ctx.require_artifact(artifacts.MAP_DIMENSIONS).dimensions
 
         def generate() -> artifacts.Dimensions:
-            return artifacts.Dimensions(dimensions=self._suggest(ctx, dimensions))
+            suggested, reasoning = self._suggest(ctx, dimensions)
+            return artifacts.Dimensions(
+                dimensions=suggested, subtopic_reasoning=reasoning
+            )
 
         suggested = ctx.get_or_generate_artifact(
             artifacts.SUGGESTED_DIMENSION_SUBTOPICS, generate, params.regenerate
@@ -168,7 +171,11 @@ class GenerateMapSubtopics(Step[GenerateMapSubtopicsParams, StepContext]):
         ]
         version = ctx.write_artifact(
             artifacts.DIMENSIONS,
-            artifacts.Dimensions(dimensions=edited, reasoning=suggested.reasoning),
+            artifacts.Dimensions(
+                dimensions=edited,
+                reasoning=suggested.reasoning,
+                subtopic_reasoning=suggested.subtopic_reasoning,
+            ),
         )
         return {
             "dimensions": len(edited),
@@ -178,7 +185,7 @@ class GenerateMapSubtopics(Step[GenerateMapSubtopicsParams, StepContext]):
 
     def _suggest(
         self, ctx: StepContext, dimensions: list[MappingDimension]
-    ) -> list[MappingDimensionWithSubTopics]:
+    ) -> tuple[list[MappingDimensionWithSubTopics], dict[str, str]]:
         """Generate subtopics for every dimension at once."""
         user_query = UserQuery(query=ctx.research_session.question)
         examples = [
@@ -198,6 +205,7 @@ class GenerateMapSubtopics(Step[GenerateMapSubtopicsParams, StepContext]):
         )
 
         suggested = []
+        reasoning: dict[str, str] = {}
         for dimension, prediction in zip(dimensions, predictions, strict=True):
             if prediction is None:
                 msg = f"no subtopics were generated for {dimension.name}"
@@ -209,7 +217,8 @@ class GenerateMapSubtopics(Step[GenerateMapSubtopicsParams, StepContext]):
                     subtopics=prediction.subtopics,
                 )
             )
-        return suggested
+            reasoning[dimension.name] = getattr(prediction, "reasoning", "") or ""
+        return suggested, reasoning
 
 
 class GenerateMapParams(BaseModel):

@@ -100,14 +100,14 @@ function EditList({ decision, onAnswer, saving }) {
             value={draft.name}
             placeholder="add one"
             onInput={(event) => setDraft({ ...draft, name: event.currentTarget.value })}
-            style="font: inherit; padding: 5px 8px; border: 1px solid var(--line); background: var(--panel);"
+            class="field"
           />
           {'description' in template ? (
             <input
               value={draft.description}
               placeholder="what it covers"
               onInput={(event) => setDraft({ ...draft, description: event.currentTarget.value })}
-              style="font: inherit; padding: 5px 8px; border: 1px solid var(--line); background: var(--panel); flex-grow: 1; max-width: 320px;"
+              class="field grow"
             />
           ) : null}
           <button class="btn plain" type="button" onClick={add}><Plus /> add</button>

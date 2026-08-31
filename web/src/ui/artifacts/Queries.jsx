@@ -1,5 +1,4 @@
 import { diffChoice } from '../../derive.js'
-import { Reasoning } from '../Reasoning.jsx'
 
 const key = (item) => item.query
 
@@ -20,7 +19,6 @@ export function Queries({ payload, suggested }) {
           </div>
         ))}
       </div>
-      <Reasoning text={payload.reasoning} />
     </>
   )
 }

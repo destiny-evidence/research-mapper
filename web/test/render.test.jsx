@@ -3,6 +3,7 @@ import render from 'preact-render-to-string'
 import { Panel } from '../src/ui/Panel.jsx'
 import { Reasoning } from '../src/ui/Reasoning.jsx'
 import { Trace, iterations } from '../src/ui/Trace.jsx'
+import { Breakable } from '../src/ui/text.jsx'
 
 describe('Panel', () => {
   it('shows its summary and hides its body when collapsed', () => {
@@ -69,5 +70,16 @@ describe('Trace', () => {
 
   it('renders nothing for an operation with no trajectory', () => {
     expect(render(<Trace payload={null} />)).toBe('')
+  })
+})
+
+describe('Breakable', () => {
+  it('gives a compound label a break opportunity after each slash', () => {
+    const html = render(<Breakable>Channel/Medium/Platform</Breakable>)
+    expect(html).toBe('Channel/<wbr/>Medium/<wbr/>Platform')
+  })
+
+  it('leaves an ordinary label alone', () => {
+    expect(render(<Breakable>Vaccine hesitancy</Breakable>)).toBe('Vaccine hesitancy')
   })
 })

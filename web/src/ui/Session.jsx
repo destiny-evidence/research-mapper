@@ -1,33 +1,43 @@
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import * as api from '../api.js'
-import { steps, activeStep, progressText } from '../derive.js'
+import { MAP_TAILS } from '../plan.js'
+import {
+  steps,
+  activeStep,
+  hasCounts,
+  mapIsReady,
+  nextToStart,
+  progressText,
+} from '../derive.js'
 import { downloadRecord } from '../record.js'
 import { usePoll } from '../poll.js'
 import { Panel, Toggle, Pip } from './Panel.jsx'
 import { Question } from './Ask.jsx'
 import { Trace } from './Trace.jsx'
 import { EvidenceMap } from './EvidenceMap.jsx'
-import { Artifact, RENDERERS, ARTIFACT_FOR_STEP } from './artifacts/index.jsx'
+import {
+  Artifact,
+  RENDERERS,
+  ARTIFACT_FOR_STEP,
+  SUGGESTION_FOR_STEP,
+  WANTED,
+} from './artifacts/index.jsx'
+import { Reasoning } from './Reasoning.jsx'
 import { Download } from './Icons.jsx'
 
 const MOVING = new Set(['pending', 'running'])
 
 async function load(id) {
-  const [session, operationIds, decisions] = await Promise.all([
-    api.getSession(id),
-    api.listOperationIds(id),
-    api.listDecisions(id),
-  ])
+  const [session, operationIds] = await Promise.all([api.getSession(id), api.listOperationIds(id)])
+  // Each operation carries its own open questions and answered decisions.
   const operations = await Promise.all(operationIds.map(api.getOperation))
-  return { session, operations, decisions }
+  return { session, operations }
 }
 
 /** Artifacts we can render, fetched once per version and cached. */
 function useArtifacts(sessionId, versions = {}) {
   const [cache, setCache] = useState({})
-  const wanted = Object.keys(versions).filter(
-    (type) => RENDERERS[type] || Object.values(RENDERERS).some((entry) => entry.suggests === type) || type === 'concept_filter_loop',
-  )
+  const wanted = Object.keys(versions).filter((type) => WANTED.has(type))
   const stamp = wanted.map((type) => `${type}@${versions[type]}`).join(',')
 
   useEffect(() => {
@@ -50,7 +60,7 @@ function useArtifacts(sessionId, versions = {}) {
   return (type) => cache[`${type}@${versions[type]}`] ?? null
 }
 
-export function Session({ id, onBack }) {
+export function Session({ id }) {
   const { data, error, refresh } = usePoll(() => load(id), {
     active: ({ operations }) => operations.some((operation) => MOVING.has(operation.status)),
     deps: [id],
@@ -59,15 +69,32 @@ export function Session({ id, onBack }) {
   const [saving, setSaving] = useState(false)
   const [map, setMap] = useState(null)
   const [workflowOpen, setWorkflowOpen] = useState(false)
+  const started = useRef(new Set())
+  const [problem, setProblem] = useState(null)
 
   const session = data?.session
   const artifact = useArtifacts(id, session?.artifacts)
   const rows = data ? steps(data) : []
-  const mapped = rows.find((row) => row.type === 'generate_map')?.state === 'done'
+  const mapped = mapIsReady(rows)
 
   useEffect(() => {
-    if (mapped) api.getMap(id).then(setMap, () => setMap(null))
+    // The view needs coordinates, not the references themselves.
+    if (mapped) api.getMap(id, { includeEvidence: false }).then(setMap, () => setMap(null))
   }, [id, mapped])
+
+  // Keep the session moving: see nextToStart.
+  useEffect(() => {
+    if (!data) return
+    const next = nextToStart(rows)
+    if (!next || started.current.has(next)) return
+    started.current.add(next)
+    setProblem(null)
+    api.startOperation(id, next).then(refresh, (failure) => {
+      started.current.delete(next)
+      // Silence here reads as a stalled session, which is worse than the error.
+      setProblem(`Could not start ${next}: ${failure.message}`)
+    })
+  }, [data])
 
   if (error && !data) return <div class="page"><div class="error">{String(error.message)}</div></div>
   if (!data) return <div class="page"><div class="note">Loading…</div></div>
@@ -91,6 +118,14 @@ export function Session({ id, onBack }) {
     refresh()
   }
 
+  // Starting a step by hand: the mapping branch, and switching approach after a
+  // mapping step fails.
+  const startStep = async (type) => {
+    started.current.add(type)
+    await api.startOperation(id, type)
+    refresh()
+  }
+
   const included = rows.find((row) => row.type === 'screen_evidence')?.operation?.result?.included
 
   const stepList = rows.map((row) => (
@@ -98,11 +133,18 @@ export function Session({ id, onBack }) {
       key={row.type}
       state={row.state}
       title={row.title}
-      summary={row.summary || (row.state === 'todo' ? hintFor(row) : '')}
+      summary={row.summary}
       open={isOpen(row)}
       onToggle={() => toggle(row)}
     >
-      <Body row={row} artifact={artifact} onAnswer={answer} onRetry={retryStep} saving={saving} />
+      <Body
+        row={row}
+        artifact={artifact}
+        onAnswer={answer}
+        onRetry={retryStep}
+        onStart={startStep}
+        saving={saving}
+      />
     </Panel>
   ))
 
@@ -112,15 +154,15 @@ export function Session({ id, onBack }) {
         <div class="grow">
           <div class="question">{session.question}</div>
           <div class="meta">
-            {session.community.toUpperCase()} · v{session.head_version_number} ·{' '}
-            {new Date(session.created_at).toLocaleString()}
+            {session.community.toUpperCase()} · {new Date(session.created_at).toLocaleString()}
           </div>
         </div>
-        <button class="quiet" onClick={onBack}>All sessions</button>
         <button class="quiet" onClick={() => downloadRecord(id)}>
           <Download /> Full record
         </button>
       </div>
+
+      {problem ? <div class="error" style="margin-bottom: 16px;">{problem}</div> : null}
 
       {map ? (
         <>
@@ -142,28 +184,62 @@ export function Session({ id, onBack }) {
   )
 }
 
-const hintFor = (row) => (row.asks ? 'will ask you' : '')
+const overview = (rows) => `${rows.filter((row) => row.state === 'done').length} steps`
 
-const overview = (rows) => {
-  const done = rows.filter((row) => row.state === 'done').length
-  const questions = rows.reduce((n, row) => n + (row.operation?.decisions?.length ?? 0), 0)
-  return `${done} steps · you answered ${questions} questions`
+/** A step's own result, for the steps that produce no artifact to render. */
+function Result({ result }) {
+  const entries = Object.entries(result ?? {}).filter(([key]) => key !== 'version')
+  if (!entries.length) return null
+  return (
+    <div class="counts">
+      {entries.map(([key, value]) => (
+        <div key={key}>
+          <div class="lab">{key.replace(/_/g, ' ')}</div>
+          <div class="n">{value}</div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 /** What a step shows when it is open, which depends only on its state. */
-export function Body({ row, artifact, onAnswer, onRetry = () => {}, saving }) {
+export function Body({ row, artifact, onAnswer, onRetry = () => {}, onStart = () => {}, saving }) {
   if (row.state === 'failed') {
+    // A mapping tail that cannot run will not run on a retry either — the other
+    // approach is the useful button.
+    const other = Object.values(MAP_TAILS).find(
+      (tail) => tail.head !== row.type && Object.values(MAP_TAILS).some((t) => t.head === row.type),
+    )
     return (
       <>
         <div class="error">{row.operation.error?.message ?? JSON.stringify(row.operation.error)}</div>
         <div class="actions">
           <button class="btn" onClick={() => onRetry(row.operation.id)}>Retry</button>
+          {other ? (
+            <button class="btn plain" onClick={() => onStart(other.head)}>{other.label}</button>
+          ) : null}
         </div>
       </>
     )
   }
 
+  if (row.branch) {
+    return (
+      <div class="choices">
+        {Object.entries(row.branch).map(([key, tail]) => (
+          <button type="button" class="choice" key={key} onClick={() => onStart(tail.head)}>
+            <span class="choice-label">{tail.label}</span>
+            <span class="choice-detail">{tail.detail}</span>
+          </button>
+        ))}
+      </div>
+    )
+  }
+
   if (row.state === 'ask') {
+    // Reasoning is background, so it sits under the thing it explains — never
+    // above the question you are being asked.
+    const suggestion = artifact(SUGGESTION_FOR_STEP[row.type])
     return (
       <>
         {row.questions.map((decision) => (
@@ -181,38 +257,51 @@ export function Body({ row, artifact, onAnswer, onRetry = () => {}, saving }) {
           </div>
         ) : null}
         {row.type === 'generate_concept_filters' ? <Trace payload={artifact('concept_filter_loop')} /> : null}
+        <Reasoning text={suggestion?.reasoning} />
       </>
     )
   }
 
   if (row.state === 'running') {
     const { progress } = row.operation
+    // Most steps are one model call with nothing to count. Only the fanned-out
+    // ones — screening, retrieval, placement — have a total worth a bar.
+    const counted = hasCounts(progress)
     return (
       <>
-        {progress?.total ? (
-          <div class="bar">
-            <div style={`width: ${Math.round((100 * progress.done) / progress.total)}%;`} />
-          </div>
-        ) : null}
-        <div class="counts">
-          <div>
-            <div class="lab">Done</div>
-            <div class="n">{progress?.done ?? 0}</div>
-          </div>
-          {progress?.failed ? (
-            <div class="bad">
-              <div class="lab">Failed</div>
-              <div class="n">{progress.failed}</div>
-            </div>
-          ) : null}
+        <div class={counted ? 'bar' : 'bar working'}>
+          <div style={counted ? `width: ${Math.round((100 * progress.done) / progress.total)}%;` : ''} />
         </div>
-        <div class="note">{progressText(progress)}</div>
+        <div class="note" style="margin-top: 11px;">
+          {row.operation.status === 'pending' ? 'Queued' : progressText(progress)}
+        </div>
       </>
     )
   }
 
+  // Done. A finished step should still show what it produced and why, so
+  // reopening it is worth doing.
   const type = ARTIFACT_FOR_STEP[row.type]
   const payload = type ? artifact(type) : null
-  if (!payload) return <div class="note">Nothing to show for this step.</div>
-  return <Artifact type={type} payload={payload} suggested={artifact(RENDERERS[type]?.suggests)} />
+  const suggestion = artifact(SUGGESTION_FOR_STEP[row.type])
+  const result = row.operation?.result
+  // The chosen artifact carries the reasoning forward, except where the step
+  // never captured one — then the suggestion still has it.
+  const reasoning = payload?.reasoning || suggestion?.reasoning
+  const trace = row.type === 'generate_concept_filters' ? artifact('concept_filter_loop') : null
+
+  if (!payload && !result && !reasoning && !trace) {
+    return <div class="note">Nothing to show for this step.</div>
+  }
+  return (
+    <>
+      {payload ? (
+        <Artifact type={type} payload={payload} suggested={artifact(RENDERERS[type]?.suggests)} />
+      ) : (
+        <Result result={result} />
+      )}
+      {trace ? <Trace payload={trace} /> : null}
+      <Reasoning text={reasoning} />
+    </>
+  )
 }

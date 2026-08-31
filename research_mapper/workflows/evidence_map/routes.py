@@ -32,11 +32,23 @@ class SessionReferenceOut(BaseModel):
     mapping: dict | None
 
 
-def _coordinates(db: Session, session_id: UUID) -> dict[UUID, dict[str, list[str]]]:
+def _coordinates(
+    db: Session, session_id: UUID, dimensions_version: int
+) -> dict[UUID, dict[str, list[str]]]:
+    """Coordinates placed against the dimensions this map is about to render.
+
+    Both mapping tails stamp the dimensions artifact version they mapped against.
+    An older stamp means subtopic names that may no longer exist, which would land
+    in no cell while still counting towards the totals printed around the grid.
+    """
     rows = db.execute(
         select(SessionReference.destiny_id, SessionReference.coordinate)
         .where(SessionReference.research_session_id == session_id)
         .where(SessionReference.stage == SessionReferenceStage.MAPPED)
+        .where(
+            SessionReference.mapping["dimensions_version"].astext
+            == str(dimensions_version)
+        )
         .order_by(SessionReference.id)
     ).all()
     return {row.destiny_id: row.coordinate for row in rows if row.coordinate}
@@ -74,7 +86,7 @@ def read_map(
         raise HTTPException(500, msg)
     first, second, third = dimensions
 
-    coordinates = _coordinates(db, research_session.id)
+    coordinates = _coordinates(db, research_session.id, artifact.version)
     evidence = (
         _hydrate(list(coordinates))
         if include_evidence

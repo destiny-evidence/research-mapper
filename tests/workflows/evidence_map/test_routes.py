@@ -48,15 +48,15 @@ def session(db):
     return make_session(db, user)
 
 
-def put_dimensions(db, session, dimensions=DIMENSIONS) -> None:
-    user = make_user(db, "author")
+def put_dimensions(db, session, dimensions=DIMENSIONS, version=1) -> None:
+    user = make_user(db, f"author-{version}")
     operation = make_operation(db, session, user)
     db.add(
         Artifact(
             research_session_id=session.id,
             operation_id=operation.id,
             type=ArtifactType.DIMENSIONS,
-            version=1,
+            version=version,
             payload={"dimensions": dimensions},
         )
     )
@@ -81,6 +81,7 @@ def test_the_map_joins_the_dimensions_artifact_to_the_reference_rows(
             "Outcome": ["Mortality"],
             "Design": ["Cohort"],
         },
+        mapping={"dimensions_version": 1},
     )
     make_reference(db, session, TWO, stage=SessionReferenceStage.EXCLUDED)
     monkeypatch.setattr(
@@ -113,6 +114,7 @@ def test_a_reference_destiny_no_longer_returns_is_dropped(
             destiny_id,
             stage=SessionReferenceStage.MAPPED,
             coordinate={"Setting": ["Urban"]},
+            mapping={"dimensions_version": 1},
         )
     monkeypatch.setattr(
         routes, "get_evidence", lambda ids: [{ONE: Evidence(destiny_id=ONE)}]
@@ -121,6 +123,39 @@ def test_a_reference_destiny_no_longer_returns_is_dropped(
     body = client.get(f"/sessions/{session.id}/map/").json()
 
     assert len(body["mapped_evidence"]) == 1
+
+
+def test_coordinates_from_older_dimensions_are_left_out_of_the_map(
+    client, db, session, monkeypatch
+):
+    """Their subtopics may no longer exist, so they would inflate the totals."""
+    put_dimensions(db, session, version=1)
+    put_dimensions(db, session, version=2)
+    make_reference(
+        db,
+        session,
+        ONE,
+        stage=SessionReferenceStage.MAPPED,
+        coordinate={"Setting": ["Urban"]},
+        mapping={"dimensions_version": 1},
+    )
+    make_reference(
+        db,
+        session,
+        TWO,
+        stage=SessionReferenceStage.MAPPED,
+        coordinate={"Setting": ["Urban"]},
+        mapping={"dimensions_version": 2},
+    )
+    monkeypatch.setattr(
+        routes,
+        "get_evidence",
+        lambda ids: [{destiny_id: Evidence(destiny_id=destiny_id) for destiny_id in ids}],
+    )
+
+    body = client.get(f"/sessions/{session.id}/map/").json()
+
+    assert [cell["evidence"]["destiny_id"] for cell in body["mapped_evidence"]] == [str(TWO)]
 
 
 def test_a_dimensions_artifact_that_is_not_three_is_a_clear_error(

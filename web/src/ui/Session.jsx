@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'preact/hooks'
-import * as api from '../api.js'
-import { MAP_TAILS } from '../plan.js'
+import { useEffect, useRef, useState } from "preact/hooks";
+import * as api from "../api.js";
+import { MAP_TAILS } from "../plan.js";
 import {
   steps,
   activeStep,
@@ -8,43 +8,48 @@ import {
   mapIsReady,
   nextToStart,
   progressText,
-} from '../derive.js'
-import { downloadRecord } from '../record.js'
-import { usePoll } from '../poll.js'
-import { Panel, Toggle, Pip } from './Panel.jsx'
-import { Question } from './Ask.jsx'
-import { Trace } from './Trace.jsx'
-import { EvidenceMap } from './EvidenceMap.jsx'
+} from "../derive.js";
+import { downloadRecord } from "../record.js";
+import { usePoll } from "../poll.js";
+import { Panel, Toggle, Pip } from "./Panel.jsx";
+import { Question } from "./Ask.jsx";
+import { Trace } from "./Trace.jsx";
+import { EvidenceMap } from "./EvidenceMap.jsx";
 import {
   Artifact,
   RENDERERS,
   ARTIFACT_FOR_STEP,
   SUGGESTION_FOR_STEP,
   WANTED,
-} from './artifacts/index.jsx'
-import { Reasoning } from './Reasoning.jsx'
-import { Download } from './Icons.jsx'
-import { Scope } from './Scope.jsx'
+} from "./artifacts/index.jsx";
+import { Reasoning } from "./Reasoning.jsx";
+import { Download } from "./Icons.jsx";
+import { Scope } from "./Scope.jsx";
 
-const MOVING = new Set(['pending', 'running'])
+const MOVING = new Set(["pending", "running"]);
 
 async function load(id) {
-  const [session, operationIds] = await Promise.all([api.getSession(id), api.listOperationIds(id)])
+  const [session, operationIds] = await Promise.all([
+    api.getSession(id),
+    api.listOperationIds(id),
+  ]);
   // Each operation carries its own open questions and answered decisions.
-  const operations = await Promise.all(operationIds.map(api.getOperation))
-  return { session, operations }
+  const operations = await Promise.all(operationIds.map(api.getOperation));
+  return { session, operations };
 }
 
 /** Artifacts we can render, fetched once per version and cached. */
 function useArtifacts(sessionId, versions = {}) {
-  const [cache, setCache] = useState({})
-  const wanted = Object.keys(versions).filter((type) => WANTED.has(type))
-  const stamp = wanted.map((type) => `${type}@${versions[type]}`).join(',')
+  const [cache, setCache] = useState({});
+  const wanted = Object.keys(versions).filter((type) => WANTED.has(type));
+  const stamp = wanted.map((type) => `${type}@${versions[type]}`).join(",");
 
   useEffect(() => {
-    let live = true
-    const missing = wanted.filter((type) => cache[`${type}@${versions[type]}`] === undefined)
-    if (!missing.length) return
+    let live = true;
+    const missing = wanted.filter(
+      (type) => cache[`${type}@${versions[type]}`] === undefined,
+    );
+    if (!missing.length) return;
     Promise.all(
       missing.map((type) =>
         api.getArtifact(sessionId, type).then(
@@ -52,82 +57,103 @@ function useArtifacts(sessionId, versions = {}) {
           () => [`${type}@${versions[type]}`, null],
         ),
       ),
-    ).then((entries) => live && setCache((previous) => ({ ...previous, ...Object.fromEntries(entries) })))
+    ).then(
+      (entries) =>
+        live &&
+        setCache((previous) => ({
+          ...previous,
+          ...Object.fromEntries(entries),
+        })),
+    );
     return () => {
-      live = false
-    }
-  }, [sessionId, stamp])
+      live = false;
+    };
+  }, [sessionId, stamp]);
 
-  return (type) => cache[`${type}@${versions[type]}`] ?? null
+  return (type) => cache[`${type}@${versions[type]}`] ?? null;
 }
 
 export function Session({ id }) {
   const { data, error, refresh } = usePoll(() => load(id), {
-    active: ({ operations }) => operations.some((operation) => MOVING.has(operation.status)),
+    active: ({ operations }) =>
+      operations.some((operation) => MOVING.has(operation.status)),
     deps: [id],
-  })
-  const [overrides, setOverrides] = useState({})
-  const [saving, setSaving] = useState(false)
-  const [map, setMap] = useState(null)
-  const [workflowOpen, setWorkflowOpen] = useState(false)
-  const started = useRef(new Set())
-  const [problem, setProblem] = useState(null)
+  });
+  const [overrides, setOverrides] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [map, setMap] = useState(null);
+  const [workflowOpen, setWorkflowOpen] = useState(false);
+  const started = useRef(new Set());
+  const [problem, setProblem] = useState(null);
 
-  const session = data?.session
-  const artifact = useArtifacts(id, session?.artifacts)
-  const rows = data ? steps(data) : []
-  const mapped = mapIsReady(rows)
+  const session = data?.session;
+  const artifact = useArtifacts(id, session?.artifacts);
+  const rows = data ? steps(data) : [];
+  const mapped = mapIsReady(rows);
 
   useEffect(() => {
     // The view needs coordinates, not the references themselves.
-    if (mapped) api.getMap(id, { includeEvidence: false }).then(setMap, () => setMap(null))
-  }, [id, mapped])
+    if (mapped)
+      api
+        .getMap(id, { includeEvidence: false })
+        .then(setMap, () => setMap(null));
+  }, [id, mapped]);
 
   // Keep the session moving: see nextToStart.
   useEffect(() => {
-    if (!data) return
-    const next = nextToStart(rows)
-    if (!next || started.current.has(next)) return
-    started.current.add(next)
-    setProblem(null)
+    if (!data) return;
+    const next = nextToStart(rows);
+    if (!next || started.current.has(next)) return;
+    started.current.add(next);
+    setProblem(null);
     api.startOperation(id, next).then(refresh, (failure) => {
-      started.current.delete(next)
-      // Silence here reads as a stalled session, which is worse than the error.
-      setProblem(`Could not start ${next}: ${failure.message}`)
-    })
-  }, [data])
+      started.current.delete(next);
+      setProblem(`Could not start ${next}: ${failure.message}`);
+    });
+  }, [data]);
 
-  if (error && !data) return <div class="page"><div class="error">{String(error.message)}</div></div>
-  if (!data) return <div class="page"><div class="note">Loading…</div></div>
+  if (error && !data)
+    return (
+      <div class="page">
+        <div class="error">{String(error.message)}</div>
+      </div>
+    );
+  if (!data)
+    return (
+      <div class="page">
+        <div class="note">Loading…</div>
+      </div>
+    );
 
-  const active = activeStep(rows)
-  const isOpen = (row) => overrides[row.type] ?? row === active
-  const toggle = (row) => setOverrides({ ...overrides, [row.type]: !isOpen(row) })
+  const active = activeStep(rows);
+  const isOpen = (row) => overrides[row.type] ?? row === active;
+  const toggle = (row) =>
+    setOverrides({ ...overrides, [row.type]: !isOpen(row) });
 
   const answer = async (operationId, key, value) => {
-    setSaving(true)
+    setSaving(true);
     try {
-      await api.respond(operationId, { [key]: value })
-      refresh()
+      await api.respond(operationId, { [key]: value });
+      refresh();
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const retryStep = async (operationId) => {
-    await api.retry(operationId)
-    refresh()
-  }
+    await api.retry(operationId);
+    refresh();
+  };
 
-  // Starting a step by hand: the mapping branch, and switching approach after a
-  // mapping step fails.
+  // Starting a step by hand
   const startStep = async (type) => {
-    started.current.add(type)
-    await api.startOperation(id, type)
-    refresh()
-  }
+    started.current.add(type);
+    await api.startOperation(id, type);
+    refresh();
+  };
 
-  const included = rows.find((row) => row.type === 'screen_evidence')?.operation?.result?.included
+  const included = rows.find((row) => row.type === "screen_evidence")?.operation
+    ?.result?.included;
 
   const stepList = rows.map((row) => (
     <Panel
@@ -147,7 +173,7 @@ export function Session({ id }) {
         saving={saving}
       />
     </Panel>
-  ))
+  ));
 
   return (
     <div class="page">
@@ -155,7 +181,8 @@ export function Session({ id }) {
         <div class="grow">
           <div class="question">{session.question}</div>
           <div class="meta">
-            {session.community.toUpperCase()} · {new Date(session.created_at).toLocaleString()}
+            {session.community.toUpperCase()} ·{" "}
+            {new Date(session.created_at).toLocaleString()}
           </div>
           <Scope community={session.community} />
         </div>
@@ -164,92 +191,126 @@ export function Session({ id }) {
         </button>
       </div>
 
-      {problem ? <div class="error" style="margin-bottom: 16px;">{problem}</div> : null}
+      {problem ? (
+        <div class="error" style="margin-bottom: 16px;">
+          {problem}
+        </div>
+      ) : null}
 
       {map ? (
         <>
-          <div class={`workflow ${workflowOpen ? '' : 'closed'}`} style="margin-top: 22px;">
-            <button type="button" class="workflow-head" onClick={() => setWorkflowOpen(!workflowOpen)}>
+          <div
+            class={`workflow ${workflowOpen ? "" : "closed"}`}
+            style="margin-top: 22px;"
+          >
+            <button
+              type="button"
+              class="workflow-head"
+              onClick={() => setWorkflowOpen(!workflowOpen)}
+            >
               <Pip state="done" />
-              <span style="font-size: 13px; color: var(--ink); font-weight: 500;">Workflow</span>
+              <span style="font-size: 13px; color: var(--ink); font-weight: 500;">
+                Workflow
+              </span>
               <span class="step-summary">{overview(rows)}</span>
               <Toggle open={workflowOpen} />
             </button>
             {workflowOpen ? <div class="workflow-steps">{stepList}</div> : null}
           </div>
-          <EvidenceMap map={map} included={included} community={session.community} />
+          <EvidenceMap
+            map={map}
+            included={included}
+            community={session.community}
+          />
         </>
       ) : (
         stepList
       )}
     </div>
-  )
+  );
 }
 
-const overview = (rows) => `${rows.filter((row) => row.state === 'done').length} steps`
+const overview = (rows) =>
+  `${rows.filter((row) => row.state === "done").length} steps`;
 
-// What went wrong is not what the step produced, so it reads last whatever
-// order the step happened to return its keys in.
-const PROBLEM = new Set(['failed', 'dropped', 'errors', 'skipped'])
+const PROBLEM = new Set(["failed", "dropped", "errors", "skipped"]);
 
-/** A step's own result, for the steps that produce no artifact to render. */
+/** A step's own result, used when no artifact exists. */
 function Result({ result }) {
-  const entries = Object.entries(result ?? {}).filter(([key]) => key !== 'version')
-  if (!entries.length) return null
+  const entries = Object.entries(result ?? {}).filter(
+    ([key]) => key !== "version",
+  );
+  if (!entries.length) return null;
   const ordered = [
     ...entries.filter(([key]) => !PROBLEM.has(key)),
     ...entries.filter(([key]) => PROBLEM.has(key)),
-  ]
+  ];
   return (
     <div class="counts">
       {ordered.map(([key, value]) => (
-        <div key={key} class={PROBLEM.has(key) ? 'bad' : undefined}>
-          <div class="lab">{key.replace(/_/g, ' ')}</div>
+        <div key={key} class={PROBLEM.has(key) ? "bad" : undefined}>
+          <div class="lab">{key.replace(/_/g, " ")}</div>
           <div class="n">{value}</div>
         </div>
       ))}
     </div>
-  )
+  );
 }
 
-/** What a step shows when it is open, which depends only on its state. */
-export function Body({ row, artifact, onAnswer, onRetry = () => {}, onStart = () => {}, saving }) {
-  if (row.state === 'failed') {
-    // A mapping tail that cannot run will not run on a retry either — the other
-    // approach is the useful button.
+/** What a step shows when it is open. */
+export function Body({
+  row,
+  artifact,
+  onAnswer,
+  onRetry = () => {},
+  onStart = () => {},
+  saving,
+}) {
+  if (row.state === "failed") {
     const other = Object.values(MAP_TAILS).find(
-      (tail) => tail.head !== row.type && Object.values(MAP_TAILS).some((t) => t.head === row.type),
-    )
+      (tail) =>
+        tail.head !== row.type &&
+        Object.values(MAP_TAILS).some((t) => t.head === row.type),
+    );
     return (
       <>
-        <div class="error">{row.operation.error?.message ?? JSON.stringify(row.operation.error)}</div>
+        <div class="error">
+          {row.operation.error?.message ?? JSON.stringify(row.operation.error)}
+        </div>
         <div class="actions">
-          <button class="btn" onClick={() => onRetry(row.operation.id)}>Retry</button>
+          <button class="btn" onClick={() => onRetry(row.operation.id)}>
+            Retry
+          </button>
           {other ? (
-            <button class="btn plain" onClick={() => onStart(other.head)}>{other.label}</button>
+            <button class="btn plain" onClick={() => onStart(other.head)}>
+              {other.label}
+            </button>
           ) : null}
         </div>
       </>
-    )
+    );
   }
 
   if (row.branch) {
     return (
       <div class="choices">
         {Object.entries(row.branch).map(([key, tail]) => (
-          <button type="button" class="choice" key={key} onClick={() => onStart(tail.head)}>
+          <button
+            type="button"
+            class="choice"
+            key={key}
+            onClick={() => onStart(tail.head)}
+          >
             <span class="choice-label">{tail.label}</span>
             <span class="choice-detail">{tail.detail}</span>
           </button>
         ))}
       </div>
-    )
+    );
   }
 
-  if (row.state === 'ask') {
-    // Reasoning is background, so it sits under the thing it explains — never
-    // above the question you are being asked.
-    const suggestion = artifact(SUGGESTION_FOR_STEP[row.type])
+  if (row.state === "ask") {
+    const suggestion = artifact(SUGGESTION_FOR_STEP[row.type]);
     return (
       <>
         {row.questions.map((decision) => (
@@ -257,61 +318,75 @@ export function Body({ row, artifact, onAnswer, onRetry = () => {}, onStart = ()
             key={decision.id}
             decision={decision}
             saving={saving}
-            onAnswer={(value) => onAnswer(row.operation.id, decision.key, value)}
+            onAnswer={(value) =>
+              onAnswer(row.operation.id, decision.key, value)
+            }
           />
         ))}
         {row.questions.length > 1 ? (
           <div class="hint" style="margin-top: 12px;">
-            {row.operation.decisions.filter((d) => d.answer != null).length} of{' '}
+            {row.operation.decisions.filter((d) => d.answer != null).length} of{" "}
             {row.operation.decisions.length} saved
           </div>
         ) : null}
-        {row.type === 'generate_concept_filters' ? <Trace payload={artifact('concept_filter_loop')} /> : null}
+        {row.type === "generate_concept_filters" ? (
+          <Trace payload={artifact("concept_filter_loop")} />
+        ) : null}
         <Reasoning text={suggestion?.reasoning} />
       </>
-    )
+    );
   }
 
-  if (row.state === 'running') {
-    const { progress } = row.operation
-    // Most steps are one model call with nothing to count. Only the fanned-out
-    // ones — screening, retrieval, placement — have a total worth a bar.
-    const counted = hasCounts(progress)
+  if (row.state === "running") {
+    const { progress } = row.operation;
+    const counted = hasCounts(progress);
     return (
       <>
-        <div class={counted ? 'bar' : 'bar working'}>
-          <div style={counted ? `width: ${Math.round((100 * progress.done) / progress.total)}%;` : ''} />
+        <div class={counted ? "bar" : "bar working"}>
+          <div
+            style={
+              counted
+                ? `width: ${Math.round((100 * progress.done) / progress.total)}%;`
+                : ""
+            }
+          />
         </div>
         <div class="note" style="margin-top: 11px;">
-          {row.operation.status === 'pending' ? 'Queued' : progressText(progress)}
+          {row.operation.status === "pending"
+            ? "Queued"
+            : progressText(progress)}
         </div>
       </>
-    )
+    );
   }
 
-  // Done. A finished step should still show what it produced and why, so
-  // reopening it is worth doing.
-  const type = ARTIFACT_FOR_STEP[row.type]
-  const payload = type ? artifact(type) : null
-  const suggestion = artifact(SUGGESTION_FOR_STEP[row.type])
-  const result = row.operation?.result
-  // The chosen artifact carries the reasoning forward, except where the step
-  // never captured one — then the suggestion still has it.
-  const reasoning = payload?.reasoning || suggestion?.reasoning
-  const trace = row.type === 'generate_concept_filters' ? artifact('concept_filter_loop') : null
+  const type = ARTIFACT_FOR_STEP[row.type];
+  const payload = type ? artifact(type) : null;
+  const suggestion = artifact(SUGGESTION_FOR_STEP[row.type]);
+  const result = row.operation?.result;
+
+  const reasoning = payload?.reasoning || suggestion?.reasoning;
+  const trace =
+    row.type === "generate_concept_filters"
+      ? artifact("concept_filter_loop")
+      : null;
 
   if (!payload && !result && !reasoning && !trace) {
-    return <div class="note">Nothing to show for this step.</div>
+    return <div class="note">Nothing to show for this step.</div>;
   }
   return (
     <>
       {payload ? (
-        <Artifact type={type} payload={payload} suggested={artifact(RENDERERS[type]?.suggests)} />
+        <Artifact
+          type={type}
+          payload={payload}
+          suggested={artifact(RENDERERS[type]?.suggests)}
+        />
       ) : (
         <Result result={result} />
       )}
       {trace ? <Trace payload={trace} /> : null}
       <Reasoning text={reasoning} />
     </>
-  )
+  );
 }

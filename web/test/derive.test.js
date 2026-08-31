@@ -149,6 +149,21 @@ describe('buildGrid', () => {
     ])
   })
 
+  it('reports the busiest cell, so bubbles can be sized against it', () => {
+    expect(buildGrid(MAP).maxCount).toBe(2)
+    expect(buildGrid(MAP, { facet: 'Qualitative' }).maxCount).toBe(1)
+  })
+
+  it('draws a repeated subtopic name once', () => {
+    const map = {
+      ...MAP,
+      dimensions: [dimension('Barrier', ['Cost', 'Hesitancy', 'Cost']), ...MAP.dimensions.slice(1)],
+    }
+    const grid = buildGrid(map)
+    expect(grid.rows).toEqual(['Cost', 'Hesitancy'])
+    expect(grid.cells).toHaveLength(2)
+  })
+
   it('returns nothing rather than throwing when there is no map', () => {
     expect(buildGrid(null)).toBeNull()
   })

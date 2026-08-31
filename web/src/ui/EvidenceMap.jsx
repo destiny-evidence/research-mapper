@@ -2,18 +2,29 @@ import { useState } from "preact/hooks";
 import { buildGrid } from "../derive.js";
 import { Breakable } from "./text.jsx";
 
-// Area carries the count, so the diameter goes as its square root.
-const diameter = (n) => Math.round(13.9 * Math.sqrt(n));
+// The cell is 70px tall, so the largest bubble has to stay inside that
+const MIN = 22;
+const MAX = 62;
 
-const Bubble = ({ n }) => {
-  const size = diameter(n);
+const diameter = (n, max) => {
+  if (n <= 0) return 0;
+  if (max <= 1) return MAX;
+  const fraction = (Math.sqrt(n) - 1) / (Math.sqrt(max) - 1);
+  return Math.round(MIN + (MAX - MIN) * fraction);
+};
+
+const compact = new Intl.NumberFormat(undefined, { notation: "compact" });
+
+const Bubble = ({ n, max }) => {
+  const size = diameter(n, max);
   const font = size >= 46 ? 13 : size >= 40 ? 12 : size >= 34 ? 11.5 : 10.5;
   return (
     <span
       class="bubble"
+      title={String(n)}
       style={`width: ${size}px; height: ${size}px; font-size: ${font}px;`}
     >
-      {n}
+      {compact.format(n)}
     </span>
   );
 };
@@ -41,8 +52,7 @@ export function EvidenceMap({ map, included, community }) {
   const grid = buildGrid(map, { ...axes, facet });
   if (!grid) return <div class="note">No map yet.</div>;
 
-  // Picking an axis that is already in use swaps the two, so there is always a
-  // valid pair and nothing to validate.
+  // Picking an axis that is already in use swaps the two
   const pick = (which) => (index) =>
     setAxes(({ row, col }) => {
       const other = which === "row" ? col : row;
@@ -131,7 +141,7 @@ export function EvidenceMap({ map, included, community }) {
                     key={`${row}-${col}`}
                   >
                     {grid.cells[r][c] ? (
-                      <Bubble n={grid.cells[r][c]} />
+                      <Bubble n={grid.cells[r][c]} max={grid.maxCount} />
                     ) : (
                       <span class="nothing" />
                     )}
@@ -141,9 +151,6 @@ export function EvidenceMap({ map, included, community }) {
             })}
           </div>
         </div>
-        {/* Inside the figure, not the page: the way this map travels is as a
-          screenshot cropped to the grid, and a caveat outside the crop is a
-          caveat that does not travel with it. */}
         <figcaption class="map-caption">
           An empty cell means no screened reference from the{" "}
           {community.toUpperCase()} repository was placed there.

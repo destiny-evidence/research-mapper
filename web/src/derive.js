@@ -188,8 +188,20 @@ export function buildGrid(map, { row = 0, col = 1, facet = null } = {}) {
   const all = map.mapped_evidence ?? []
   const evidence = all.filter((item) => !facet || within(item.coordinate, facetDim, facet))
 
-  const rows = rowDim.subtopics.map((subtopic) => subtopic.name)
-  const cols = colDim.subtopics.map((subtopic) => subtopic.name)
+  // A dimension can carry the same subtopic name twice — the taxonomy tail turns
+  // every concept in a scheme into a subtopic, and two concepts can share a label.
+  // Left in, the name would draw two identical rows counting the same evidence.
+  const names = (dimension) => [...new Set(dimension.subtopics.map((s) => s.name))]
+  const rows = names(rowDim)
+  const cols = names(colDim)
+  const cells = rows.map((name) =>
+    cols.map(
+      (other) =>
+        evidence.filter(
+          (item) => within(item.coordinate, rowDim, name) && within(item.coordinate, colDim, other),
+        ).length,
+    ),
+  )
 
   return {
     rowDim,
@@ -200,14 +212,8 @@ export function buildGrid(map, { row = 0, col = 1, facet = null } = {}) {
     facetIndex,
     rows,
     cols,
-    cells: rows.map((name) =>
-      cols.map(
-        (other) =>
-          evidence.filter(
-            (item) => within(item.coordinate, rowDim, name) && within(item.coordinate, colDim, other),
-          ).length,
-      ),
-    ),
+    cells,
+    maxCount: Math.max(0, ...cells.flat()),
     placed: evidence.length,
     total: all.length,
     facets: facetDim.subtopics.map((subtopic) => ({

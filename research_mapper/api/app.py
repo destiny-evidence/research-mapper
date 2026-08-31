@@ -12,9 +12,12 @@ from research_mapper.api.routers import operations, sessions
 from research_mapper.config import close_database, init_database, load_environment
 
 
+CORS_ORIGINS_VAR = "MAPPER_CORS_ORIGINS"
+
+
 def cors_origins() -> list[str]:
     """Origins allowed to call the API cross-origin."""
-    raw = os.environ.get("MAPPER_CORS_ORIGINS", "")
+    raw = os.environ.get(CORS_ORIGINS_VAR, "")
     return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
 

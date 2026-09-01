@@ -10,6 +10,7 @@ from research_mapper.models.taxonomy_search import (
     ConceptFilterGroup,
     IndexedVocab,
 )
+from research_mapper.modules.common import ResumableModule
 from research_mapper.modules.taxonomy_search import (
     TaxonomyConceptFilterGenerator,
     UnknownConceptRefError,
@@ -431,6 +432,72 @@ def test_mark_unsatisfiable_and_prompt_attack_are_always_registered():
 
     assert "mark_unsatisfiable" in agent.tools
     assert "raise_attempted_prompt_attack" in agent.tools
+
+
+# ---------------------------------------------------------------------------
+# start/resume — the resumable interface forward() and GenerateConceptFilters
+# (the workflow-engine step) both drive, instead of either reaching past
+# TaxonomyConceptFilterGenerator into its own internals.
+# ---------------------------------------------------------------------------
+
+
+def test_taxonomy_concept_filter_generator_satisfies_resumable_module():
+    """Structural, not nominal: no shared base class with ResumableReAct is
+    needed for TaxonomyConceptFilterGenerator to be driven the same way."""
+    assert isinstance(TaxonomyConceptFilterGenerator(), ResumableModule)
+
+
+def test_start_returns_the_agents_first_proposed_step():
+    generator = _generator_with_mock_agent(start_returns=_step(0, "some_tool"))
+
+    result = generator.start(
+        user_query=UserQuery(query="q"), indexed=_indexed_vocab(), graph=MagicMock()
+    )
+
+    assert result == _step(0, "some_tool")
+
+
+def test_resume_validates_the_final_prediction():
+    final = _final()
+    final.filter_groups = [
+        ConceptFilterGroup(
+            scheme="Setting", concept_local_refs=["nonexistent"], reason="r"
+        )
+    ]
+    generator = _generator_with_mock_agent(
+        start_returns=_step(0, "some_tool"), resume_returns=final
+    )
+
+    with pytest.raises(UnknownConceptRefError):
+        generator.resume(
+            _step(0, "some_tool"),
+            user_query=UserQuery(query="q"),
+            indexed=_indexed_vocab(),
+            graph=MagicMock(),
+        )
+
+
+def test_start_and_resume_thread_can_ask_through_to_build_agent():
+    """The workflow-engine step has no self.ui to gate ask_for_clarification
+    on, so it must be able to force the tool on regardless."""
+    generator = TaxonomyConceptFilterGenerator()
+    generator.build_agent = MagicMock(return_value=MagicMock(resume=MagicMock()))
+    indexed = _indexed_vocab()
+    graph = MagicMock()
+
+    generator.start(
+        user_query=UserQuery(query="q"), indexed=indexed, graph=graph, can_ask=True
+    )
+    generator.build_agent.assert_called_with(indexed, graph, can_ask=True)
+
+    generator.resume(
+        None,
+        user_query=UserQuery(query="q"),
+        indexed=indexed,
+        graph=graph,
+        can_ask=True,
+    )
+    generator.build_agent.assert_called_with(indexed, graph, can_ask=True)
 
 
 def test_an_unknown_ref_is_suggested_as_a_ref_not_a_label():

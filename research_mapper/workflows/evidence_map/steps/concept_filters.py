@@ -56,17 +56,21 @@ class GenerateConceptFilters(Step[GenerateConceptFiltersParams, StepContext]):
         graph = get_graph(community)
         indexed = build_concept_index(graph)
         generator = TaxonomyConceptFilterGenerator()
-        inputs = {
-            "user_query": UserQuery(query=ctx.research_session.question),
-            "available_concepts": generator.concept_listing(indexed),
-        }
-        agent = generator.build_agent(indexed, graph, can_ask=True)
+        user_query = UserQuery(query=ctx.research_session.question)
+
+        def advance(step: LoopStep | None) -> LoopStep | ConceptFilterResult:
+            # can_ask=True: this generator has no self.ui (nothing to block
+            # on), but the worker still needs ask_for_clarification available
+            # as a tool — it just answers it via ctx.ask() below instead.
+            return generator.resume(
+                step, user_query=user_query, indexed=indexed, graph=graph, can_ask=True
+            )
 
         saved = ctx.get_artifact(artifacts.CONCEPT_FILTER_LOOP)
         result = (
             LoopStep.model_validate({**saved.step, "trajectory": saved.trajectory})
             if saved
-            else agent.start(**inputs)
+            else advance(None)
         )
         asked = 0
         while isinstance(result, LoopStep):
@@ -83,10 +87,9 @@ class GenerateConceptFilters(Step[GenerateConceptFiltersParams, StepContext]):
                 answer = ctx.ask(f"clarify:{result.idx}", _spec(result))
                 asked += 1
                 result = result.with_observation([a["option"] for a in answer])
-            result = agent.resume(result, **inputs)
+            result = advance(result)
 
         filters: ConceptFilterResult = result
-        generator.validate_filter_groups(filters.filter_groups, indexed)
         label_by_ref = {
             concept.local_ref: concept.label for concept in indexed.concepts
         }

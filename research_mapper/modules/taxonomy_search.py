@@ -66,18 +66,19 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
     ) -> dspy.Prediction:
         """
         Runs an agent to interactively generate a set of concepts to filter references on.
+        A thin, blocking caller of start()/resume(). It just keeps approving every
+        step, answering clarifications via self.ui, until the run finishes. The
+        workflow-engine's GenerateConceptFilters step is the other caller of
+        start()/resume(): same underlying interface, different (non-blocking,
+        persist-and-suspend) answer to "what do we do at a clarification".
         :param user_query: the original user query
         :param indexed: the community's indexed vocabulary, to explore via tool calls
         :param graph: the community's rdflib Graph, for broader/narrower lookups
         :return: a Prediction wrapping a collection of ConceptFilterGroup instances, plus
             unsatisfiable_reason (None unless the agent flagged the query as unsatisfiable)
         """
-        self.agent = self.build_agent(indexed, graph)
-        available_concepts = self.concept_listing(indexed)
         unsatisfiable_reason: str | None = None
-        result = self.agent.start(
-            user_query=user_query, available_concepts=available_concepts
-        )
+        result = self.start(user_query=user_query, indexed=indexed, graph=graph)
         while isinstance(result, Step):
             if self.ui is not None:
                 self.ui.print_reasoning(f"Step {result.idx}", result.thought)
@@ -88,15 +89,70 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
                     ClarificationOptions(**result.tool_args["request"])
                 )
                 result = result.with_observation(answer)
-            result = self.agent.resume(
-                result, user_query=user_query, available_concepts=available_concepts
+            result = self.resume(
+                result, user_query=user_query, indexed=indexed, graph=graph
             )
-        self.validate_filter_groups(result.filter_groups, indexed)
         return dspy.Prediction(
             filter_groups=result.filter_groups,
             reasoning=result.reasoning,
             unsatisfiable_reason=unsatisfiable_reason,
         )
+
+    def start(
+        self,
+        user_query: UserQuery,
+        indexed: IndexedVocab,
+        graph: Graph,
+        *,
+        can_ask: bool | None = None,
+    ) -> Step | dspy.Prediction:
+        """
+        Begins a run, the resumable counterpart to forward(): returns a Step
+        for the caller to drive further (deciding for itself how to answer a
+        clarification, and how/whether to persist the Step across a suspend
+        boundary), or the final, validated Prediction once the run finishes.
+        """
+        self.agent = self.build_agent(indexed, graph, can_ask=can_ask)
+        return self._validated(
+            self.agent.start(
+                user_query=user_query, available_concepts=self.concept_listing(indexed)
+            ),
+            indexed,
+        )
+
+    def resume(
+        self,
+        step: Step | None,
+        user_query: UserQuery,
+        indexed: IndexedVocab,
+        graph: Graph,
+        *,
+        can_ask: bool | None = None,
+    ) -> Step | dspy.Prediction:
+        """
+        Advances a run by one iteration, the resumable counterpart to what
+        used to be forward()'s internal loop body. Rebuilds the agent fresh
+        on every call: ResumableReAct carries no per-run state on self, only
+        the compiled program (tools/predictors), the run's actual progress
+        lives entirely in `step.trajectory`. So this is cheap and behaves
+        identically to reusing one instance across a run.
+        """
+        self.agent = self.build_agent(indexed, graph, can_ask=can_ask)
+        return self._validated(
+            self.agent.resume(
+                step,
+                user_query=user_query,
+                available_concepts=self.concept_listing(indexed),
+            ),
+            indexed,
+        )
+
+    def _validated(
+        self, result: Step | dspy.Prediction, indexed: IndexedVocab
+    ) -> Step | dspy.Prediction:
+        if not isinstance(result, Step):
+            self.validate_filter_groups(result.filter_groups, indexed)
+        return result
 
     def validate_filter_groups(
         self, filter_groups: list[ConceptFilterGroup], indexed: IndexedVocab

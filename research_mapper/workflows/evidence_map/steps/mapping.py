@@ -244,6 +244,9 @@ class GenerateMap(Step[GenerateMapParams, EvidenceMapContext]):
             )
             raise ValueError(msg)
         dimensions_version = ctx.get_artifact_version(artifacts.DIMENSIONS)
+        if not dimensions_version:
+            msg = "dimensions artifact not found"
+            raise RuntimeError(msg)
         references = ctx.references_to_map(dimensions_version)
         already_mapped = ctx.count_mapped_at(dimensions_version)
         if not references and not already_mapped:

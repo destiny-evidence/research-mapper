@@ -8,6 +8,7 @@ from research_mapper.models.common import UserQuery
 from research_mapper.models.react import Step
 from research_mapper.models.taxonomy_search import (
     ClarificationOptions,
+    Concept,
     ConceptFilterGroup,
     IndexedVocab,
 )
@@ -111,23 +112,43 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
         if not filter_groups:
             return
         known_refs = {concept.local_ref for concept in indexed.concepts}
-        labels = [concept.label for concept in indexed.concepts]
-        cited = {}
-        for concept in indexed.concepts:
-            cited.setdefault(
-                concept.label,
-                f"{concept.local_ref} ({concept.scheme}: {concept.label})",
-            )
         for group in filter_groups:
             for ref in group.concept_local_refs:
                 if ref in known_refs:
                     continue
-                msg = f"Unknown concept local_ref {ref!r} in scheme {group.scheme!r}."
-                suggestions = difflib.get_close_matches(ref, labels, n=3, cutoff=0.4)
-                if suggestions:
-                    named = ", ".join(cited[label] for label in suggestions)
-                    msg += f" Did you mean one of: {named}?"
-                raise UnknownConceptRefError(msg)
+                raise UnknownConceptRefError(
+                    self._unknown_ref_message(ref, group.scheme, indexed)
+                )
+
+    def _unknown_ref_message(self, ref: str, scheme: str, indexed: IndexedVocab) -> str:
+        msg = f"Unknown concept local_ref {ref!r} in scheme {scheme!r}."
+        # Labels repeat across schemes (e.g. "Caregivers" appears in 3 HPV
+        # schemes), so suggestions are scoped to the cited scheme first,
+        # only falling back to the whole vocabulary if that scheme itself
+        # turns out to have nothing close, e.g. because it too was mis-cited.
+        suggestions = self._suggest_concepts(
+            ref, [concept for concept in indexed.concepts if concept.scheme == scheme]
+        )
+        if not suggestions:
+            suggestions = self._suggest_concepts(ref, indexed.concepts)
+        if suggestions:
+            msg += f" Did you mean one of: {', '.join(suggestions)}?"
+        return msg
+
+    def _suggest_concepts(
+        self, ref: str, concepts: list[Concept], n: int = 3, cutoff: float = 0.4
+    ) -> list[str]:
+        """Fuzzy-matches `ref` against `concepts`' labels, deduplicated by
+        label within this candidate set so a repeated label always
+        resolves to a concept that's actually a member of it (the scheme
+        being searched, or the whole vocabulary on fallback), never a
+        leftover from a different call's candidate set."""
+        by_label = {concept.label: concept for concept in concepts}
+        matches = difflib.get_close_matches(ref, list(by_label), n=n, cutoff=cutoff)
+        return [
+            f"{by_label[label].local_ref} ({by_label[label].scheme}: {label})"
+            for label in matches
+        ]
 
     def concept_listing(self, indexed: IndexedVocab) -> str:
         """A flat 'local_ref\tscheme: label' line per concept — cheap enough (a

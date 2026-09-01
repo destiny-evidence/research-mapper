@@ -449,3 +449,56 @@ def test_an_unknown_ref_is_suggested_as_a_ref_not_a_label():
         generator.validate_filter_groups(groups, indexed)
 
     assert "C7 (Misinformation: Addressing)" in str(caught.value)
+
+
+def test_unknown_ref_suggestions_prefer_the_cited_scheme():
+    """Labels repeat across schemes (confirmed on real HPV/ESEA data — e.g.
+    "Caregivers" in 3 different schemes), so a naive vocabulary-wide fuzzy
+    match could point at the wrong concept entirely. Scoping to the group's
+    own scheme first resolves the ambiguity correctly."""
+    generator = TaxonomyConceptFilterGenerator()
+    indexed = IndexedVocab(
+        concepts=[
+            Concept(local_ref="C1", scheme="Setting", label="Caregivers"),
+            Concept(local_ref="C2", scheme="Target Group", label="Caregivers"),
+        ],
+        local_ref_to_iri={},
+    )
+    groups = [
+        ConceptFilterGroup(
+            scheme="Target Group", concept_local_refs=["Caregivers"], reason="r"
+        )
+    ]
+
+    with pytest.raises(UnknownConceptRefError) as caught:
+        generator.validate_filter_groups(groups, indexed)
+
+    message = str(caught.value)
+    assert "C2 (Target Group: Caregivers)" in message
+    assert "C1 (Setting: Caregivers)" not in message
+
+
+def test_unknown_ref_suggestions_fall_back_to_the_whole_vocabulary():
+    """If the cited scheme itself has nothing close (e.g. it too was
+    mis-cited), suggestions should still surface a real concept from
+    elsewhere rather than coming up empty."""
+    generator = TaxonomyConceptFilterGenerator()
+    indexed = IndexedVocab(
+        concepts=[
+            Concept(local_ref="C1", scheme="Setting", label="Primary Education"),
+            Concept(local_ref="C2", scheme="Other Scheme", label="Unrelated"),
+        ],
+        local_ref_to_iri={},
+    )
+    groups = [
+        ConceptFilterGroup(
+            scheme="Other Scheme",
+            concept_local_refs=["Primary Education"],
+            reason="r",
+        )
+    ]
+
+    with pytest.raises(UnknownConceptRefError) as caught:
+        generator.validate_filter_groups(groups, indexed)
+
+    assert "C1 (Setting: Primary Education)" in str(caught.value)

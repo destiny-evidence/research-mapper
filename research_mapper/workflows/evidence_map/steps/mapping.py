@@ -18,7 +18,6 @@ from research_mapper.models.mapping import (
 )
 from research_mapper.workflows.evidence_map import artifacts
 from research_mapper.workflows.evidence_map.context import EvidenceMapContext
-from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
 from research_mapper.workflows.evidence_map.fanout import ProgressTracker
 from research_mapper.workflows.evidence_map.hydrate import get_evidence
 from research_mapper.workflows.evidence_map.pipeline import (
@@ -241,8 +240,8 @@ class GenerateMap(Step[GenerateMapParams, EvidenceMapContext]):
             )
             raise ValueError(msg)
         dimensions_version = ctx.get_artifact_version(artifacts.DIMENSIONS)
-        references = ctx.references(SessionReferenceStage.INCLUDED)
-        already_mapped = len(ctx.references(SessionReferenceStage.MAPPED))
+        references = ctx.references_to_map(dimensions_version)
+        already_mapped = ctx.count_mapped_at(dimensions_version)
         if not references and not already_mapped:
             msg = "screening included no evidence, so there is nothing to map"
             raise NothingToMap(msg)

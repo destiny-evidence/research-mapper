@@ -15,6 +15,7 @@ import { Panel, Toggle, Pip } from "./Panel.jsx";
 import { Question } from "./Ask.jsx";
 import { Trace } from "./Trace.jsx";
 import { EvidenceMap } from "./EvidenceMap.jsx";
+import { References, useReferences } from "./References.jsx";
 import {
   Artifact,
   RENDERERS,
@@ -82,6 +83,7 @@ export function Session({ id }) {
   const [overrides, setOverrides] = useState({});
   const [saving, setSaving] = useState(false);
   const [map, setMap] = useState(null);
+  const [cell, setCell] = useState(null);
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const started = useRef(new Set());
   const [problem, setProblem] = useState(null);
@@ -91,6 +93,10 @@ export function Session({ id }) {
   const artifact = useArtifacts(id, session?.artifacts);
   const rows = data ? steps(data) : [];
   const mapped = mapIsReady(rows);
+  const { references, error: refsError, loading: refsLoading } = useReferences(
+    id,
+    mapped,
+  );
 
   useEffect(() => {
     // The view needs coordinates, not the references themselves.
@@ -231,7 +237,21 @@ export function Session({ id }) {
             </button>
             {workflowOpen ? <div class="workflow-steps">{stepList}</div> : null}
           </div>
-          <EvidenceMap map={map} included={included} />
+          <EvidenceMap
+            map={map}
+            included={included}
+            selected={cell?.key ?? null}
+            onSelectCell={setCell}
+          />
+          <References
+            references={references}
+            community={session.community}
+            filterGroups={artifact("concept_filters")?.groups}
+            cell={cell}
+            onClearCell={() => setCell(null)}
+            loading={refsLoading}
+            error={refsError}
+          />
         </>
       ) : (
         stepList

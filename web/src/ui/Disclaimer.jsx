@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { repoUrl } from "../repo.js";
 import { Warning, Tick } from "./Icons.jsx";
 
 /**
@@ -7,7 +8,7 @@ import { Warning, Tick } from "./Icons.jsx";
  */
 
 const LINKS = {
-  repository: "https://data.evidence-repository.org/destiny",
+  repository: repoUrl("destiny"),
   report: null,
 };
 

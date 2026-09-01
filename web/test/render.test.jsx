@@ -7,6 +7,7 @@ import { Tick, Info } from '../src/ui/Icons.jsx'
 import { Disclaimer } from '../src/ui/Disclaimer.jsx'
 import { Breakable } from '../src/ui/text.jsx'
 import { Chrome } from '../src/ui/Chrome.jsx'
+import { References } from '../src/ui/References.jsx'
 import { useAdapter } from '../src/auth.js'
 
 describe('Panel', () => {
@@ -44,6 +45,13 @@ describe('Reasoning', () => {
 
   it('renders nothing when there is no reasoning', () => {
     expect(render(<Reasoning text="" />)).toBe('')
+  })
+
+  it('names which decision it explains, where a view shows more than one', () => {
+    const html = render(
+      <Reasoning label="Model reasoning: mapping" text="Urban cohort." />,
+    )
+    expect(html).toContain('Model reasoning: mapping')
   })
 })
 
@@ -156,4 +164,73 @@ describe('disclaimer', () => {
     expect(html).toContain('terms-unset')
     expect(html).not.toContain('href="#"')
   })
+})
+
+describe('References', () => {
+  const rows = [
+    {
+      destiny_id: 'aaa',
+      stage: 'excluded',
+      provenance: [{ mode: 'sparse', query: 'hpv uptake' }],
+      screening: { include: false, reasoning: 'high-income only' },
+      coordinate: null,
+      mapping: null,
+      evidence: { title: 'Barriers in Kenya', authors: ['Smith', 'Jones'], year: 2019 },
+    },
+    {
+      destiny_id: 'bbb',
+      stage: 'mapped',
+      provenance: [],
+      screening: { include: true, reasoning: 'reports uptake' },
+      coordinate: { Setting: ['Urban'] },
+      mapping: { dimensions_version: 1, reasoning: 'urban cohort' },
+      evidence: null,
+    },
+  ]
+
+  it('waits on a spinner rather than an empty table', () => {
+    const html = render(<References references={null} community="hpv" loading />)
+    expect(html).toContain('spinner')
+    expect(html).not.toContain('ref-list')
+  })
+
+  it('keeps the reasoning behind the row, not in the collapsed list', () => {
+    const html = render(<References references={rows} community="hpv" />)
+    expect(html).toContain('ref-list')
+    expect(html).not.toContain('high-income only')
+  })
+
+  it('lists every stage, with the title, authors and year', () => {
+    const html = render(<References references={rows} community="hpv" />)
+    expect(html).toContain('Barriers in Kenya')
+    expect(html).toContain('Smith et al.')
+    expect(html).toContain('2019')
+    expect(html).toContain('excluded')
+    expect(html).toContain('mapped')
+  })
+
+  it('links each reference into the repository under its community', () => {
+    const html = render(<References references={rows} community="ESEA" />)
+    expect(html).toContain('/esea/references/aaa')
+  })
+
+  it('names a reference the repository dropped rather than printing its id', () => {
+    const html = render(<References references={rows} community="hpv" />)
+    expect(html).toContain('Untitled reference')
+    expect(html).not.toContain('>bbb<')
+  })
+
+  it('says what a cell selection narrowed the list to', () => {
+    const html = render(
+      <References
+        references={rows}
+        community="hpv"
+        cell={{ key: 'k', label: 'Urban × Mortality', terms: [['Setting', 'Urban']] }}
+      />,
+    )
+    expect(html).toContain('1 of 2')
+    expect(html).toContain('Urban × Mortality')
+    expect(html).not.toContain('Barriers in Kenya')
+  })
+
 })

@@ -30,6 +30,7 @@ class SessionReferenceOut(BaseModel):
     screening: dict | None
     coordinate: dict | None
     mapping: dict | None
+    evidence: Evidence | None = None
 
 
 def _coordinates(
@@ -104,18 +105,17 @@ def read_map(
 
 @router.get("/sessions/{session_id}/references/")
 def list_references(
-    db: DbSession, research_session: SessionOr404
+    db: DbSession, research_session: SessionOr404, include_evidence: bool = False
 ) -> list[SessionReferenceOut]:
-    """Every reference in the session, at whatever stage it reached.
-
-    Deliberately dumb: every row, every stage, no paging, no filtering, and no
-    DESTINY lookup. It exists so the record download carries the per-reference
-    screening and mapping reasoning, which is the only place that says *why* a
-    given reference was set aside. Add paging when something reads it directly.
-    """
+    """Every reference in the session."""
     rows = db.execute(
         select(SessionReference)
         .where(SessionReference.research_session_id == research_session.id)
         .order_by(SessionReference.id)
     ).scalars()
-    return [SessionReferenceOut.model_validate(row) for row in rows]
+    references = [SessionReferenceOut.model_validate(row) for row in rows]
+    if include_evidence:
+        evidence = _hydrate([reference.destiny_id for reference in references])
+        for reference in references:
+            reference.evidence = evidence.get(reference.destiny_id)
+    return references

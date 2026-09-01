@@ -66,8 +66,10 @@ export const listDecisions = (sessionId, { unanswered = true } = {}) =>
 export const getArtifact = (sessionId, type) =>
   request(`/sessions/${sessionId}/artifacts/${type}/`);
 
-export const listReferences = (sessionId) =>
-  request(`/sessions/${sessionId}/references/`);
+export const listReferences = (sessionId, { includeEvidence = false } = {}) =>
+  request(
+    `/sessions/${sessionId}/references/?include_evidence=${includeEvidence}`,
+  );
 
 export const getMap = (sessionId, { includeEvidence = true } = {}) =>
   request(`/sessions/${sessionId}/map/?include_evidence=${includeEvidence}`);

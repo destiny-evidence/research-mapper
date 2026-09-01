@@ -212,3 +212,41 @@ def test_references_of_another_session_are_not_listed(db, client, session):
     body = client.get(f"/sessions/{session.id}/references/").json()
 
     assert [row["destiny_id"] for row in body] == [str(TWO)]
+
+
+def test_references_carry_bibliographic_detail_when_asked(
+    db, client, session, monkeypatch
+):
+    make_reference(db, session, ONE, stage=SessionReferenceStage.INCLUDED)
+    monkeypatch.setattr(
+        routes,
+        "get_evidence",
+        lambda ids: [{ONE: Evidence(destiny_id=ONE, title="A", year=2019)}],
+    )
+
+    plain = client.get(f"/sessions/{session.id}/references/").json()
+    hydrated = client.get(
+        f"/sessions/{session.id}/references/?include_evidence=true"
+    ).json()
+
+    assert plain[0]["evidence"] is None, "the lookup is opt-in"
+    assert hydrated[0]["evidence"]["title"] == "A"
+    assert hydrated[0]["evidence"]["year"] == 2019
+
+
+def test_a_reference_destiny_no_longer_returns_is_still_listed(
+    db, client, session, monkeypatch
+):
+    """Unlike the map: dropping it would understate the corpus being audited."""
+    make_reference(db, session, ONE, stage=SessionReferenceStage.EXCLUDED)
+    make_reference(db, session, TWO, stage=SessionReferenceStage.EXCLUDED)
+    monkeypatch.setattr(
+        routes, "get_evidence", lambda ids: [{ONE: Evidence(destiny_id=ONE)}]
+    )
+
+    body = client.get(
+        f"/sessions/{session.id}/references/?include_evidence=true"
+    ).json()
+
+    assert [row["destiny_id"] for row in body] == [str(ONE), str(TWO)]
+    assert body[1]["evidence"] is None

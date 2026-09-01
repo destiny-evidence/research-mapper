@@ -158,6 +158,97 @@ export function diffChoice(suggested = [], chosen = [], key = JSON.stringify) {
   };
 }
 
+/* references ------------------------------------------------------------- */
+
+export const STAGES = ["gathered", "included", "excluded", "mapped", "failed"];
+
+/** How many references sit at each stage. */
+export const stageCounts = (references = []) =>
+  STAGES.map((stage) => ({
+    stage,
+    count: references.filter((reference) => reference.stage === stage).length,
+  })).filter((entry) => entry.count > 0);
+
+/**
+ * A cell selection as dimension/subtopic pairs, all of which a reference's
+ * coordinate has to satisfy.
+ */
+export const cellKey = (terms = []) =>
+  terms
+    .map(([dimension, subtopic]) => `${dimension}=${subtopic}`)
+    .sort()
+    .join("&");
+
+export const inCell = (coordinate, terms = []) =>
+  terms.every(([dimension, subtopic]) =>
+    (coordinate?.[dimension] ?? []).includes(subtopic),
+  );
+
+export function filterReferences(references = [], filter = null) {
+  if (filter?.stage)
+    return references.filter((reference) => reference.stage === filter.stage);
+  if (filter?.terms)
+    return references.filter((reference) =>
+      inCell(reference.coordinate, filter.terms),
+    );
+  return references;
+}
+
+export function authorLine(evidence) {
+  const authors = evidence?.authors ?? [];
+  if (!authors.length) return "";
+  return authors.length > 1 ? `${authors[0]} et al.` : authors[0];
+}
+
+/** A whole filter group, for when the reference's own concepts are unknown. */
+const wholeGroup = ({ scheme, labels = [] }) =>
+  scheme && labels.length
+    ? `${scheme} · ${plural(labels.length, "concept")}`
+    : (scheme ?? "");
+
+/**
+ * Which of a filter group's concepts this reference is annotated with. A group
+ * is a whole-run set, but a reference came back for its own subset of it, and
+ * `labels` and `concepts` are index-aligned (both are built by mapping over
+ * concept_local_refs in generate_concept_filters).
+ */
+const matched = (group, known) =>
+  (group?.concepts ?? []).flatMap((iri, index) =>
+    known.has(iri) ? [group.labels?.[index] ?? iri] : [],
+  );
+
+/**
+ * What found this reference, split by retrieval mode — a session can run both,
+ * and a reference the two modes agree on is worth being able to see.
+ *
+ * `concepts` names the concepts the reference is actually annotated with out of
+ * each filter group, which needs the concept_filters groups: they carry the IRIs
+ * provenance does not record. Without them, or without hydrated evidence, it
+ * falls back to naming the group as a whole.
+ */
+export function foundBy(reference, filterGroups = []) {
+  const known = new Set(reference?.evidence?.known_concepts ?? []);
+  const byScheme = new Map(filterGroups.map((group) => [group.scheme, group]));
+  const queries = [];
+  const concepts = [];
+
+  for (const entry of reference?.provenance ?? []) {
+    if (entry.mode !== "taxonomy") {
+      if (entry.query) queries.push(entry.query);
+      continue;
+    }
+    for (const filter of entry.filters ?? []) {
+      const hits = known.size ? matched(byScheme.get(filter.scheme), known) : [];
+      const label = hits.length
+        ? `${filter.scheme}: ${hits.join(", ")}`
+        : wholeGroup(filter);
+      if (label) concepts.push(label);
+    }
+  }
+
+  return { queries: [...new Set(queries)], concepts: [...new Set(concepts)] };
+}
+
 /**
  * A map payload as a grid. Any two dimensions can be the axes; the third
  * becomes the facet.

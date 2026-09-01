@@ -97,6 +97,19 @@ export const Download = ({ colour = "#86837c", size = 13.5 }) => (
   </svg>
 );
 
+export const External = ({ colour = "#a09c94", size = 12 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 12 12"
+    stroke={colour}
+    {...stroke}
+    stroke-width="1.4"
+  >
+    <path d="M5 2.5 H2.5 V9.5 H9.5 V7 M7.2 2.3 H9.8 V4.9 M9.6 2.5 L5.8 6.3" />
+  </svg>
+);
+
 export const Warning = ({
   size = 19,
   colour = "#a8551a",

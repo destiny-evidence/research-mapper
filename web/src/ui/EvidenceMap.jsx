@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import { buildGrid } from "../derive.js";
+import { buildGrid, cellKey } from "../derive.js";
 import { Breakable } from "./text.jsx";
 
 // The cell is 70px tall, so the largest bubble has to stay inside that
@@ -46,22 +46,42 @@ const Axis = ({ label, value, options, onChange }) => (
   </label>
 );
 
-export function EvidenceMap({ map, included }) {
+export function EvidenceMap({ map, included, selected, onSelectCell }) {
   const [axes, setAxes] = useState({ row: 0, col: 1 });
   const [facet, setFacet] = useState(null);
   const grid = buildGrid(map, { ...axes, facet });
   if (!grid) return <div class="note">No map yet.</div>;
 
-  // Picking an axis that is already in use swaps the two
+  // Picking an axis that is already in use swaps the two. The current selection
+  // names subtopics from the old axes, so it cannot survive the change.
   const pick = (which) => (index) =>
     setAxes(({ row, col }) => {
       const other = which === "row" ? col : row;
       const swapped = index === other ? (which === "row" ? row : col) : other;
       setFacet(null);
+      onSelectCell?.(null);
       return which === "row"
         ? { row: index, col: swapped }
         : { row: swapped, col: index };
     });
+
+  // A cell is the pair of axis subtopics, narrowed by the facet if one is on.
+  const termsFor = (row, col) => [
+    [grid.rowDim.name, row],
+    [grid.colDim.name, col],
+    ...(facet ? [[grid.facetDim.name, facet]] : []),
+  ];
+
+  const select = (row, col) => {
+    const terms = termsFor(row, col);
+    const key = cellKey(terms);
+    if (key === selected) return onSelectCell?.(null);
+    onSelectCell?.({
+      key,
+      terms,
+      label: [row, col, facet].filter(Boolean).join(" × "),
+    });
+  };
 
   const unplaced = included == null ? null : included - grid.total;
   return (
@@ -94,7 +114,10 @@ export function EvidenceMap({ map, included }) {
           <button
             type="button"
             class={`facet ${facet ? "" : "on"}`}
-            onClick={() => setFacet(null)}
+            onClick={() => {
+              setFacet(null);
+              onSelectCell?.(null);
+            }}
           >
             <span>All</span>
             <span class="facet-n">{grid.total}</span>
@@ -104,9 +127,10 @@ export function EvidenceMap({ map, included }) {
               type="button"
               key={option.name}
               class={`facet ${facet === option.name ? "on" : ""}`}
-              onClick={() =>
-                setFacet(facet === option.name ? null : option.name)
-              }
+              onClick={() => {
+                setFacet(facet === option.name ? null : option.name);
+                onSelectCell?.(null);
+              }}
             >
               <span>
                 <Breakable>{option.name}</Breakable>
@@ -141,7 +165,16 @@ export function EvidenceMap({ map, included }) {
                     key={`${row}-${col}`}
                   >
                     {grid.cells[r][c] ? (
-                      <Bubble n={grid.cells[r][c]} max={grid.maxCount} />
+                      <button
+                        type="button"
+                        class={`bubble-hit ${
+                          cellKey(termsFor(row, col)) === selected ? "on" : ""
+                        }`}
+                        onClick={() => select(row, col)}
+                        aria-label={`${grid.cells[r][c]} references in ${row} by ${col}`}
+                      >
+                        <Bubble n={grid.cells[r][c]} max={grid.maxCount} />
+                      </button>
                     ) : (
                       <span class="nothing" />
                     )}

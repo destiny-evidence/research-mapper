@@ -4,6 +4,7 @@ import { Panel } from '../src/ui/Panel.jsx'
 import { Reasoning } from '../src/ui/Reasoning.jsx'
 import { Trace, iterations } from '../src/ui/Trace.jsx'
 import { Tick, Info } from '../src/ui/Icons.jsx'
+import { Disclaimer } from '../src/ui/Disclaimer.jsx'
 import { Breakable } from '../src/ui/text.jsx'
 import { Chrome } from '../src/ui/Chrome.jsx'
 import { useAdapter } from '../src/auth.js'
@@ -140,5 +141,19 @@ describe('Chrome', () => {
   it('stays out of the way when the token names nobody', () => {
     signedInAs({ sub: 'abc' })
     expect(render(<Chrome />)).not.toContain('Sign out')
+  })
+})
+
+describe('disclaimer', () => {
+  it('has copy in every section', () => {
+    expect(render(<Disclaimer mode="review" />)).not.toContain('terms-todo')
+  })
+
+  it('marks an unwritten destination rather than linking nowhere', () => {
+    // Both outward links are unset. They must read as gaps, not as text that
+    // happens to look ordinary — a silent placeholder is how one ships.
+    const html = render(<Disclaimer mode="review" />)
+    expect(html).toContain('terms-unset')
+    expect(html).not.toContain('href="#"')
   })
 })

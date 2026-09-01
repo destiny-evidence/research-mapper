@@ -84,6 +84,7 @@ locals {
     CONTAINER_APP_NAME    = azurerm_container_app.this.name
     API_APP_NAME          = azurerm_container_app.api.name
     WORKER_APP_NAME       = azurerm_container_app.worker.name
+    # Also a Vite build input: see VITE_DESTINY_ENV in the deploy workflow.
     ENVIRONMENT_NAME      = var.environment
     CONTAINER_APP_ENV     = azurerm_container_app_environment.this.name
     MIGRATE_JOB_NAME      = azurerm_container_app_job.migrate.name

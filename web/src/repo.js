@@ -2,10 +2,12 @@
 
 const ENV = import.meta.env?.VITE_DESTINY_ENV ?? "production";
 
-const HOST =
-  ENV === "production"
-    ? "data.evidence-repository.org"
-    : `data.${ENV}.evidence-repository.org`;
+const SEGMENT = { production: null, staging: "staging", development: "dev" };
+const segment = ENV in SEGMENT ? SEGMENT[ENV] : ENV;
+
+const HOST = segment
+  ? `data.${segment}.evidence-repository.org`
+  : "data.evidence-repository.org";
 
 export const repoUrl = (...segments) => `https://${HOST}/${segments.join("/")}`;
 

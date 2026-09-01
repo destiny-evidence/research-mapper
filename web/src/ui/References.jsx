@@ -63,15 +63,23 @@ function Why({ reference, filterGroups }) {
         text={reference.mapping?.reasoning}
       />
       {coordinate.length ? (
-        <Chips label="Coordinate">
-          {coordinate.flatMap(([dimension, subtopics]) =>
-            subtopics.map((subtopic) => (
-              <span class="chip" key={`${dimension}-${subtopic}`}>
-                <Breakable>{subtopic}</Breakable>
-              </span>
-            )),
-          )}
-        </Chips>
+        <div class="ref-why-part">
+          <div class="lab">Coordinate</div>
+          {coordinate.map(([dimension, subtopics]) => (
+            <div class="ref-axis" key={dimension}>
+              <div class="ref-axis-name">
+                <Breakable>{dimension}</Breakable>
+              </div>
+              <div class="chips">
+                {subtopics.map((subtopic) => (
+                  <span class="chip" key={subtopic}>
+                    <Breakable>{subtopic}</Breakable>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : null}
       {found.queries.length ? (
         <Chips label="Found by search query">

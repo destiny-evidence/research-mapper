@@ -19,11 +19,23 @@ describe('referenceUrl', () => {
     )
   })
 
-  it('segments any other environment', async () => {
+  it('segments staging', async () => {
     const { referenceUrl } = await load('staging')
     expect(referenceUrl('esea', 'abc')).toBe(
       'https://data.staging.evidence-repository.org/esea/references/abc',
     )
+  })
+
+  it('shortens development to dev, as destiny_sdk does', async () => {
+    const { referenceUrl } = await load('development')
+    expect(referenceUrl('hpv', 'abc')).toBe(
+      'https://data.dev.evidence-repository.org/hpv/references/abc',
+    )
+  })
+
+  it('leaves an unknown environment visibly wrong, not pointed at production', async () => {
+    const { referenceUrl } = await load('sandbox')
+    expect(referenceUrl('hpv', 'abc')).toContain('data.sandbox.')
   })
 
   it('defaults to production when the build sets nothing', async () => {

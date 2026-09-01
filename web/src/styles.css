@@ -374,6 +374,10 @@ input, textarea, select {
   margin-left: 3px; padding: 2px 0 18px 15px; max-width: 820px;
 }
 .ref-why-part { margin-top: 13px; }
+/* One row per axis. In the taxonomy tail an axis is a scheme and a reference can
+   sit in several of its subtopics, so the name has to travel with the chips. */
+.ref-axis { display: grid; grid-template-columns: 150px 1fr; gap: 12px; margin-top: 7px; }
+.ref-axis-name { font-size: 11.5px; line-height: 1.4; color: var(--text); overflow-wrap: break-word; }
 .ref-why-text { margin-top: 4px; font-size: 12px; line-height: 1.6; color: var(--text); }
 .ref-why-id { margin-top: 4px; font-size: 11px; color: #6f6b63; }
 /* The hit area is the cell, not the circle: a 22px bubble is a poor target. */

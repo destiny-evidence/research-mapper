@@ -117,6 +117,10 @@ jobs:
           VITE_KEYCLOAK_URL: ${{ vars.KEYCLOAK_URL }}
           VITE_KEYCLOAK_REALM: ${{ vars.KEYCLOAK_REALM }}
           VITE_KEYCLOAK_CLIENT_ID: ${{ vars.KEYCLOAK_CLIENT_ID }}
+          # The stack's environment is the DESTINY environment it talks to, so
+          # the repository links the UI builds resolve to the same instance the
+          # API reads from (MAPPER_DESTINY_ENV in app.tf).
+          VITE_DESTINY_ENV: ${{ vars.ENVIRONMENT_NAME }}
         run: npm run build
 
       - name: "Az CLI login"

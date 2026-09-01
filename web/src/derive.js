@@ -162,12 +162,88 @@ export function diffChoice(suggested = [], chosen = [], key = JSON.stringify) {
 
 export const STAGES = ["gathered", "included", "excluded", "mapped", "failed"];
 
-/** How many references sit at each stage. */
-export const stageCounts = (references = []) =>
-  STAGES.map((stage) => ({
-    stage,
-    count: references.filter((reference) => reference.stage === stage).length,
-  })).filter((entry) => entry.count > 0);
+/**
+ * Screening's verdict on a reference.
+ */
+export function verdictOf(reference) {
+  if (reference?.screening)
+    return reference.screening.include ? "included" : "excluded";
+  if (reference?.stage === "mapped") return "included";
+  if (["included", "excluded", "failed"].includes(reference?.stage))
+    return reference.stage;
+  return "not screened";
+}
+
+/** Whether mapping has placed a reference yet. */
+export const placementOf = (reference) =>
+  reference?.stage === "mapped"
+    ? "mapped"
+    : reference?.stage === "failed"
+      ? "failed"
+      : "not mapped";
+
+/**
+ * How a view slices its references.
+ */
+export const SLICES = {
+  stage: { label: "Stage", of: (reference) => reference.stage, order: STAGES },
+  verdict: {
+    label: "Screening",
+    of: verdictOf,
+    order: ["included", "excluded", "not screened", "failed"],
+  },
+  placement: {
+    label: "Mapping",
+    of: placementOf,
+    order: ["mapped", "not mapped", "failed"],
+  },
+};
+
+/** How many references sit in each of a slice's buckets. */
+export const bucketCounts = (references = [], slice = SLICES.stage) =>
+  slice.order
+    .map((bucket) => ({
+      bucket,
+      count: references.filter((reference) => slice.of(reference) === bucket)
+        .length,
+    }))
+    .filter((entry) => entry.count > 0);
+
+const foundInMode = (mode) => (reference) =>
+  (reference.provenance ?? []).some((entry) => entry.mode === mode);
+
+const screenedIn = (reference) => verdictOf(reference) === "included";
+
+export const REFERENCE_VIEWS = {
+  retrieve_sparse_evidence: {
+    subset: foundInMode("sparse"),
+    slice: null,
+    shows: ["found"],
+  },
+  retrieve_concept_evidence: {
+    subset: foundInMode("taxonomy"),
+    slice: null,
+    shows: ["found"],
+  },
+  screen_evidence: { slice: SLICES.verdict, shows: ["screening", "found"] },
+  generate_map: {
+    subset: screenedIn,
+    slice: SLICES.placement,
+    shows: ["mapping", "coordinate"],
+  },
+  generate_taxonomy_map: {
+    subset: screenedIn,
+    slice: SLICES.placement,
+    shows: ["mapping", "coordinate"],
+  },
+};
+
+/** The references a step's table shows, out of the session's, or null. */
+export function referencesFor(type, references = null) {
+  const view = REFERENCE_VIEWS[type];
+  if (!view || !references) return null;
+  return view.subset ? references.filter(view.subset) : references;
+}
 
 /**
  * A cell selection as dimension/subtopic pairs, all of which a reference's
@@ -184,9 +260,15 @@ export const inCell = (coordinate, terms = []) =>
     (coordinate?.[dimension] ?? []).includes(subtopic),
   );
 
-export function filterReferences(references = [], filter = null) {
-  if (filter?.stage)
-    return references.filter((reference) => reference.stage === filter.stage);
+export function filterReferences(
+  references = [],
+  filter = null,
+  slice = SLICES.stage,
+) {
+  if (filter?.bucket && slice)
+    return references.filter(
+      (reference) => slice.of(reference) === filter.bucket,
+    );
   if (filter?.terms)
     return references.filter((reference) =>
       inCell(reference.coordinate, filter.terms),
@@ -238,7 +320,9 @@ export function foundBy(reference, filterGroups = []) {
       continue;
     }
     for (const filter of entry.filters ?? []) {
-      const hits = known.size ? matched(byScheme.get(filter.scheme), known) : [];
+      const hits = known.size
+        ? matched(byScheme.get(filter.scheme), known)
+        : [];
       const label = hits.length
         ? `${filter.scheme}: ${hits.join(", ")}`
         : wholeGroup(filter);

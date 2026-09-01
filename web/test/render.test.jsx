@@ -7,7 +7,8 @@ import { Tick, Info } from '../src/ui/Icons.jsx'
 import { Disclaimer } from '../src/ui/Disclaimer.jsx'
 import { Breakable } from '../src/ui/text.jsx'
 import { Chrome } from '../src/ui/Chrome.jsx'
-import { References } from '../src/ui/References.jsx'
+import { References, stepReferences, Why } from '../src/ui/References.jsx'
+import { SLICES } from '../src/derive.js'
 import { useAdapter } from '../src/auth.js'
 
 describe('Panel', () => {
@@ -220,6 +221,21 @@ describe('References', () => {
     expect(html).not.toContain('>bbb<')
   })
 
+  it('reads a placed reference as included when the slice is screening', () => {
+    const html = render(
+      <References references={rows} community="hpv" slice={SLICES.verdict} />,
+    )
+    expect(html).toContain('Screening')
+    expect(html).toContain('included')
+    expect(html).not.toContain('>mapped<')
+  })
+
+  it('sits inside a step without a section rule of its own', () => {
+    const html = render(<References references={rows} community="hpv" inset />)
+    expect(html).toContain('refs inset')
+    expect(html).not.toContain('map-title')
+  })
+
   it('says what a cell selection narrowed the list to', () => {
     const html = render(
       <References
@@ -233,4 +249,79 @@ describe('References', () => {
     expect(html).not.toContain('Barriers in Kenya')
   })
 
+  describe('a row’s detail', () => {
+    const reference = {
+      destiny_id: 'bbb',
+      provenance: [{ mode: 'sparse', query: 'hpv uptake' }],
+      screening: { include: true, reasoning: 'reports uptake' },
+      coordinate: { Setting: ['Urban'] },
+      mapping: { reasoning: 'urban cohort' },
+      evidence: { title: 'Uptake in Nairobi' },
+    }
+
+    it('keeps to the reasoning the view is about', () => {
+      const screening = render(
+        <Why reference={reference} shows={['screening', 'found']} />,
+      )
+      expect(screening).toContain('reports uptake')
+      expect(screening).not.toContain('urban cohort')
+      expect(screening).toContain('hpv uptake')
+
+      const mapping = render(
+        <Why reference={reference} shows={['mapping', 'coordinate']} />,
+      )
+      expect(mapping).toContain('urban cohort')
+      expect(mapping).toContain('Urban')
+      expect(mapping).not.toContain('reports uptake')
+    })
+
+    it('shows the lot where the whole pipeline is on display', () => {
+      const html = render(<Why reference={reference} />)
+      expect(html).toContain('reports uptake')
+      expect(html).toContain('urban cohort')
+      expect(html).toContain('hpv uptake')
+    })
+  })
+
+  describe('a step’s own slice of it', () => {
+    const refs = (extra = {}) => ({ references: rows, community: 'hpv', loading: false, ...extra })
+
+    it('reads screening through its verdicts, placed references included', () => {
+      const html = render(stepReferences('screen_evidence', refs()))
+      expect(html).toContain('Screening')
+      expect(html).toContain('All 2.')
+    })
+
+    it('shows mapping only what screening kept', () => {
+      const html = render(stepReferences('generate_map', refs()))
+      expect(html).toContain('Mapping')
+      expect(html).toContain('All 1.')
+      expect(html).not.toContain('Barriers in Kenya')
+    })
+
+    it('says the references are coming rather than showing untitled rows', () => {
+      const html = render(
+        stepReferences('screen_evidence', refs({ references: null, loading: true })),
+      )
+      expect(html).toContain('spinner')
+      expect(html).not.toContain('ref-list')
+    })
+
+    it('gives a step with no table, or no references, nothing', () => {
+      expect(stepReferences('enhance_sparse_query', refs())).toBeNull()
+      expect(stepReferences('screen_evidence', refs({ references: [] }))).toBeNull()
+    })
+
+    it('keeps a retrieval step to what it found, with no downstream state on it', () => {
+      const found = [
+        { ...rows[0], stage: 'excluded', provenance: [{ mode: 'taxonomy', filters: [] }] },
+      ]
+      const html = render(
+        stepReferences('retrieve_concept_evidence', refs({ references: found })),
+      )
+      expect(html).toContain('Barriers in Kenya')
+      expect(html).not.toContain('ref-stage')
+      expect(html).not.toContain('facet')
+    })
+  })
 })

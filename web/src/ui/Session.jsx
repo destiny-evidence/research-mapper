@@ -8,6 +8,7 @@ import {
   mapIsReady,
   nextToStart,
   progressText,
+  REFERENCE_VIEWS,
 } from "../derive.js";
 import { downloadRecord } from "../record.js";
 import { usePoll } from "../poll.js";
@@ -15,7 +16,7 @@ import { Panel, Toggle, Pip } from "./Panel.jsx";
 import { Question } from "./Ask.jsx";
 import { Trace } from "./Trace.jsx";
 import { EvidenceMap } from "./EvidenceMap.jsx";
-import { References, useReferences } from "./References.jsx";
+import { References, stepReferences, useReferences } from "./References.jsx";
 import {
   Artifact,
   RENDERERS,
@@ -93,10 +94,18 @@ export function Session({ id }) {
   const artifact = useArtifacts(id, session?.artifacts);
   const rows = data ? steps(data) : [];
   const mapped = mapIsReady(rows);
-  const { references, error: refsError, loading: refsLoading } = useReferences(
-    id,
-    mapped,
-  );
+  const tabled = rows.filter((row) => REFERENCE_VIEWS[row.type]);
+  const {
+    references,
+    error: refsError,
+    loading: refsLoading,
+  } = useReferences(id, {
+    enabled: tabled.some((row) =>
+      ["running", "done", "failed"].includes(row.state),
+    ),
+    live: tabled.some((row) => row.state === "running"),
+    stamp: rows.map((row) => `${row.type}:${row.state}`).join(","),
+  });
 
   useEffect(() => {
     // The view needs coordinates, not the references themselves.
@@ -174,6 +183,14 @@ export function Session({ id }) {
   const included = rows.find((row) => row.type === "screen_evidence")?.operation
     ?.result?.included;
 
+  const refs = {
+    references,
+    community: session.community,
+    filterGroups: artifact("concept_filters")?.groups,
+    loading: refsLoading,
+    error: refsError,
+  };
+
   const stepList = rows.map((row) => (
     <Panel
       key={row.type}
@@ -186,6 +203,7 @@ export function Session({ id }) {
       <Body
         row={row}
         artifact={artifact}
+        refs={refs}
         onAnswer={answer}
         onRetry={retryStep}
         onStart={startStep}
@@ -291,11 +309,14 @@ function Result({ result }) {
 export function Body({
   row,
   artifact,
+  refs,
   onAnswer,
   onRetry = () => {},
   onStart = () => {},
   saving,
 }) {
+  const table = stepReferences(row.type, refs);
+
   if (row.state === "failed") {
     const other = Object.values(MAP_TAILS).find(
       (tail) =>
@@ -317,6 +338,7 @@ export function Body({
             </button>
           ) : null}
         </div>
+        {table}
       </>
     );
   }
@@ -386,6 +408,7 @@ export function Body({
             ? "Queued"
             : progressText(progress)}
         </div>
+        {table}
       </>
     );
   }
@@ -401,7 +424,7 @@ export function Body({
       ? artifact("concept_filter_loop")
       : null;
 
-  if (!payload && !result && !reasoning && !trace) {
+  if (!payload && !result && !reasoning && !trace && !table) {
     return <div class="note">Nothing to show for this step.</div>;
   }
   return (
@@ -417,6 +440,7 @@ export function Body({
       )}
       {trace ? <Trace payload={trace} /> : null}
       <Reasoning text={reasoning} />
+      {table}
     </>
   );
 }

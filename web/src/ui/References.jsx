@@ -2,32 +2,75 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import * as api from "../api.js";
 import {
   authorLine,
+  bucketCounts,
   filterReferences,
   foundBy,
-  stageCounts,
+  REFERENCE_VIEWS,
+  referencesFor,
+  SLICES,
 } from "../derive.js";
+import { usePoll } from "../poll.js";
 import { referenceUrl } from "../repo.js";
-import { Chevron, External, Remove, Spinner } from "./Icons.jsx";
+import { External, Remove, Spinner } from "./Icons.jsx";
 import { Reasoning } from "./Reasoning.jsx";
+import { Toggle } from "./Panel.jsx";
 import { Breakable } from "./text.jsx";
 
-export function useReferences(sessionId, enabled) {
-  const [state, setState] = useState({ references: null, error: null });
+const REFRESH_MS = 5000;
+
+const evidenceById = (rows) =>
+  Object.fromEntries(rows.map((row) => [row.destiny_id, row.evidence ?? null]));
+
+/**
+ * The session's references, kept current while a step is still moving them.
+ */
+export function useReferences(
+  sessionId,
+  { enabled = true, live = false, stamp = "" } = {},
+) {
+  const [evidence, setEvidence] = useState({});
+  const hydrating = useRef(false);
+
+  const { data, error, loading } = usePoll(
+    () => api.listReferences(sessionId),
+    {
+      interval: REFRESH_MS,
+      active: () => live,
+      deps: [sessionId, live, stamp],
+      skip: !enabled,
+    },
+  );
+
+  useEffect(() => setEvidence({}), [sessionId]);
+
+  const missing = (data ?? [])
+    .filter((reference) => evidence[reference.destiny_id] === undefined)
+    .map((reference) => reference.destiny_id)
+    .join(",");
+  const hydrated = Boolean(Object.keys(evidence).length);
 
   useEffect(() => {
-    if (!enabled) return;
-    let live = true;
-    setState({ references: null, error: null });
-    api.listReferences(sessionId, { includeEvidence: true }).then(
-      (references) => live && setState({ references, error: null }),
-      (error) => live && setState({ references: null, error }),
-    );
-    return () => {
-      live = false;
-    };
-  }, [sessionId, enabled]);
+    if (!missing || hydrating.current) return;
+    hydrating.current = true;
+    const merge = (rows) =>
+      setEvidence((previous) => ({ ...previous, ...evidenceById(rows) }));
+    api
+      .listReferences(sessionId, { includeEvidence: true })
+      .then(merge, () => merge(data ?? []))
+      .finally(() => {
+        hydrating.current = false;
+      });
+  }, [sessionId, missing]);
 
-  return { ...state, loading: !state.references && !state.error };
+  return {
+    references:
+      data?.map((reference) => ({
+        ...reference,
+        evidence: evidence[reference.destiny_id] ?? null,
+      })) ?? null,
+    error,
+    loading: loading || (Boolean(missing) && !hydrated),
+  };
 }
 
 const Filter = ({ label, count, on, onClick }) => (
@@ -46,22 +89,29 @@ const Chips = ({ label, children }) => (
   </div>
 );
 
-/** Why this reference is where it is. */
-function Why({ reference, filterGroups }) {
-  const found = foundBy(reference, filterGroups);
-  const coordinate = Object.entries(reference.coordinate ?? {});
+/** Why this reference is where it is, as far as the view being read goes. */
+export function Why({ reference, filterGroups, shows = null }) {
+  const has = (part) => !shows || shows.includes(part);
+  const found = has("found") ? foundBy(reference, filterGroups) : null;
+  const coordinate = has("coordinate")
+    ? Object.entries(reference.coordinate ?? {})
+    : [];
   return (
     <div class="ref-why">
-      <Reasoning
-        label={`Model reasoning: ${
-          reference.screening?.include ? "inclusion" : "exclusion"
-        }`}
-        text={reference.screening?.reasoning}
-      />
-      <Reasoning
-        label="Model reasoning: mapping"
-        text={reference.mapping?.reasoning}
-      />
+      {has("screening") ? (
+        <Reasoning
+          label={`Model reasoning: ${
+            reference.screening?.include ? "inclusion" : "exclusion"
+          }`}
+          text={reference.screening?.reasoning}
+        />
+      ) : null}
+      {has("mapping") ? (
+        <Reasoning
+          label="Model reasoning: mapping"
+          text={reference.mapping?.reasoning}
+        />
+      ) : null}
       {coordinate.length ? (
         <div class="ref-why-part">
           <div class="lab">Coordinate</div>
@@ -81,7 +131,7 @@ function Why({ reference, filterGroups }) {
           ))}
         </div>
       ) : null}
-      {found.queries.length ? (
+      {found?.queries.length ? (
         <Chips label="Found by search query">
           {found.queries.map((query) => (
             <span class="chip" key={query}>
@@ -90,7 +140,7 @@ function Why({ reference, filterGroups }) {
           ))}
         </Chips>
       ) : null}
-      {found.concepts.length ? (
+      {found?.concepts.length ? (
         <Chips label="Found by taxonomy concept">
           {found.concepts.map((label) => (
             <span class="chip" key={label}>
@@ -113,12 +163,15 @@ function Why({ reference, filterGroups }) {
   );
 }
 
-function Row({ reference, community, filterGroups }) {
+const slug = (bucket) => bucket.replace(/ /g, "-");
+
+function Row({ reference, community, filterGroups, slice, shows }) {
   const [open, setOpen] = useState(false);
   const { evidence } = reference;
   const meta = [authorLine(evidence), evidence?.year]
     .filter(Boolean)
     .join(" · ");
+  const bucket = slice ? slice.of(reference) : null;
   return (
     <>
       <div class={`ref-row ${open ? "open" : ""}`}>
@@ -134,8 +187,10 @@ function Row({ reference, community, filterGroups }) {
             </span>
             {meta ? <span class="ref-meta">{meta}</span> : null}
           </span>
-          <span class={`ref-stage ${reference.stage}`}>{reference.stage}</span>
-          <Chevron up={open} size={12} colour="#6f6b63" />
+          {bucket ? (
+            <span class={`ref-stage ${slug(bucket)}`}>{bucket}</span>
+          ) : null}
+          <Toggle open={open} />
         </button>
         <a
           class="ref-link"
@@ -147,12 +202,13 @@ function Row({ reference, community, filterGroups }) {
           <External colour="#6f6b63" />
         </a>
       </div>
-      {open ? <Why reference={reference} filterGroups={filterGroups} /> : null}
+      {open ? (
+        <Why reference={reference} filterGroups={filterGroups} shows={shows} />
+      ) : null}
     </>
   );
 }
 
-/** Every reference the session touched. */
 export function References({
   references,
   community,
@@ -161,30 +217,37 @@ export function References({
   onClearCell,
   loading,
   error,
+  slice = SLICES.stage,
+  shows = null,
+  inset = false,
 }) {
-  const [stage, setStage] = useState(null);
+  const [bucket, setBucket] = useState(null);
   const anchor = useRef(null);
 
   useEffect(() => {
     if (!cell) return;
-    setStage(null);
+    setBucket(null);
     anchor.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [cell?.key]);
 
-  const pickStage = (next) => {
+  useEffect(() => setBucket(null), [slice]);
+
+  const pickBucket = (next) => {
     onClearCell?.();
-    setStage(next);
+    setBucket(next);
   };
 
+  const classes = `refs ${inset ? "inset" : ""}`;
+  const heading = <div class={inset ? "lab" : "map-title"}>References</div>;
   const head = (
     <div class="refs-head" ref={anchor}>
-      <div class="map-title">References</div>
+      {heading}
     </div>
   );
 
   if (loading)
     return (
-      <section class="refs">
+      <section class={classes}>
         {head}
         <div class="note" style="display: flex; align-items: center; gap: 9px;">
           <Spinner /> Fetching references...
@@ -194,7 +257,7 @@ export function References({
 
   if (error)
     return (
-      <section class="refs">
+      <section class={classes}>
         {head}
         <div class="error">{String(error.message ?? error)}</div>
       </section>
@@ -202,56 +265,61 @@ export function References({
 
   if (!references?.length)
     return (
-      <section class="refs">
+      <section class={classes}>
         {head}
         <div class="note">This session has no references.</div>
       </section>
     );
 
-  const counts = stageCounts(references);
+  const counts = slice ? bucketCounts(references, slice) : [];
   const shown = filterReferences(
     references,
-    cell ?? (stage ? { stage } : null),
+    cell ?? (bucket ? { bucket } : null),
+    slice,
   );
   return (
-    <section class="refs">
+    <section class={classes}>
       <div class="refs-head" ref={anchor}>
-        <div class="map-title">References</div>
-        <div style="font-size: 12px; color: var(--muted); margin-top: 5px;">
+        {heading}
+        <div class="refs-count">
           {shown.length === references.length
             ? `All ${references.length}.`
             : `${shown.length} of ${references.length}.`}
         </div>
       </div>
 
-      <div class="map-controls">
-        <div class="facets">
-          <span class="lab">Stage</span>
-          <Filter
-            label="All"
-            count={references.length}
-            on={!stage && !cell}
-            onClick={() => pickStage(null)}
-          />
-          {counts.map((entry) => (
-            <Filter
-              key={entry.stage}
-              label={entry.stage}
-              count={entry.count}
-              on={stage === entry.stage}
-              onClick={() =>
-                pickStage(stage === entry.stage ? null : entry.stage)
-              }
-            />
-          ))}
+      {slice || cell ? (
+        <div class="map-controls">
+          {slice ? (
+            <div class="facets">
+              <span class="lab">{slice.label}</span>
+              <Filter
+                label="All"
+                count={references.length}
+                on={!bucket && !cell}
+                onClick={() => pickBucket(null)}
+              />
+              {counts.map((entry) => (
+                <Filter
+                  key={entry.bucket}
+                  label={entry.bucket}
+                  count={entry.count}
+                  on={bucket === entry.bucket}
+                  onClick={() =>
+                    pickBucket(bucket === entry.bucket ? null : entry.bucket)
+                  }
+                />
+              ))}
+            </div>
+          ) : null}
+          {cell ? (
+            <button type="button" class="cell-chip" onClick={onClearCell}>
+              <span>{cell.label}</span>
+              <Remove />
+            </button>
+          ) : null}
         </div>
-        {cell ? (
-          <button type="button" class="cell-chip" onClick={onClearCell}>
-            <span>{cell.label}</span>
-            <Remove />
-          </button>
-        ) : null}
-      </div>
+      ) : null}
 
       <div class="ref-list">
         {shown.length ? (
@@ -261,6 +329,8 @@ export function References({
               reference={reference}
               community={community}
               filterGroups={filterGroups}
+              slice={slice}
+              shows={shows}
             />
           ))
         ) : (
@@ -268,5 +338,29 @@ export function References({
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * A step's own slice of the table.
+ */
+export function stepReferences(type, refs) {
+  const view = REFERENCE_VIEWS[type];
+  if (!view || !refs) return null;
+  const shown = referencesFor(type, refs.references);
+  // Loading says the table is coming; nothing in it once loaded says the step
+  // has none, which is the step's own business to report.
+  if (!refs.loading && !refs.error && !shown?.length) return null;
+  return (
+    <References
+      inset
+      slice={view.slice}
+      shows={view.shows}
+      references={shown}
+      community={refs.community}
+      filterGroups={refs.filterGroups}
+      loading={refs.loading}
+      error={refs.error}
+    />
   );
 }

@@ -1,8 +1,8 @@
-import { Tick, Dot, Pause, Cross, Chevron } from "./Icons.jsx";
+import { Tick, Pause, Cross, Chevron, Spinner } from "./Icons.jsx";
 
 const GLYPH = {
   done: <Tick />,
-  running: <Dot />,
+  running: <Spinner colour="#2b2a27" size={17} />,
   ask: <Pause />,
   failed: <Cross />,
   todo: null,

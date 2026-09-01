@@ -192,6 +192,27 @@ describe('step body', () => {
     expect(html).not.toContain('taxonomy')
   })
 
+  it('lists the references a step is moving while it is still moving them', () => {
+    const references = [
+      { destiny_id: 'aaa', stage: 'excluded', provenance: [], screening: { include: false }, evidence: { title: 'Barriers in Kenya' } },
+      { destiny_id: 'bbb', stage: 'included', provenance: [], screening: { include: true }, evidence: { title: 'Uptake in Nairobi' } },
+    ]
+    const html = render(
+      <Body
+        row={row({
+          state: 'running',
+          operation: { id: 'o12', status: 'running', progress: { done: 1, total: 2 } },
+        })}
+        artifact={() => null}
+        refs={{ references, community: 'hpv', loading: false }}
+        onAnswer={noop}
+      />,
+    )
+    expect(html).toContain('Barriers in Kenya')
+    expect(html).toContain('Uptake in Nairobi')
+    expect(html).toContain('Screening')
+  })
+
   it('says so plainly when a completed step has nothing to show', () => {
     const html = render(
       <Body row={row({ type: 'retrieve_sparse_evidence', operation: { id: 'o4' } })} artifact={() => null} onAnswer={noop} />,

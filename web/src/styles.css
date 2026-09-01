@@ -180,7 +180,8 @@ input, textarea, select {
 .decision-prompt { font-size: 13px; font-weight: 500; color: var(--ink); margin-top: 14px; }
 
 .pip { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; background: var(--panel); border: 1px solid #b3b0a9; }
-.pip.running { border: 1.5px solid var(--ink); }
+/* The spinner is the ring, so the pip does not draw a second one round it. */
+.pip.running { border: 0; background: none; }
 .pip.ask { border: 1.5px solid var(--amber); background: var(--amber-bg); }
 .pip.failed { border: 1.5px solid var(--red); }
 .pip.todo { border: 1px dashed #cfcbc3; background: none; }
@@ -341,6 +342,12 @@ input, textarea, select {
   font-size: 11.5px; color: var(--amber-ink);
   background: var(--amber-bg); border: 1px solid var(--amber-line); padding: 4px 9px;
 }
+.refs-count { font-size: 12px; color: var(--muted); margin-top: 5px; }
+/* A step's own slice of the table: no section rule of its own, and a long list
+   scrolls inside the step rather than pushing the rest of the workflow away. */
+.refs.inset { margin-top: 18px; padding-top: 0; border-top: 0; }
+.refs.inset .refs-head { margin-bottom: 11px; }
+.refs.inset .ref-list { max-height: 420px; overflow-y: auto; }
 .ref-list { margin-top: 14px; border-top: 1px solid var(--line); }
 .ref-row { display: flex; align-items: center; gap: 2px; border-bottom: 1px solid var(--line-2); }
 .ref-row:hover { background: #faf9f6; }

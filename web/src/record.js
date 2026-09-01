@@ -12,7 +12,12 @@ export async function buildRecord(sessionId, client = api) {
   const payloads = await Promise.all(
     types.map((type) => client.getArtifact(sessionId, type)),
   );
-  const references = await client.listReferences(sessionId).catch(() => []);
+  const references = await client
+    .listReferences(sessionId, { includeEvidence: true })
+    .catch(() => []);
+  const map = await client
+    .getMap(sessionId, { includeEvidence: false })
+    .catch(() => null);
 
   return {
     exported_at: new Date().toISOString(),
@@ -20,7 +25,26 @@ export async function buildRecord(sessionId, client = api) {
     operations,
     artifacts: Object.fromEntries(types.map((type, i) => [type, payloads[i]])),
     references,
-    map: await client.getMap(sessionId).catch(() => null),
+    map: withEvidence(map, references),
+  };
+}
+
+/**
+ * The map's evidence is the same records the references carry, and hydrating
+ * either costs a repository lookup per hundred ids, so the map is fetched with
+ * ids only and joined to what the references already fetched.
+ */
+function withEvidence(map, references) {
+  if (!map?.mapped_evidence) return map;
+  const known = new Map(
+    references.map((reference) => [reference.destiny_id, reference.evidence]),
+  );
+  return {
+    ...map,
+    mapped_evidence: map.mapped_evidence.map((item) => ({
+      ...item,
+      evidence: known.get(item.evidence?.destiny_id) ?? item.evidence,
+    })),
   };
 }
 

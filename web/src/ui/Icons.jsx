@@ -19,12 +19,6 @@ export const Tick = ({ colour = "#6f6b63", size = 13 }) => (
   </svg>
 );
 
-export const Dot = ({ colour = "#2b2a27", size = 10 }) => (
-  <svg width={size} height={size} viewBox="0 0 10 10">
-    <circle cx="5" cy="5" r="4" fill={colour} />
-  </svg>
-);
-
 export const Pause = ({ colour = "#a8551a", size = 11 }) => (
   <svg width={size} height={size} viewBox="0 0 10 10" fill={colour}>
     <rect x="2" y="1.5" width="2.2" height="7" rx="0.5" />

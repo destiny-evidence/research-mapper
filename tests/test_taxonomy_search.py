@@ -239,14 +239,16 @@ def test_forward_reason_does_not_leak_between_calls():
     assert second.unsatisfiable_reason is None
 
 
-def test_forward_passes_theconcept_listing_to_start_and_resume():
+def test_forward_passes_the_concept_listing_to_start_and_resume():
     indexed = _indexed_vocab()
     step0 = _step(0, "some_other_tool")
     generator = _generator_with_mock_agent(start_returns=step0)
 
     _forward(generator, indexed=indexed)
 
-    expected_listing = "Setting: Primary Education\nSetting: Secondary Education"
+    expected_listing = (
+        "C10\tSetting: Primary Education\nC11\tSetting: Secondary Education"
+    )
     generator.agent.start.assert_called_once_with(
         user_query=UserQuery(query="q"), available_concepts=expected_listing
     )
@@ -312,7 +314,7 @@ def test_forward_does_not_touch_ui_when_none_is_given():
 # ---------------------------------------------------------------------------
 
 
-def testconcept_listing_formats_every_concept_as_scheme_label_sorted():
+def test_concept_listing_formats_every_concept_as_scheme_label_sorted():
     """Labels repeat across schemes (confirmed on real HPV/ESEA data), so each
     line is scheme-qualified; sorted so the same taxonomy always renders the
     same listing, regardless of concept insertion order."""
@@ -329,11 +331,25 @@ def testconcept_listing_formats_every_concept_as_scheme_label_sorted():
     result = generator.concept_listing(indexed)
 
     assert result == (
-        "Country: Kenya\nSetting: Primary Education\nSetting: Secondary Education"
+        "C1\tCountry: Kenya\n"
+        "C3\tSetting: Primary Education\n"
+        "C2\tSetting: Secondary Education"
     )
 
 
-def testconcept_listing_empty_for_no_concepts():
+def test_concept_listing_shows_the_refs_the_agent_must_cite():
+    """The agent answers in local_refs; if the listing omits them it can only
+    echo back a label, which validation then rejects."""
+    generator = TaxonomyConceptFilterGenerator()
+    indexed = _indexed_vocab()
+
+    listing = generator.concept_listing(indexed)
+
+    for concept in indexed.concepts:
+        assert concept.local_ref in listing
+
+
+def test_concept_listing_empty_for_no_concepts():
     generator = TaxonomyConceptFilterGenerator()
     assert (
         generator.concept_listing(IndexedVocab(concepts=[], local_ref_to_iri={})) == ""
@@ -415,3 +431,21 @@ def test_mark_unsatisfiable_and_prompt_attack_are_always_registered():
 
     assert "mark_unsatisfiable" in agent.tools
     assert "raise_attempted_prompt_attack" in agent.tools
+
+
+def test_an_unknown_ref_is_suggested_as_a_ref_not_a_label():
+    generator = TaxonomyConceptFilterGenerator()
+    indexed = IndexedVocab(
+        concepts=[Concept(local_ref="C7", scheme="Misinformation", label="Addressing")],
+        local_ref_to_iri={"C7": "https://example.org/C7"},
+    )
+    groups = [
+        ConceptFilterGroup(
+            scheme="Misinformation", concept_local_refs=["Addressing"], reason="r"
+        )
+    ]
+
+    with pytest.raises(UnknownConceptRefError) as caught:
+        generator.validate_filter_groups(groups, indexed)
+
+    assert "C7 (Misinformation: Addressing)" in str(caught.value)

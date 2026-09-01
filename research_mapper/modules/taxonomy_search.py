@@ -112,6 +112,12 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
             return
         known_refs = {concept.local_ref for concept in indexed.concepts}
         labels = [concept.label for concept in indexed.concepts]
+        cited = {}
+        for concept in indexed.concepts:
+            cited.setdefault(
+                concept.label,
+                f"{concept.local_ref} ({concept.scheme}: {concept.label})",
+            )
         for group in filter_groups:
             for ref in group.concept_local_refs:
                 if ref in known_refs:
@@ -119,17 +125,17 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
                 msg = f"Unknown concept local_ref {ref!r} in scheme {group.scheme!r}."
                 suggestions = difflib.get_close_matches(ref, labels, n=3, cutoff=0.4)
                 if suggestions:
-                    msg += f" Did you mean one of: {', '.join(suggestions)}?"
+                    named = ", ".join(cited[label] for label in suggestions)
+                    msg += f" Did you mean one of: {named}?"
                 raise UnknownConceptRefError(msg)
 
     def concept_listing(self, indexed: IndexedVocab) -> str:
-        """A flat 'scheme: label' line per concept — cheap enough (a few
-        thousand tokens even for HPV's 575 concepts) to hand the agent
-        upfront so it can find real labels to act on instead of guessing
-        plausible-sounding wording and fishing for it one lookup_concepts
-        call at a time."""
+        """A flat 'local_ref\tscheme: label' line per concept — cheap enough (a
+        few thousand tokens even for HPV's 575 concepts) to hand the agent
+        upfront so it can cite a concept straight from here instead of
+        guessing wording, or paying a lookup_concepts call per ref."""
         return "\n".join(
-            f"{concept.scheme}: {concept.label}"
+            f"{concept.local_ref}\t{concept.scheme}: {concept.label}"
             for concept in sorted(
                 indexed.concepts, key=lambda concept: (concept.scheme, concept.label)
             )

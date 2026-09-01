@@ -8,6 +8,7 @@ import {
   inCell,
   placementOf,
   referencesFor,
+  referenceStamp,
   SLICES,
   verdictOf,
 } from '../src/derive.js'
@@ -71,6 +72,31 @@ describe('placementOf', () => {
   it('borrows the pipeline’s own word, so a row reads the same either way', () => {
     expect(placementOf(reference('included'))).toBe('not mapped')
     expect(placementOf(MAPPED)).toBe('mapped')
+  })
+})
+
+describe('referenceStamp', () => {
+  const row = (type, state, done) => ({
+    type,
+    state,
+    operation: done === undefined ? undefined : { progress: { done } },
+  })
+
+  it('changes as a step works through the references', () => {
+    const before = referenceStamp([row('screen_evidence', 'running', 100)])
+    const after = referenceStamp([row('screen_evidence', 'running', 200)])
+    expect(before).not.toBe(after)
+  })
+
+  it('changes when a step finishes, which is when the last poll is missed', () => {
+    const running = referenceStamp([row('screen_evidence', 'running', 212)])
+    const done = referenceStamp([row('screen_evidence', 'done', 212)])
+    expect(running).not.toBe(done)
+  })
+
+  it('ignores steps that cannot move a reference', () => {
+    const rows = [row('generate_map_dimensions', 'running', 2)]
+    expect(referenceStamp(rows)).toBe('')
   })
 })
 

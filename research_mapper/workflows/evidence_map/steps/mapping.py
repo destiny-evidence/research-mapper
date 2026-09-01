@@ -2,6 +2,7 @@
 
 import builtins
 import logging
+from itertools import batched
 from typing import ClassVar, Protocol
 
 import dspy
@@ -18,7 +19,10 @@ from research_mapper.models.mapping import (
 )
 from research_mapper.workflows.evidence_map import artifacts
 from research_mapper.workflows.evidence_map.context import EvidenceMapContext
-from research_mapper.workflows.evidence_map.fanout import ProgressTracker
+from research_mapper.workflows.evidence_map.fanout import (
+    MAX_CONCURRENCY,
+    ProgressTracker,
+)
 from research_mapper.workflows.evidence_map.hydrate import get_evidence
 from research_mapper.workflows.evidence_map.pipeline import (
     DimensionGenerator,
@@ -255,35 +259,35 @@ class GenerateMap(Step[GenerateMapParams, EvidenceMapContext]):
 
         mapped = 0
         for evidence_page in get_evidence([r.destiny_id for r in references]):
-            evidence = evidence_page.values()
-            examples = [
-                dspy.Example(
-                    user_query=user_query, evidence=item, dimensions=axes
-                ).with_inputs("user_query", "evidence", "dimensions")
-                for item in evidence
-            ]
-            predictions = tracker.fan_out(EvidenceMapper(), examples)
+            for evidence in batched(evidence_page.values(), MAX_CONCURRENCY):
+                examples = [
+                    dspy.Example(
+                        user_query=user_query, evidence=item, dimensions=axes
+                    ).with_inputs("user_query", "evidence", "dimensions")
+                    for item in evidence
+                ]
+                predictions = tracker.fan_out(EvidenceMapper(), examples)
 
-            rows: list[CoordinateRow] = []
-            for item, prediction in zip(evidence, predictions, strict=True):
-                if prediction is None:
-                    logger.warning("mapping failed for id %s", item.destiny_id)
-                    continue
-                rows.append(
-                    CoordinateRow(
-                        destiny_id=item.destiny_id,
-                        coordinate={
-                            dimension.name: [getattr(prediction, field)]
-                            for dimension, field in zip(
-                                dimensions, SUBTOPIC_FIELDS, strict=True
-                            )
-                        },
-                        reasoning=prediction.reasoning,
-                        dimensions_version=dimensions_version or 1,
+                rows: list[CoordinateRow] = []
+                for item, prediction in zip(evidence, predictions, strict=True):
+                    if prediction is None:
+                        logger.warning("mapping failed for id %s", item.destiny_id)
+                        continue
+                    rows.append(
+                        CoordinateRow(
+                            destiny_id=item.destiny_id,
+                            coordinate={
+                                dimension.name: [getattr(prediction, field)]
+                                for dimension, field in zip(
+                                    dimensions, SUBTOPIC_FIELDS, strict=True
+                                )
+                            },
+                            reasoning=prediction.reasoning,
+                            dimensions_version=dimensions_version or 1,
+                        )
                     )
-                )
-            ctx.set_coordinates(rows)
-            mapped += len(rows)
+                ctx.set_coordinates(rows)
+                mapped += len(rows)
 
         return {"mapped": mapped, "failed": tracker.failed}
 

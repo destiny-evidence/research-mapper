@@ -2,6 +2,7 @@
 
 import builtins
 import logging
+from itertools import batched
 from typing import ClassVar, Protocol
 
 import dspy
@@ -13,7 +14,10 @@ from research_mapper.models.common import UserQuery
 from research_mapper.workflows.evidence_map import artifacts
 from research_mapper.workflows.evidence_map.context import EvidenceMapContext
 from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
-from research_mapper.workflows.evidence_map.fanout import ProgressTracker
+from research_mapper.workflows.evidence_map.fanout import (
+    MAX_CONCURRENCY,
+    ProgressTracker,
+)
 from research_mapper.workflows.evidence_map.hydrate import get_evidence
 from research_mapper.workflows.evidence_map.pipeline import (
     CriteriaGenerator,
@@ -137,33 +141,36 @@ class ScreenEvidence(Step[ScreenEvidenceParams, EvidenceMapContext]):
         for evidence_page in get_evidence(
             [reference.destiny_id for reference in references]
         ):
-            evidence = evidence_page.values()
-            examples = [
-                dspy.Example(
-                    evidence=piece_of_evidence, screening_criteria=screening_criteria
-                ).with_inputs("evidence", "screening_criteria")
-                for piece_of_evidence in evidence
-            ]
-            predictions: list[ScreeningResult | None] = tracker.fan_out(
-                EvidenceScreener(), examples
-            )
-
-            screening_rows: list[ScreeningRow] = []
-            for _evidence, prediction in zip(evidence, predictions, strict=True):
-                if prediction is None:
-                    logger.warning("screening failed for id %s", _evidence.destiny_id)
-                    continue
-                included += int(prediction.include)
-                screening_rows.append(
-                    ScreeningRow(
-                        destiny_id=_evidence.destiny_id,
-                        include=prediction.include,
-                        reasoning=prediction.reasoning,
-                        criteria_version=criteria_version or 1,
-                    )
+            for evidence in batched(evidence_page.values(), MAX_CONCURRENCY):
+                examples = [
+                    dspy.Example(
+                        evidence=piece_of_evidence,
+                        screening_criteria=screening_criteria,
+                    ).with_inputs("evidence", "screening_criteria")
+                    for piece_of_evidence in evidence
+                ]
+                predictions: list[ScreeningResult | None] = tracker.fan_out(
+                    EvidenceScreener(), examples
                 )
 
-            ctx.set_screening(screening_rows)
+                screening_rows: list[ScreeningRow] = []
+                for _evidence, prediction in zip(evidence, predictions, strict=True):
+                    if prediction is None:
+                        logger.warning(
+                            "screening failed for id %s", _evidence.destiny_id
+                        )
+                        continue
+                    included += int(prediction.include)
+                    screening_rows.append(
+                        ScreeningRow(
+                            destiny_id=_evidence.destiny_id,
+                            include=prediction.include,
+                            reasoning=prediction.reasoning,
+                            criteria_version=criteria_version or 1,
+                        )
+                    )
+
+                ctx.set_screening(screening_rows)
 
         return {
             "screened": total_references,

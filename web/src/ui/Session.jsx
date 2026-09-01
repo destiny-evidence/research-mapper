@@ -9,6 +9,7 @@ import {
   nextToStart,
   progressText,
   REFERENCE_VIEWS,
+  referenceStamp,
 } from "../derive.js";
 import { downloadRecord } from "../record.js";
 import { usePoll } from "../poll.js";
@@ -103,8 +104,7 @@ export function Session({ id }) {
     enabled: tabled.some((row) =>
       ["running", "done", "failed"].includes(row.state),
     ),
-    live: tabled.some((row) => row.state === "running"),
-    stamp: rows.map((row) => `${row.type}:${row.state}`).join(","),
+    stamp: referenceStamp(rows),
   });
 
   useEffect(() => {

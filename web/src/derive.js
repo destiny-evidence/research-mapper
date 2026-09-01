@@ -238,6 +238,15 @@ export const REFERENCE_VIEWS = {
   },
 };
 
+export const referenceStamp = (rows = []) =>
+  rows
+    .filter((row) => REFERENCE_VIEWS[row.type])
+    .map(
+      (row) =>
+        `${row.type}:${row.state}:${row.operation?.progress?.done ?? ""}`,
+    )
+    .join(",");
+
 /** The references a step's table shows, out of the session's, or null. */
 export function referencesFor(type, references = null) {
   const view = REFERENCE_VIEWS[type];

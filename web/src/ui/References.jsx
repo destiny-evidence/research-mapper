@@ -16,27 +16,21 @@ import { Reasoning } from "./Reasoning.jsx";
 import { Toggle } from "./Panel.jsx";
 import { Breakable } from "./text.jsx";
 
-const REFRESH_MS = 5000;
-
 const evidenceById = (rows) =>
   Object.fromEntries(rows.map((row) => [row.destiny_id, row.evidence ?? null]));
 
 /**
  * The session's references, kept current while a step is still moving them.
  */
-export function useReferences(
-  sessionId,
-  { enabled = true, live = false, stamp = "" } = {},
-) {
+export function useReferences(sessionId, { enabled = true, stamp = "" } = {}) {
   const [evidence, setEvidence] = useState({});
   const hydrating = useRef(false);
 
   const { data, error, loading } = usePoll(
     () => api.listReferences(sessionId),
     {
-      interval: REFRESH_MS,
-      active: () => live,
-      deps: [sessionId, live, stamp],
+      active: () => false,
+      deps: [sessionId, stamp],
       skip: !enabled,
     },
   );

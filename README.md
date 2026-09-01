@@ -14,7 +14,7 @@ The API takes requests and queues work. The worker picks work up and runs it, on
     engine/       runs workflows
     workflows/    the workflows themselves
     db/           tables and migrations
-    demo/         a throwaway UI
+    web/          the browser UI
     ui/           the original terminal app
 
 ## Running it
@@ -27,13 +27,14 @@ If the workflow uses the DESTINY repository API, you'll need to log in there fir
 uv run python -m research_mapper login
 ```
 
-Then bring up Postgres, apply the migrations, and run the API on `:8080` and the worker:
+Then bring up Postgres, apply the migrations, and run the API on `:8080`, the worker, and the UI on
+`:5173`:
 
 ```bash
 docker compose up --build
 ```
 
-[demo/](demo/) adds an experimental UI on top.
+[web/](web/) has the UI's own README.
 
 ## Configuration
 

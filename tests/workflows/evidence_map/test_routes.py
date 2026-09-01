@@ -150,12 +150,16 @@ def test_coordinates_from_older_dimensions_are_left_out_of_the_map(
     monkeypatch.setattr(
         routes,
         "get_evidence",
-        lambda ids: [{destiny_id: Evidence(destiny_id=destiny_id) for destiny_id in ids}],
+        lambda ids: [
+            {destiny_id: Evidence(destiny_id=destiny_id) for destiny_id in ids}
+        ],
     )
 
     body = client.get(f"/sessions/{session.id}/map/").json()
 
-    assert [cell["evidence"]["destiny_id"] for cell in body["mapped_evidence"]] == [str(TWO)]
+    assert [cell["evidence"]["destiny_id"] for cell in body["mapped_evidence"]] == [
+        str(TWO)
+    ]
 
 
 def test_a_dimensions_artifact_that_is_not_three_is_a_clear_error(
@@ -174,10 +178,18 @@ def test_references_are_listed_at_every_stage_with_their_reasoning(db, client, s
     from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
 
     included = make_reference(db, session, ONE, stage=SessionReferenceStage.INCLUDED)
-    included.screening = {"include": True, "reasoning": "reports uptake", "criteria_version": 2}
+    included.screening = {
+        "include": True,
+        "reasoning": "reports uptake",
+        "criteria_version": 2,
+    }
     included.coordinate = {"Setting": ["School"]}
     excluded = make_reference(db, session, TWO, stage=SessionReferenceStage.EXCLUDED)
-    excluded.screening = {"include": False, "reasoning": "high-income only", "criteria_version": 2}
+    excluded.screening = {
+        "include": False,
+        "reasoning": "high-income only",
+        "criteria_version": 2,
+    }
     db.commit()
 
     body = client.get(f"/sessions/{session.id}/references/").json()

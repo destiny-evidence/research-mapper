@@ -220,7 +220,9 @@ def batching_client(session_factory, queued, stub_workflow):
         del registry.REGISTRY[operation_type]
 
 
-def test_an_operation_can_be_parked_on_several_questions(batching_client, session_factory):
+def test_an_operation_can_be_parked_on_several_questions(
+    batching_client, session_factory
+):
     """ask_all opens one decision per question, and all of them must be visible."""
     session_id = batching_client.post("/sessions/", json=SESSION).json()["id"]
     operation_id = batching_client.post(

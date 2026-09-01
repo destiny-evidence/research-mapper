@@ -13,6 +13,29 @@ def pytest_configure(config):
     )
 
 
+@pytest.fixture(autouse=True)
+def auth_off(monkeypatch):
+    """Tests run against an unauthenticated API unless they say otherwise.
+
+    Empty rather than deleted: the API's lifespan reloads ./.env, and load_dotenv
+    leaves an already-set variable alone but would fill in a deleted one.
+    """
+    monkeypatch.setenv("MAPPER_AUTH_ISSUER", "")
+    monkeypatch.setenv("MAPPER_AUTH_CLIENT_ID", "")
+
+
+@pytest.fixture
+def stub_workflow(monkeypatch):
+    """A throwaway workflow for tests that only need a session to declare one.
+
+    The API validates workflow names but ships no workflows of its own, and
+    nothing under research_mapper.api may depend on a particular one existing.
+    """
+    from research_mapper import workflows
+
+    monkeypatch.setitem(workflows.WORKFLOWS, "drafts", [])
+
+
 @pytest.fixture(scope="module")
 def live_setup():
     """Load .env and configure DSPy + DESTINY client once per module."""

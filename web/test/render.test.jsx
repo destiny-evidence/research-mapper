@@ -38,7 +38,7 @@ describe('Panel', () => {
 describe('Reasoning', () => {
   it('labels model prose so it cannot be read as ours', () => {
     const html = render(<Reasoning text="One search per barrier family." />)
-    expect(html).toContain('LLM reasoning')
+    expect(html).toContain('Model reasoning')
     expect(html).toContain('One search per barrier family.')
   })
 

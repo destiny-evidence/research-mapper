@@ -24,7 +24,7 @@ const SECTIONS = [
     heading: "What this is and who it is for",
     body: [
       <>
-        <span class="mono">research-mapper</span> is at{" "}
+        <span class="mono">Research Mapper</span> is at{" "}
         <strong>Stage 0: internal development</strong>.
       </>,
       <>

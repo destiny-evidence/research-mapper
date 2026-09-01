@@ -51,13 +51,13 @@ export const MAP_TAILS = {
     head: "generate_map_dimensions",
     label: "Let it suggest dimensions from your question",
     detail:
-      "It proposes three axes, you edit them, then it places each reference.",
+      "The agent proposes three novel axes. You can edit or update them, then it places each reference on the map.",
   },
   taxonomy: {
     head: "generate_taxonomy_map",
     label: "Use the taxonomy's own schemes",
     detail:
-      "Axes come from the taxonomy, and placement from the tags each reference already has. No questions.",
+      "The agent selects axes from the taxonomy. References are placed on the map according to their existing coded values.",
   },
 };
 

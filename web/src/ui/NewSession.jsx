@@ -19,7 +19,7 @@ export function NewSession({ onCreate, onCancel, busy }) {
       </div>
       <textarea
         value={question}
-        placeholder="What barriers reduce HPV vaccination uptake among adolescent girls in low- and middle-income countries?"
+        placeholder="Ask your research question here..."
         onInput={(event) => setQuestion(event.currentTarget.value)}
         rows={3}
         class="field block"

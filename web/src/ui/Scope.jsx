@@ -4,8 +4,8 @@
 export function Scope({ community }) {
   return (
     <div class="scope">
-      Searched the {community.toUpperCase()} repository only, screening titles
-      and abstracts.
+      Searched the {community.toUpperCase()} repository only across titles and
+      abstracts.
     </div>
   );
 }

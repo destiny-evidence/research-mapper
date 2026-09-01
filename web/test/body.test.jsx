@@ -59,7 +59,7 @@ describe('step body', () => {
         onAnswer={noop}
       />,
     )
-    expect(html).toContain('LLM reasoning')
+    expect(html).toContain('Model reasoning')
     expect(html).toContain('One search per barrier family.')
   })
 
@@ -73,7 +73,7 @@ describe('step body', () => {
       />,
     )
     expect(html).toContain('hesitanc* AND HPV')
-    expect(html).toContain('LLM reasoning')
+    expect(html).toContain('Model reasoning')
   })
 
   it('shows a working bar and no counter when a step has nothing to count', () => {
@@ -221,7 +221,7 @@ describe('edit list', () => {
 
   it('names accepting the model list as its own act rather than calling it a save', () => {
     const html = untouched([{ id: 'a', value: { name: 'Setting' } }, { id: 'b', value: { name: 'Channel' } }])
-    expect(html).toContain('Accept all 2 as proposed')
+    expect(html).toContain('Accept all 2')
     expect(html).not.toContain('>Save<')
   })
 })

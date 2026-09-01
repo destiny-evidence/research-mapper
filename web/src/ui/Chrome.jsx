@@ -25,7 +25,7 @@ export function Chrome({ onHome, onTerms, children }) {
       <div class="topbar">
         <button type="button" class="home" onClick={onHome}>
           <span class="mark">RM</span>
-          <span class="brand">research-mapper</span>
+          <span class="brand">Research Mapper</span>
         </button>
         <span class="grow" />
         {children}

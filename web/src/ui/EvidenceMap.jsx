@@ -46,7 +46,7 @@ const Axis = ({ label, value, options, onChange }) => (
   </label>
 );
 
-export function EvidenceMap({ map, included, community }) {
+export function EvidenceMap({ map, included }) {
   const [axes, setAxes] = useState({ row: 0, col: 1 });
   const [facet, setFacet] = useState(null);
   const grid = buildGrid(map, { ...axes, facet });
@@ -151,10 +151,6 @@ export function EvidenceMap({ map, included, community }) {
             })}
           </div>
         </div>
-        <figcaption class="map-caption">
-          An empty cell means no screened reference from the{" "}
-          {community.toUpperCase()} repository was placed there.
-        </figcaption>
       </figure>
     </>
   );

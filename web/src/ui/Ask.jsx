@@ -146,7 +146,7 @@ function EditList({ decision, onAnswer, saving }) {
           onClick={() => onAnswer(items)}
         >
           {same(items, suggested)
-            ? `Accept all ${items.length} as proposed`
+            ? `Accept all ${items.length}`
             : `Save ${items.length}`}
         </button>
         <span class="hint">{items.length < min ? `at least ${min}` : ""}</span>

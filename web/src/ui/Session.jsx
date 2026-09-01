@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import * as api from "../api.js";
-import { MAP_TAILS } from "../plan.js";
+import { MAP_TAILS, titleOf } from "../plan.js";
 import {
   steps,
   activeStep,
@@ -108,7 +108,7 @@ export function Session({ id }) {
     setProblem(null);
     api.startOperation(id, next).then(refresh, (failure) => {
       started.current.delete(next);
-      setProblem(`Could not start ${next}: ${failure.message}`);
+      setProblem(`Could not start ${titleOf(next)}: ${failure.message}`);
     });
   }, [data]);
 
@@ -187,7 +187,7 @@ export function Session({ id }) {
           <Scope community={session.community} />
         </div>
         <button class="quiet" onClick={() => downloadRecord(id)}>
-          <Download /> Full record
+          <Download /> Download audit
         </button>
       </div>
 
@@ -217,11 +217,7 @@ export function Session({ id }) {
             </button>
             {workflowOpen ? <div class="workflow-steps">{stepList}</div> : null}
           </div>
-          <EvidenceMap
-            map={map}
-            included={included}
-            community={session.community}
-          />
+          <EvidenceMap map={map} included={included} />
         </>
       ) : (
         stepList

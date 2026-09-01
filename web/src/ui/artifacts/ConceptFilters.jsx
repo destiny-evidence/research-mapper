@@ -33,7 +33,7 @@ export function ConceptFilters({ payload }) {
         </div>
       ))}
       <div class="note">
-        Groups are AND&rsquo;d across schemes and OR&rsquo;d within one.
+        A reference must match at least one concept in each listed scheme.
       </div>
     </>
   );

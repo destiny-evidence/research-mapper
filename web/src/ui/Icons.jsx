@@ -134,3 +134,18 @@ export const Info = ({ colour = "#a8551a", size = 15 }) => (
     <circle cx="6" cy="3.3" r="0.8" fill={colour} stroke="none" />
   </svg>
 );
+
+export const Spinner = ({ colour = "#86837c", size = 13.5 }) => (
+  <svg
+    class="spinner"
+    width={size}
+    height={size}
+    viewBox="0 0 12 12"
+    stroke={colour}
+    {...stroke}
+    stroke-width="1.4"
+  >
+    <circle cx="6" cy="6" r="4.5" opacity="0.25" />
+    <path d="M6 1.5 A4.5 4.5 0 0 1 10.5 6" />
+  </svg>
+);

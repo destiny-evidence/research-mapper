@@ -152,6 +152,7 @@ input, textarea, select {
   font-size: 11.5px; color: var(--muted);
 }
 .quiet:hover { color: var(--ink); }
+.quiet[disabled], .quiet[disabled]:hover { color: var(--faint); cursor: default; }
 
 /* steps ------------------------------------------------------------------- */
 .step { border-bottom: 1px solid var(--line-2); }
@@ -208,8 +209,14 @@ input, textarea, select {
   0%, 100% { margin-left: 0; }
   50% { margin-left: 68%; }
 }
+.spinner { animation: spin 0.8s linear infinite; transform-origin: 50% 50%; }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 @media (prefers-reduced-motion: reduce) {
   .bar.working > div { animation: none; width: 100%; opacity: 0.35; }
+  /* Still needs to read as busy, so slow it right down rather than stopping it. */
+  .spinner { animation-duration: 2.4s; }
 }
 .counts { display: flex; gap: 28px; margin-top: 14px; }
 .counts .n { font-family: var(--mono); font-size: 16px; color: var(--ink); margin-top: 2px; }

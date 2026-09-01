@@ -23,7 +23,7 @@ import {
   WANTED,
 } from "./artifacts/index.jsx";
 import { Reasoning } from "./Reasoning.jsx";
-import { Download } from "./Icons.jsx";
+import { Download, Spinner } from "./Icons.jsx";
 import { Scope } from "./Scope.jsx";
 
 const MOVING = new Set(["pending", "running"]);
@@ -85,6 +85,7 @@ export function Session({ id }) {
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const started = useRef(new Set());
   const [problem, setProblem] = useState(null);
+  const [downloading, setDownloading] = useState(false);
 
   const session = data?.session;
   const artifact = useArtifacts(id, session?.artifacts);
@@ -152,6 +153,18 @@ export function Session({ id }) {
     refresh();
   };
 
+  const download = async () => {
+    setDownloading(true);
+    setProblem(null);
+    try {
+      await downloadRecord(id);
+    } catch (failure) {
+      setProblem(`Could not build the audit record: ${failure.message}`);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const included = rows.find((row) => row.type === "screen_evidence")?.operation
     ?.result?.included;
 
@@ -186,8 +199,9 @@ export function Session({ id }) {
           </div>
           <Scope community={session.community} />
         </div>
-        <button class="quiet" onClick={() => downloadRecord(id)}>
-          <Download /> Download audit
+        <button class="quiet" onClick={download} disabled={downloading}>
+          {downloading ? <Spinner colour="#b8b4ac" /> : <Download />} Download
+          audit
         </button>
       </div>
 

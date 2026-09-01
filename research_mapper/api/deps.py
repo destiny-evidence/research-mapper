@@ -54,9 +54,13 @@ CurrentUser = Annotated[User, Depends(current_user)]
 def get_session(
     db: DbSession, user: CurrentUser, session_id: Annotated[UUID, Path()]
 ) -> ResearchSession:
-    """Return one of the caller's research sessions, or 404."""
+    """Return any research session, or 404.
+
+    Sessions are readable and writable by any authenticated caller so that a
+    shared link opens for whoever follows it.
+    """
     research_session = db.get(ResearchSession, session_id)
-    if research_session is None or research_session.user_id != user.id:
+    if research_session is None:
         raise HTTPException(404, "session not found")
     return research_session
 

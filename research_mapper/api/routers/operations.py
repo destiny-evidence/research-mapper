@@ -9,20 +9,15 @@ from research_mapper.api.deps import CurrentUser, DbSession, Factory
 from research_mapper.api.schemas import DecisionOut, OperationOut, Respond
 from research_mapper.engine import runner
 from research_mapper.engine.answers import InvalidAnswer
-from research_mapper.engine.models import Decision, Operation, ResearchSession, User
+from research_mapper.engine.models import Decision, Operation
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/operations", tags=["operations"])
 
 
-def _load(db: Session, operation_id: UUID, user: User) -> Operation:
-    """One of the caller's operations, or 404."""
-    operation = db.execute(
-        select(Operation)
-        .join(ResearchSession, ResearchSession.id == Operation.research_session_id)
-        .where(Operation.id == operation_id)
-        .where(ResearchSession.user_id == user.id)
-    ).scalar_one_or_none()
+def _load(db: Session, operation_id: UUID) -> Operation:
+    """Any operation, or 404 — scoped no tighter than its session."""
+    operation = db.get(Operation, operation_id)
     if operation is None:
         raise HTTPException(404, "operation not found")
     return operation
@@ -56,7 +51,7 @@ def read_operation(
     db: DbSession, operation_id: UUID, user: CurrentUser
 ) -> OperationOut:
     """Get an operation."""
-    return _out(db, _load(db, operation_id, user))
+    return _out(db, _load(db, operation_id))
 
 
 @router.post("/{operation_id}/respond/")
@@ -68,7 +63,7 @@ def respond(
     session_factory: Factory,
 ) -> OperationOut:
     """Answer one or several of an operation's open decisions, keyed by decision key."""
-    operation = _load(db, operation_id, user)
+    operation = _load(db, operation_id)
     try:
         runner.answer_decisions(operation.id, body.answers, session_factory)
     except LookupError as exc:
@@ -83,7 +78,7 @@ def retry(
     db: DbSession, operation_id: UUID, user: CurrentUser, session_factory: Factory
 ) -> OperationOut:
     """Requeue a failed operation."""
-    operation = _load(db, operation_id, user)
+    operation = _load(db, operation_id)
     try:
         runner.retry_operation(operation.id, session_factory)
     except ValueError as exc:

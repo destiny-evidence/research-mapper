@@ -1,18 +1,25 @@
 """Application entry points."""
 
 import asyncio
+import os
+import sys
 from collections.abc import Callable
 from datetime import timedelta
+from pathlib import Path
 from uuid import UUID
 
 from pgqueuer.executors import DatabaseRetryEntrypointExecutor
 from pgqueuer.errors import RetryRequested
 import uvicorn
 
+from dotenv import set_key
+
+from research_mapper import local_destiny_auth
 from research_mapper.config import (
     configure_dspy,
     init_database,
     init_destiny_client,
+    load_environment,
 )
 from research_mapper.db.session import db_manager
 from research_mapper.engine import queue, runner
@@ -76,8 +83,33 @@ def migrate() -> None:
     command.upgrade(Config("alembic.ini"), "head")
 
 
+def login() -> None:
+    """Log in to DESTINY and store a refresh token for local development."""
+    load_environment()
+    env = os.environ.get("MAPPER_DESTINY_ENV")
+    if not env:
+        print("Set MAPPER_DESTINY_ENV")
+        sys.exit(1)
+    token = local_destiny_auth.login(env)
+    if not token.refresh_token:
+        raise SystemExit("Destiny issued no refresh token")
+
+    path = Path(".env")
+    set_key(
+        str(path),
+        local_destiny_auth.REFRESH_TOKEN_VAR,
+        token.refresh_token,
+        quote_mode="never",
+    )
+    print(
+        f"wrote {local_destiny_auth.REFRESH_TOKEN_VAR} to {path.resolve()}",
+        file=sys.stderr,
+    )
+
+
 COMMANDS: dict[str, Callable[..., None]] = {
     "api": api,
+    "login": login,
     "worker": worker,
     "migrate": migrate,
 }

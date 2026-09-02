@@ -32,8 +32,13 @@ def stub_workflow(monkeypatch):
     nothing under research_mapper.api may depend on a particular one existing.
     """
     from research_mapper import workflows
+    from research_mapper.engine.context import StepContext
 
-    monkeypatch.setitem(workflows.WORKFLOWS, "drafts", [])
+    monkeypatch.setitem(
+        workflows.WORKFLOWS,
+        "drafts",
+        workflows.Workflow(steps=[], context=StepContext),
+    )
 
 
 @pytest.fixture(scope="module")
@@ -141,6 +146,7 @@ def mock_destiny_client(mock_reference):
 APP_TABLES = (
     "artifacts",
     "decisions",
+    "session_references",
     "operations",
     "research_sessions",
     "users",

@@ -14,19 +14,14 @@ from research_mapper.config import (
     init_database,
     init_destiny_client,
 )
-from research_mapper.db.session import SessionFactory, db_manager
+from research_mapper.db.session import db_manager
 from research_mapper.engine import queue, runner
-from research_mapper.engine.context import StepContext
 from research_mapper import workflows
 
 HEARTBEAT_TIMEOUT = timedelta(minutes=5)
 DEQUEUE_TIMEOUT = timedelta(seconds=5)
 MAX_RETRIES = 1
 BUSY_RETRY_DELAY = timedelta(seconds=30)
-
-
-def _context(operation_id: UUID, session_factory: SessionFactory) -> StepContext:
-    return StepContext(operation_id, session_factory)
 
 
 async def _worker() -> None:
@@ -45,7 +40,10 @@ async def _worker() -> None:
         operation_id = UUID(job.payload.decode())
         try:
             await asyncio.to_thread(
-                runner.run_operation, operation_id, db_manager.session, _context
+                runner.run_operation,
+                operation_id,
+                db_manager.session,
+                workflows.context,
             )
         except runner.SessionBusy as exc:
             raise RetryRequested(delay=BUSY_RETRY_DELAY, reason=str(exc)) from exc

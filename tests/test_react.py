@@ -4,6 +4,7 @@ import dspy
 
 from research_mapper.models.react import Step
 from research_mapper.modules.react import ResumableReAct
+from research_mapper.modules.common import ResumableModule
 
 
 def search(query: str) -> str:
@@ -21,6 +22,25 @@ def next_pred(
     return dspy.Prediction(
         next_thought=thought, next_tool_name=tool_name, next_tool_args=tool_args
     )
+
+
+def test_resumable_react_satisfies_the_resumable_module_protocol():
+    """ResumableReAct is the reference implementation the ResumableModule
+    Protocol was written to describe — any higher-level module wrapping one
+    (e.g. TaxonomyConceptFilterGenerator) should satisfy it the same way,
+    structurally, with no shared base class needed."""
+    assert isinstance(make_agent(), ResumableModule)
+
+
+def test_classify_step_always_returns_none():
+    """A bare ResumableReAct has no domain-specific pause categories of its
+    own — every Step it surfaces just means "call resume() again"."""
+    agent = make_agent()
+    step = Step(
+        trajectory={}, idx=0, thought="t", tool_name="search", tool_args={"query": "x"}
+    )
+
+    assert agent.classify_step(step) is None
 
 
 def test_start_proposes_the_first_step_without_executing_its_tool():

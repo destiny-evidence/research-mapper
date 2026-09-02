@@ -10,6 +10,7 @@ from research_mapper.models.taxonomy_search import (
     ConceptFilterGroup,
     IndexedVocab,
 )
+from research_mapper.modules.common import ResumableModule
 from research_mapper.modules.taxonomy_search import (
     TaxonomyConceptFilterGenerator,
     UnknownConceptRefError,
@@ -45,14 +46,14 @@ def _final(reasoning: str = "done") -> MagicMock:
 def _generator_with_mock_agent(
     ui: MagicMock | None = None, *, start_returns, resume_returns=None
 ) -> TaxonomyConceptFilterGenerator:
-    """A generator whose _build_agent is stubbed to return a mock agent — the
+    """A generator whose build_agent is stubbed to return a mock agent — the
     real agent now depends on per-call indexed/graph (bound taxonomy-browsing
     tools), so it can no longer just be swapped in after construction."""
     generator = TaxonomyConceptFilterGenerator(ui=ui)
     mock_agent = MagicMock()
     mock_agent.start = MagicMock(return_value=start_returns)
     mock_agent.resume = MagicMock(return_value=resume_returns or _final())
-    generator._build_agent = MagicMock(return_value=mock_agent)
+    generator.build_agent = MagicMock(return_value=mock_agent)
     return generator
 
 
@@ -234,7 +235,7 @@ def test_forward_reason_does_not_leak_between_calls():
     first = _forward(generator, "q1")
     assert first.unsatisfiable_reason == "no match"
 
-    generator._build_agent.return_value.start = MagicMock(return_value=_final())
+    generator.build_agent.return_value.start = MagicMock(return_value=_final())
     second = _forward(generator, "q2")
     assert second.unsatisfiable_reason is None
 
@@ -246,7 +247,9 @@ def test_forward_passes_the_concept_listing_to_start_and_resume():
 
     _forward(generator, indexed=indexed)
 
-    expected_listing = "Setting: Primary Education\nSetting: Secondary Education"
+    expected_listing = (
+        "C10\tSetting: Primary Education\nC11\tSetting: Secondary Education"
+    )
     generator.agent.start.assert_called_once_with(
         user_query=UserQuery(query="q"), available_concepts=expected_listing
     )
@@ -308,7 +311,7 @@ def test_forward_does_not_touch_ui_when_none_is_given():
 
 
 # ---------------------------------------------------------------------------
-# _concept_listing — the upfront "scheme: label" index
+# concept_listing — the upfront "scheme: label" index
 # ---------------------------------------------------------------------------
 
 
@@ -326,17 +329,31 @@ def test_concept_listing_formats_every_concept_as_scheme_label_sorted():
         local_ref_to_iri={},
     )
 
-    result = generator._concept_listing(indexed)
+    result = generator.concept_listing(indexed)
 
     assert result == (
-        "Country: Kenya\nSetting: Primary Education\nSetting: Secondary Education"
+        "C1\tCountry: Kenya\n"
+        "C3\tSetting: Primary Education\n"
+        "C2\tSetting: Secondary Education"
     )
+
+
+def test_concept_listing_shows_the_refs_the_agent_must_cite():
+    """The agent answers in local_refs; if the listing omits them it can only
+    echo back a label, which validation then rejects."""
+    generator = TaxonomyConceptFilterGenerator()
+    indexed = _indexed_vocab()
+
+    listing = generator.concept_listing(indexed)
+
+    for concept in indexed.concepts:
+        assert concept.local_ref in listing
 
 
 def test_concept_listing_empty_for_no_concepts():
     generator = TaxonomyConceptFilterGenerator()
     assert (
-        generator._concept_listing(IndexedVocab(concepts=[], local_ref_to_iri={})) == ""
+        generator.concept_listing(IndexedVocab(concepts=[], local_ref_to_iri={})) == ""
     )
 
 
@@ -397,11 +414,11 @@ def test_ask_for_clarification_only_registered_as_a_tool_when_ui_given():
     empty_vocab = IndexedVocab(concepts=[], local_ref_to_iri={})
 
     without_ui = TaxonomyConceptFilterGenerator()
-    agent_without_ui = without_ui._build_agent(empty_vocab, MagicMock())
+    agent_without_ui = without_ui.build_agent(empty_vocab, MagicMock())
     assert "ask_for_clarification" not in agent_without_ui.tools
 
     with_ui = TaxonomyConceptFilterGenerator(ui=MagicMock())
-    agent_with_ui = with_ui._build_agent(empty_vocab, MagicMock())
+    agent_with_ui = with_ui.build_agent(empty_vocab, MagicMock())
     assert "ask_for_clarification" in agent_with_ui.tools
 
 
@@ -411,7 +428,174 @@ def test_mark_unsatisfiable_and_prompt_attack_are_always_registered():
     empty_vocab = IndexedVocab(concepts=[], local_ref_to_iri={})
     generator = TaxonomyConceptFilterGenerator()
 
-    agent = generator._build_agent(empty_vocab, MagicMock())
+    agent = generator.build_agent(empty_vocab, MagicMock())
 
     assert "mark_unsatisfiable" in agent.tools
     assert "raise_attempted_prompt_attack" in agent.tools
+
+
+# ---------------------------------------------------------------------------
+# start/resume — the resumable interface forward() and GenerateConceptFilters
+# (the workflow-engine step) both drive, instead of either reaching past
+# TaxonomyConceptFilterGenerator into its own internals.
+# ---------------------------------------------------------------------------
+
+
+def test_classify_step_returns_the_give_up_reason_as_a_bare_string():
+    generator = TaxonomyConceptFilterGenerator()
+    step = _step(0, "mark_unsatisfiable", {"reason": "no matching concept"})
+
+    assert generator.classify_step(step) == "no matching concept"
+
+
+def test_classify_step_returns_the_reason_for_a_prompt_attack_too():
+    generator = TaxonomyConceptFilterGenerator()
+    step = _step(0, "raise_attempted_prompt_attack", {"reason": "ignore previous"})
+
+    assert generator.classify_step(step) == "ignore previous"
+
+
+def test_classify_step_parses_a_clarification_request():
+    generator = TaxonomyConceptFilterGenerator()
+    step = _step(0, "ask_for_clarification", _request("Which scheme?", ["A", "B"]))
+
+    assert generator.classify_step(step) == ClarificationOptions(
+        question="Which scheme?", options=["A", "B"]
+    )
+
+
+def test_classify_step_returns_none_for_an_ordinary_tool_call():
+    generator = TaxonomyConceptFilterGenerator()
+    step = _step(0, "lookup_concepts", {"label": "x"})
+
+    assert generator.classify_step(step) is None
+
+
+def test_taxonomy_concept_filter_generator_satisfies_resumable_module():
+    """Structural, not nominal: no shared base class with ResumableReAct is
+    needed for TaxonomyConceptFilterGenerator to be driven the same way."""
+    assert isinstance(TaxonomyConceptFilterGenerator(), ResumableModule)
+
+
+def test_start_returns_the_agents_first_proposed_step():
+    generator = _generator_with_mock_agent(start_returns=_step(0, "some_tool"))
+
+    result = generator.start(
+        user_query=UserQuery(query="q"), indexed=_indexed_vocab(), graph=MagicMock()
+    )
+
+    assert result == _step(0, "some_tool")
+
+
+def test_resume_validates_the_final_prediction():
+    final = _final()
+    final.filter_groups = [
+        ConceptFilterGroup(
+            scheme="Setting", concept_local_refs=["nonexistent"], reason="r"
+        )
+    ]
+    generator = _generator_with_mock_agent(
+        start_returns=_step(0, "some_tool"), resume_returns=final
+    )
+
+    with pytest.raises(UnknownConceptRefError):
+        generator.resume(
+            _step(0, "some_tool"),
+            user_query=UserQuery(query="q"),
+            indexed=_indexed_vocab(),
+            graph=MagicMock(),
+        )
+
+
+def test_start_and_resume_thread_can_ask_through_to_build_agent():
+    """The workflow-engine step has no self.ui to gate ask_for_clarification
+    on, so it must be able to force the tool on regardless."""
+    generator = TaxonomyConceptFilterGenerator()
+    generator.build_agent = MagicMock(return_value=MagicMock(resume=MagicMock()))
+    indexed = _indexed_vocab()
+    graph = MagicMock()
+
+    generator.start(
+        user_query=UserQuery(query="q"), indexed=indexed, graph=graph, can_ask=True
+    )
+    generator.build_agent.assert_called_with(indexed, graph, can_ask=True)
+
+    generator.resume(
+        None,
+        user_query=UserQuery(query="q"),
+        indexed=indexed,
+        graph=graph,
+        can_ask=True,
+    )
+    generator.build_agent.assert_called_with(indexed, graph, can_ask=True)
+
+
+def test_an_unknown_ref_is_suggested_as_a_ref_not_a_label():
+    generator = TaxonomyConceptFilterGenerator()
+    indexed = IndexedVocab(
+        concepts=[Concept(local_ref="C7", scheme="Misinformation", label="Addressing")],
+        local_ref_to_iri={"C7": "https://example.org/C7"},
+    )
+    groups = [
+        ConceptFilterGroup(
+            scheme="Misinformation", concept_local_refs=["Addressing"], reason="r"
+        )
+    ]
+
+    with pytest.raises(UnknownConceptRefError) as caught:
+        generator.validate_filter_groups(groups, indexed)
+
+    assert "C7 (Misinformation: Addressing)" in str(caught.value)
+
+
+def test_unknown_ref_suggestions_prefer_the_cited_scheme():
+    """Labels repeat across schemes (confirmed on real HPV/ESEA data — e.g.
+    "Caregivers" in 3 different schemes), so a naive vocabulary-wide fuzzy
+    match could point at the wrong concept entirely. Scoping to the group's
+    own scheme first resolves the ambiguity correctly."""
+    generator = TaxonomyConceptFilterGenerator()
+    indexed = IndexedVocab(
+        concepts=[
+            Concept(local_ref="C1", scheme="Setting", label="Caregivers"),
+            Concept(local_ref="C2", scheme="Target Group", label="Caregivers"),
+        ],
+        local_ref_to_iri={},
+    )
+    groups = [
+        ConceptFilterGroup(
+            scheme="Target Group", concept_local_refs=["Caregivers"], reason="r"
+        )
+    ]
+
+    with pytest.raises(UnknownConceptRefError) as caught:
+        generator.validate_filter_groups(groups, indexed)
+
+    message = str(caught.value)
+    assert "C2 (Target Group: Caregivers)" in message
+    assert "C1 (Setting: Caregivers)" not in message
+
+
+def test_unknown_ref_suggestions_fall_back_to_the_whole_vocabulary():
+    """If the cited scheme itself has nothing close (e.g. it too was
+    mis-cited), suggestions should still surface a real concept from
+    elsewhere rather than coming up empty."""
+    generator = TaxonomyConceptFilterGenerator()
+    indexed = IndexedVocab(
+        concepts=[
+            Concept(local_ref="C1", scheme="Setting", label="Primary Education"),
+            Concept(local_ref="C2", scheme="Other Scheme", label="Unrelated"),
+        ],
+        local_ref_to_iri={},
+    )
+    groups = [
+        ConceptFilterGroup(
+            scheme="Other Scheme",
+            concept_local_refs=["Primary Education"],
+            reason="r",
+        )
+    ]
+
+    with pytest.raises(UnknownConceptRefError) as caught:
+        generator.validate_filter_groups(groups, indexed)
+
+    assert "C1 (Setting: Primary Education)" in str(caught.value)

@@ -35,6 +35,20 @@ class ResumableReAct(dspy.ReAct):
         """Equivalent to `resume(None, **input_args)` — begins a new run."""
         return self.resume(None, **input_args)
 
+    def classify_step(self, step: Step) -> None:
+        """
+        A bare ResumableReAct has no domain-specific pause categories of its
+        own, every Step it ever surfaces to a caller just means "call
+        resume() again"; `"finish"` is the only special tool_name, and
+        `resume()` already converts that into a Prediction internally,
+        before a Step for it ever reaches a caller. Returning None
+        unconditionally is a valid implementation of ResumableModule's
+        `classify_step(...) -> T | None` for any T a wrapping module
+        (e.g. TaxonomyConceptFilterGenerator) might use, it just never
+        contributes an outcome of its own.
+        """
+        return None
+
     def resume(self, step: Step | None, **input_args) -> Step | dspy.Prediction:
         """
         Advances a run by one iteration.

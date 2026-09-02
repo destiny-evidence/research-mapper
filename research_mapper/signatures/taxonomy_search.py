@@ -13,8 +13,10 @@ class TaxonomyConceptFiltersFromUserQuery(dspy.Signature):
 
     user_query: UserQuery = dspy.InputField(desc="The user's original query/question.")
     available_concepts: str = dspy.InputField(
-        desc="Every concept in the taxonomy, one per line as 'scheme: label' "
-        "(labels repeat across schemes, hence the prefix)."
+        desc="Every concept in the taxonomy, one per line as "
+        "'local_ref<tab>scheme: label' (labels repeat across schemes, hence "
+        "the prefix). Cite concepts by local_ref - the leading C-number - "
+        "never by label."
     )
     filter_groups: list[ConceptFilterGroup] = dspy.OutputField(
         desc="The collection of concept filters to apply, grouped by scheme, with accompanying justifications. Leave empty if mark_unsatisfiable was called."

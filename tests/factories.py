@@ -1,5 +1,6 @@
 from research_mapper.api.auth import LOCAL_PRINCIPAL
 from research_mapper.engine.models import Operation, ResearchSession, User
+from research_mapper.workflows.evidence_map.models import SessionReference
 
 
 def make_user(db, subject=LOCAL_PRINCIPAL[1], issuer=LOCAL_PRINCIPAL[0]) -> User:
@@ -14,7 +15,7 @@ def make_session(db, user, question="Does X affect Y?") -> ResearchSession:
     """Persist a research session owned by a user."""
     session = ResearchSession(
         user_id=user.id,
-        workflow="drafts",
+        workflow="evidence_map",
         question=question,
         community="hpv",
     )
@@ -34,3 +35,13 @@ def make_operation(db, session, user, type="noop", **kwargs) -> Operation:
     db.add(operation)
     db.commit()
     return operation
+
+
+def make_reference(db, session, destiny_id, **kwargs) -> SessionReference:
+    """Persist a session reference."""
+    reference = SessionReference(
+        research_session_id=session.id, destiny_id=destiny_id, **kwargs
+    )
+    db.add(reference)
+    db.commit()
+    return reference

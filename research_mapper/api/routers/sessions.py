@@ -81,7 +81,9 @@ def fork_session(
 ) -> SessionSummary:
     """Copy a session up to one of its questions, and ask that question again."""
     try:
-        forked = fork.fork(db, research_session, user.id, body.reopen_decision)
+        forked = fork.fork(
+            db, research_session, user.id, body.reopen_decision, workflows.fork_state
+        )
     except runner.SessionBusy as exc:
         raise HTTPException(409, str(exc)) from exc
     except LookupError as exc:

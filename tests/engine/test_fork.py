@@ -1,7 +1,10 @@
+import uuid
+
 import pytest
 from sqlalchemy import select
 
 from factories import make_operation, make_session, make_user
+from research_mapper import workflows
 from research_mapper.engine import fork
 from research_mapper.engine.enums import DecisionType, OperationStatus
 from research_mapper.engine.models import (
@@ -10,6 +13,8 @@ from research_mapper.engine.models import (
     Operation,
 )
 from research_mapper.engine.runner import SessionBusy
+from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
+from research_mapper.workflows.evidence_map.models import SessionReference
 
 COMPLETE = OperationStatus.COMPLETE
 
@@ -94,7 +99,9 @@ def source(db):
 
 
 def run(db, source, user, decision):
-    return fork.fork(db, source, user.id, decision.id)
+    return fork.fork(
+        db, source, user.id, decision.id, state_factory=workflows.fork_state
+    )
 
 
 def operations_of(db, session_id):
@@ -126,6 +133,18 @@ def types_of(db, operations):
         }
         for step, operation in operations.items()
     }
+
+
+def references_of(db, session_id):
+    return (
+        db.execute(
+            select(SessionReference).where(
+                SessionReference.research_session_id == session_id
+            )
+        )
+        .scalars()
+        .all()
+    )
 
 
 def test_a_fork_copies_the_prefix_and_requeues_the_reopened_step(db, source, queued):
@@ -360,6 +379,117 @@ def test_a_fork_of_a_fork_rewinds_a_question_it_only_ever_inherited(db, source):
             select(Artifact).where(Artifact.operation_id == loop.id)
         ).scalars()
     ] == [1]
+
+
+GATHERED = SessionReferenceStage.GATHERED
+INCLUDED = SessionReferenceStage.INCLUDED
+MAPPED = SessionReferenceStage.MAPPED
+
+
+def reference(db, session, modes, stage=GATHERED, **kwargs):
+    row = SessionReference(
+        research_session_id=session.id,
+        destiny_id=uuid.uuid4(),
+        stage=stage,
+        provenance=[{"mode": mode, "query": mode} for mode in modes],
+        **kwargs,
+    )
+    db.add(row)
+    db.commit()
+    return row
+
+
+@pytest.fixture
+def mapped(db, source):
+    """The source, carried all the way to a finished map over both retrieval modes."""
+    session, user = source["session"], source["user"]
+    screen = make_operation(
+        db, session, user, "screen_evidence", status=COMPLETE, version_number=6
+    )
+    subtopics = make_operation(
+        db, session, user, "generate_map_subtopics", status=COMPLETE, version_number=7
+    )
+    artifact(db, subtopics, "suggested_dimension_subtopics")
+    subtopics_ask = ask(db, subtopics, "edit:one", answer=[{"name": "a"}])
+    place = make_operation(
+        db, session, user, "generate_map", status=COMPLETE, version_number=8
+    )
+    session.head_version_number = 8
+    db.commit()
+    return {
+        **source,
+        "screen": screen,
+        "subtopics_ask": subtopics_ask,
+        "place": place,
+        "sparse": reference(
+            db,
+            session,
+            ["sparse"],
+            stage=MAPPED,
+            screening={"include": True},
+            coordinate={"a": ["x"]},
+            mapping={"dimensions_version": 1},
+        ),
+        "taxonomy": reference(
+            db, session, ["taxonomy"], stage=INCLUDED, screening={"include": True}
+        ),
+        "both": reference(
+            db,
+            session,
+            ["sparse", "taxonomy"],
+            stage=INCLUDED,
+            screening={"include": False},
+        ),
+    }
+
+
+def test_forking_before_screening_rewinds_every_reference(db, mapped):
+    forked = run(db, mapped["session"], mapped["user"], mapped["criteria_ask"])
+
+    rows = references_of(db, forked.id)
+    assert len(rows) == 3
+    assert {row.stage for row in rows} == {GATHERED}
+    assert all(row.screening is None for row in rows)
+    assert all(row.coordinate is None and row.mapping is None for row in rows)
+
+
+def test_forking_before_mapping_keeps_screening_but_drops_coordinates(db, mapped):
+    forked = run(db, mapped["session"], mapped["user"], mapped["subtopics_ask"])
+
+    rows = {len(row.provenance): row for row in references_of(db, forked.id)}
+    assert {row.stage for row in rows.values()} == {INCLUDED}
+    assert all(row.screening is not None for row in rows.values())
+    assert all(row.coordinate is None and row.mapping is None for row in rows.values())
+
+
+def test_forking_above_a_retrieval_drops_what_only_that_retrieval_found(db, mapped):
+    forked = run(db, mapped["session"], mapped["user"], mapped["first_clarify"])
+
+    modes = sorted(
+        tuple(entry["mode"] for entry in row.provenance)
+        for row in references_of(db, forked.id)
+    )
+    assert modes == [("sparse",), ("sparse",)]
+
+
+def test_forking_above_all_retrieval_copies_no_references(db, mapped):
+    forked = run(db, mapped["session"], mapped["user"], mapped["draft_ask"])
+
+    assert references_of(db, forked.id) == []
+
+
+def test_a_failed_reference_is_rewound_so_the_fork_retries_it(db, mapped):
+    reference(
+        db,
+        mapped["session"],
+        ["sparse"],
+        stage=SessionReferenceStage.FAILED,
+        screening={"include": True},
+    )
+    forked = run(db, mapped["session"], mapped["user"], mapped["subtopics_ask"])
+
+    stages = sorted(row.stage for row in references_of(db, forked.id))
+    assert stages == [GATHERED, INCLUDED, INCLUDED, INCLUDED]
 
 
 def test_reopening_a_loop_step_carries_only_the_checkpoint_it_paused_on(db, source):

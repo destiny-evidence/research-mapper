@@ -1,5 +1,7 @@
 """Copying a session up to one of its questions."""
 
+from collections.abc import Callable
+from dataclasses import dataclass
 from uuid import UUID, uuid7
 
 from sqlalchemy import select
@@ -13,6 +15,18 @@ from research_mapper.engine.views import Progress
 
 BUSY = (OperationStatus.PENDING, OperationStatus.RUNNING)
 FRESH = frozenset({"id", "created_at", "updated_at"})
+
+
+@dataclass(frozen=True)
+class Cut:
+    """Where a fork was taken, for a workflow copying its own tables."""
+
+    source_id: UUID
+    new_id: UUID
+    operation_types: frozenset[str]
+
+
+StateFactory = Callable[[str, Session, Cut], None]
 
 
 def _clone(row, **changes):
@@ -45,6 +59,7 @@ def fork(
     source: ResearchSession,
     user_id: UUID,
     reopen_decision: UUID,
+    state_factory: StateFactory | None = None,
 ) -> ResearchSession:
     """Copy a session up to one of its questions, and ask that question again."""
     if db.execute(
@@ -142,5 +157,10 @@ def fork(
     ):
         db.add(_clone(row, research_session_id=forked.id, operation_id=clone.id))
     queue.enqueue_in(db, clone.id)
+
+    if state_factory is not None:
+        types = frozenset(operation.type for operation in operations)
+        state_factory(source.workflow, db, Cut(source.id, forked.id, types))
+
     db.commit()
     return forked

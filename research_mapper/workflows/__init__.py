@@ -48,7 +48,9 @@ def context(
 
 def routers() -> list["APIRouter"]:
     """Every workflow's API routes."""
-    return []
+    from research_mapper.workflows.evidence_map import routes
+
+    return [routes.router]
 
 
 def names() -> list[str]:

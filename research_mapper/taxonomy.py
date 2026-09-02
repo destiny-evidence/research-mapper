@@ -121,12 +121,15 @@ def build_concept_index(graph: Graph) -> IndexedVocab:
     raw_concepts = []
     for concept in graph.subjects(RDF.type, SKOS.Concept):
         scheme = graph.value(concept, SKOS.inScheme)
+        # scheme_titles maps every ConceptScheme subject to its title, which
+        # is None for one with no dcterms:title. Here, `.get(..., "Other")`'s
+        # default only fires when the key is missing entirely, not when it's
+        # present but None, so that case needs its own fallback here too.
+        scheme_title = scheme_titles.get(str(scheme)) if scheme else None
         raw_concepts.append(
             {
                 "iri": str(concept),
-                "scheme": scheme_titles.get(str(scheme), "Other")
-                if scheme
-                else "Other",
+                "scheme": scheme_title or "Other",
                 "label": _first_literal(graph, concept, SKOS.prefLabel) or "",
                 "alt_labels": [str(o) for o in graph.objects(concept, SKOS.altLabel)],
                 "detail": _first_literal(

@@ -140,6 +140,55 @@ def test_the_whole_flow_over_http(client, session_factory, queued):
     assert client.generated == [1], "the pre-question work must not run twice"
 
 
+def test_pending_question_is_not_null_with_several_open_decisions(
+    client, session_factory
+):
+    """A step can open more than one decision at once (ctx.ask_all, e.g.
+    GenerateMapSubtopics asking one question per dimension) — pending_question
+    should still point at one of them, not silently report null while the
+    operation is genuinely awaiting_input."""
+
+    def body(self, ctx, params):
+        ctx.ask_all(
+            {
+                "first": AskSpec(
+                    type="select_many",
+                    prompt="First?",
+                    options=[{"id": "1", "label": "a", "value": ONE}],
+                    constraints={"min": 1},
+                ),
+                "second": AskSpec(
+                    type="select_many",
+                    prompt="Second?",
+                    options=[{"id": "1", "label": "a", "value": ONE}],
+                    constraints={"min": 1},
+                ),
+            }
+        )
+        return {}
+
+    register(
+        builtins.type(
+            "DraftsMulti",
+            (Step,),
+            {"type": "drafts_multi", "Params": Params, "run": body},
+        )
+    )
+
+    session_id = client.post("/sessions", json=SESSION).json()["id"]
+    operation_id = client.post(
+        f"/sessions/{session_id}/operations/", json={"type": "drafts_multi"}
+    ).json()["id"]
+
+    work(session_factory)
+
+    operation = client.get(f"/operations/{operation_id}/").json()
+    assert operation["status"] == "awaiting_input"
+    assert len(operation["decisions"]) == 2
+    assert operation["pending_question"] is not None
+    assert operation["pending_question"]["key"] in {"first", "second"}
+
+
 def test_an_unknown_operation_type_is_a_400(client):
     session_id = client.post("/sessions", json=SESSION).json()["id"]
 

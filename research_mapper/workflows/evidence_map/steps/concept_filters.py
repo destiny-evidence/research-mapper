@@ -15,8 +15,6 @@ from research_mapper.models.taxonomy_search import (
     ConceptFilterGroup,
 )
 from research_mapper.modules.taxonomy_search import (
-    CLARIFY_TOOL,
-    GIVE_UP_TOOLS,
     NONE_OF_THESE_OPTION,
     SENTINEL_OPTIONS,
     TaxonomyConceptFilterGenerator,
@@ -74,9 +72,10 @@ class GenerateConceptFilters(Step[GenerateConceptFiltersParams, StepContext]):
         )
         asked = 0
         while isinstance(result, LoopStep):
-            if result.tool_name in GIVE_UP_TOOLS:
-                raise UnsatisfiableQuery(result.tool_args["reason"])
-            if result.tool_name == CLARIFY_TOOL:
+            outcome = generator.classify_step(result)
+            if isinstance(outcome, str):
+                raise UnsatisfiableQuery(outcome)
+            if isinstance(outcome, ClarificationOptions):
                 ctx.write_artifact(
                     artifacts.CONCEPT_FILTER_LOOP,
                     artifacts.LoopState(
@@ -84,7 +83,7 @@ class GenerateConceptFilters(Step[GenerateConceptFiltersParams, StepContext]):
                         trajectory=result.trajectory,
                     ),
                 )
-                answer = ctx.ask(f"clarify:{result.idx}", _spec(result))
+                answer = ctx.ask(f"clarify:{result.idx}", _spec(outcome))
                 asked += 1
                 result = result.with_observation([a["option"] for a in answer])
             result = advance(result)
@@ -112,9 +111,8 @@ class GenerateConceptFilters(Step[GenerateConceptFiltersParams, StepContext]):
         return {"filter_groups": len(groups), "questions": asked, "version": version}
 
 
-def _spec(step: LoopStep) -> AskSpec:
+def _spec(request: ClarificationOptions) -> AskSpec:
     """The agent's own clarifying question, as a decision."""
-    request = ClarificationOptions(**step.tool_args["request"])
     options = [*request.options, *SENTINEL_OPTIONS]
     return AskSpec(
         type="select_many",

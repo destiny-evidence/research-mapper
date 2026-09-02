@@ -170,6 +170,32 @@ def test_build_concept_index_defaults_scheme_to_other_when_missing():
     assert indexed.concepts[0].scheme == "Other"
 
 
+def test_build_concept_index_defaults_scheme_to_other_when_untitled():
+    """A registered ConceptScheme with no dct:title is a different case from
+    no scheme at all — scheme_titles still gets a key for it (mapped to
+    None), so `.get(..., "Other")`'s default alone doesn't cover it; this
+    used to crash Concept(scheme=None, ...) validation for the whole
+    vocabulary instead of falling back to "Other" like a missing scheme does."""
+    vocab = _vocab(
+        [
+            {
+                "@id": "https://example.org/vocab/Untitled",
+                "@type": "skos:ConceptScheme",
+            },
+            {
+                "@id": "https://example.org/vocab/Untitled/A",
+                "@type": "skos:Concept",
+                "skos:inScheme": {"@id": "https://example.org/vocab/Untitled"},
+                "skos:prefLabel": "A",
+            },
+        ]
+    )
+
+    indexed = build_concept_index(_graph(vocab))
+
+    assert indexed.concepts[0].scheme == "Other"
+
+
 def test_build_concept_index_excludes_non_skos_nodes():
     """Ontology-fragment nodes (owl:Class, owl:ObjectProperty) aren't taxonomy concepts."""
     vocab = _vocab(

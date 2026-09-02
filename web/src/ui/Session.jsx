@@ -162,9 +162,9 @@ export function Session({ id }) {
   };
 
   // Starting a step by hand
-  const startStep = async (type) => {
+  const startStep = async (type, params = {}) => {
     started.current.add(type);
-    await api.startOperation(id, type);
+    await api.startOperation(id, type, params);
     refresh();
   };
 
@@ -383,6 +383,17 @@ export function Body({
         ) : null}
         {row.type === "generate_concept_filters" ? (
           <Trace payload={artifact("concept_filter_loop")} />
+        ) : null}
+        {row.regenerate ? (
+          <div class="actions">
+            <button
+              class="btn plain"
+              disabled={saving}
+              onClick={() => onStart(row.type, { regenerate: true })}
+            >
+              Suggest again
+            </button>
+          </div>
         ) : null}
         <Reasoning text={suggestion?.reasoning} />
       </>

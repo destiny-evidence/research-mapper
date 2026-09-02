@@ -46,9 +46,11 @@ def client(session_factory, queued, stub_workflow):
     generated = []
 
     def body(self, ctx, params):
-        if ctx.get_artifact(SUGGESTED) is None:
+        def suggest(_seed):
             generated.append(1)
-            ctx.write_artifact(SUGGESTED, Queries(queries=[ONE, TWO]))
+            return Queries(queries=[ONE, TWO])
+
+        ctx.get_or_generate_artifact(SUGGESTED, suggest, params.regenerate)
         chosen = ctx.ask("select_queries", SPEC)
         ctx.write_artifact(CHOSEN, Queries(queries=chosen))
         return {"selected": len(chosen)}
@@ -267,3 +269,29 @@ def test_an_operation_can_be_parked_on_several_questions(
     done = batching_client.get(f"/operations/{operation_id}/").json()
     assert done["status"] == "complete"
     assert done["result"] == {"answered": ["first", "second", "third"]}
+
+
+def test_asking_for_new_suggestions_records_why(client, session_factory):
+    session_id = client.post("/sessions", json=SESSION).json()["id"]
+    first = client.post(
+        f"/sessions/{session_id}/operations/", json={"type": "drafts"}
+    ).json()["id"]
+    work(session_factory)
+    assert client.generated == [1]
+
+    again = client.post(
+        f"/sessions/{session_id}/operations/",
+        json={"type": "drafts", "params": {"regenerate": True}},
+    ).json()["id"]
+    work(session_factory)
+
+    assert client.generated == [1, 1]
+    assert (
+        client.get(f"/sessions/{session_id}/").json()["artifacts"]["suggested_queries"]
+        == 2
+    )
+    # The audit says a regeneration was asked for, not merely that one happened.
+    assert client.get(f"/operations/{first}/").json()["params"] == {"regenerate": False}
+    asked = client.get(f"/operations/{again}/").json()
+    assert asked["params"] == {"regenerate": True}
+    assert asked["status"] == "awaiting_input"

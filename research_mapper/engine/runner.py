@@ -175,6 +175,15 @@ def create_operation(
     step_class = registry.get(operation_type)
     validated = step_class.Params.model_validate(params)
     with session_factory() as db:
+        # Running a step again abandons an earlier attempt still holding a
+        # question, so it stops reading as live work.
+        db.execute(
+            update(Operation)
+            .where(Operation.research_session_id == research_session_id)
+            .where(Operation.type == operation_type)
+            .where(Operation.status == OperationStatus.AWAITING_INPUT)
+            .values(status=OperationStatus.SUPERSEDED)
+        )
         operation = Operation(
             research_session_id=research_session_id,
             created_by_id=created_by_id,

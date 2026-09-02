@@ -7,6 +7,7 @@ import { Tick, Info } from '../src/ui/Icons.jsx'
 import { Disclaimer } from '../src/ui/Disclaimer.jsx'
 import { Breakable } from '../src/ui/text.jsx'
 import { Chrome } from '../src/ui/Chrome.jsx'
+import { Body } from '../src/ui/Session.jsx'
 import { References, stepReferences, Why } from '../src/ui/References.jsx'
 import { SLICES } from '../src/derive.js'
 import { useAdapter } from '../src/auth.js'
@@ -335,5 +336,28 @@ describe('References', () => {
       expect(html).not.toContain('ref-stage')
       expect(html).not.toContain('facet')
     })
+  })
+})
+
+describe('Suggest again', () => {
+  const row = (extra = {}) => ({
+    type: 'enhance_sparse_query',
+    title: 'Draft search queries',
+    state: 'ask',
+    questions: [],
+    operation: { id: 'op', decisions: [], pending_questions: [] },
+    ...extra,
+  })
+
+  it('offers regeneration on a step that suggests', () => {
+    const html = render(
+      <Body row={row({ regenerate: true })} artifact={() => null} refs={{}} onAnswer={() => {}} />,
+    )
+    expect(html).toContain('Suggest again')
+  })
+
+  it('does not offer it on a step that does not', () => {
+    const html = render(<Body row={row()} artifact={() => null} refs={{}} onAnswer={() => {}} />)
+    expect(html).not.toContain('Suggest again')
   })
 })

@@ -58,6 +58,7 @@ class OperationOut(BaseModel):
     id: UUID
     research_session_id: UUID
     type: str
+    params: dict
     status: OperationStatus
     version_number: int | None
     attempt: int

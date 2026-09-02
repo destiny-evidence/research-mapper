@@ -176,6 +176,25 @@ def test_create_operation_records_and_queues_it(db, scenario, session_factory, q
     assert queued() == [str(operation_id)]
 
 
+def test_create_operation_supersedes_an_attempt_left_on_its_question(
+    db, scenario, session_factory, queued
+):
+    """Suggesting again leaves the old attempt parked; it should not read as live."""
+    user, session = scenario
+    step("counts", lambda self, ctx, params: {})
+    abandoned = make_operation(
+        db, session, user, "counts", status=OperationStatus.AWAITING_INPUT
+    )
+    other = make_operation(
+        db, session, user, "elsewhere", status=OperationStatus.AWAITING_INPUT
+    )
+
+    runner.create_operation(session.id, user.id, "counts", {}, session_factory)
+
+    assert reload(db, abandoned).status == OperationStatus.SUPERSEDED
+    assert reload(db, other).status == OperationStatus.AWAITING_INPUT
+
+
 def test_create_operation_takes_mutates_state_from_the_step(
     db, scenario, session_factory, queued
 ):

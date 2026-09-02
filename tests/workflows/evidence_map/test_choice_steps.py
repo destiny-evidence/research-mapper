@@ -6,7 +6,7 @@ import pytest
 from factories import make_operation, make_session, make_user
 from research_mapper.engine.context import NeedsInput, StepContext
 from research_mapper.engine.enums import DecisionType
-from research_mapper.engine.models import Decision
+from research_mapper.engine.models import Decision, ResearchSession, User
 from research_mapper.models.screening import ScreeningCriterion
 from research_mapper.models.sparse_search import LuceneQuery
 from research_mapper.workflows.evidence_map import artifacts
@@ -116,21 +116,52 @@ def test_only_the_chosen_queries_reach_the_chosen_artifact(
     assert len(calls) == 1, "the replay must not spend another LM call"
 
 
-def test_regenerate_ignores_the_stored_suggestions(ctx, restart, monkeypatch):
+def test_regenerate_ignores_the_stored_suggestions(
+    ctx, operation, db, session_factory, monkeypatch
+):
+    """Asking again is a new operation, and it starts from the model, not the store."""
     suggest_queries(monkeypatch, A)
     with pytest.raises(NeedsInput):
         sparse_query.EnhanceSparseQuery().run(ctx, sparse_query.SparseQueryParams())
 
     calls = suggest_queries(monkeypatch, B)
+    again = make_operation(
+        db,
+        db.get(ResearchSession, operation.research_session_id),
+        db.get(User, operation.created_by_id),
+        type="enhance_sparse_query",
+        params={"regenerate": True},
+    )
     with pytest.raises(NeedsInput):
         sparse_query.EnhanceSparseQuery().run(
-            restart(), sparse_query.SparseQueryParams(regenerate=True)
+            StepContext(again.id, session_factory),
+            sparse_query.SparseQueryParams(regenerate=True),
         )
 
     assert len(calls) == 1
-    stored = restart().get_artifact(artifacts.SUGGESTED_SEARCH_QUERIES)
-    assert stored is not None
+    stored = ctx.get_artifact(artifacts.SUGGESTED_SEARCH_QUERIES)
     assert [query.model_dump(mode="json") for query in stored.queries] == [B]
+
+
+def test_resuming_a_regenerate_keeps_what_the_user_was_shown(
+    ctx, restart, monkeypatch, db, operation
+):
+    """The second run must not quietly replace the options that were answered."""
+    suggest_queries(monkeypatch, A)
+    with pytest.raises(NeedsInput):
+        sparse_query.EnhanceSparseQuery().run(
+            ctx, sparse_query.SparseQueryParams(regenerate=True)
+        )
+
+    calls = suggest_queries(monkeypatch, B)
+    answer(db, operation, "select_queries", [A])
+    sparse_query.EnhanceSparseQuery().run(
+        restart(), sparse_query.SparseQueryParams(regenerate=True)
+    )
+
+    assert calls == []
+    stored = restart().get_artifact(artifacts.SUGGESTED_SEARCH_QUERIES)
+    assert [query.model_dump(mode="json") for query in stored.queries] == [A]
 
 
 def test_screening_criteria_are_suggested_then_narrowed(

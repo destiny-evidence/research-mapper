@@ -32,6 +32,17 @@ def test_resumable_react_satisfies_the_resumable_module_protocol():
     assert isinstance(make_agent(), ResumableModule)
 
 
+def test_classify_step_always_returns_none():
+    """A bare ResumableReAct has no domain-specific pause categories of its
+    own — every Step it surfaces just means "call resume() again"."""
+    agent = make_agent()
+    step = Step(
+        trajectory={}, idx=0, thought="t", tool_name="search", tool_args={"query": "x"}
+    )
+
+    assert agent.classify_step(step) is None
+
+
 def test_start_proposes_the_first_step_without_executing_its_tool():
     agent = make_agent()
     agent.react = MagicMock(return_value=next_pred("search", {"query": "hpv"}))

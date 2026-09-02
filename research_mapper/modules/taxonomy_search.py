@@ -82,12 +82,11 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
         while isinstance(result, Step):
             if self.ui is not None:
                 self.ui.print_reasoning(f"Step {result.idx}", result.thought)
-            if result.tool_name in GIVE_UP_TOOLS:
-                unsatisfiable_reason = result.tool_args["reason"]
-            elif result.tool_name == CLARIFY_TOOL and self.ui is not None:
-                answer = self._prompt_clarification(
-                    ClarificationOptions(**result.tool_args["request"])
-                )
+            outcome = self.classify_step(result)
+            if isinstance(outcome, str):
+                unsatisfiable_reason = outcome
+            elif isinstance(outcome, ClarificationOptions) and self.ui is not None:
+                answer = self._prompt_clarification(outcome)
                 result = result.with_observation(answer)
             result = self.resume(
                 result, user_query=user_query, indexed=indexed, graph=graph
@@ -153,6 +152,24 @@ class TaxonomyConceptFilterGenerator(dspy.Module):
         if not isinstance(result, Step):
             self.validate_filter_groups(result.filter_groups, indexed)
         return result
+
+    def classify_step(self, step: Step) -> str | ClarificationOptions | None:
+        """
+        The one place that knows which of this module's own tools are
+        meaningful pause points and what they mean, so every caller (the
+        TUI's forward(), the workflow engine's GenerateConceptFilters step)
+        dispatches on the same pre-classified outcome instead of each
+        re-deriving "what does this tool_name mean" from a Step's raw
+        tool_name/tool_args itself.
+        :return: the give-up reason (str) if the agent gave up, the parsed
+            clarification request if it's asking the user something, or None
+            if this step isn't a pause point at all, just call resume()
+        """
+        if step.tool_name in GIVE_UP_TOOLS:
+            return step.tool_args["reason"]
+        if step.tool_name == CLARIFY_TOOL:
+            return ClarificationOptions(**step.tool_args["request"])
+        return None
 
     def validate_filter_groups(
         self, filter_groups: list[ConceptFilterGroup], indexed: IndexedVocab

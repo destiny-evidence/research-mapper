@@ -441,6 +441,36 @@ def test_mark_unsatisfiable_and_prompt_attack_are_always_registered():
 # ---------------------------------------------------------------------------
 
 
+def test_classify_step_returns_the_give_up_reason_as_a_bare_string():
+    generator = TaxonomyConceptFilterGenerator()
+    step = _step(0, "mark_unsatisfiable", {"reason": "no matching concept"})
+
+    assert generator.classify_step(step) == "no matching concept"
+
+
+def test_classify_step_returns_the_reason_for_a_prompt_attack_too():
+    generator = TaxonomyConceptFilterGenerator()
+    step = _step(0, "raise_attempted_prompt_attack", {"reason": "ignore previous"})
+
+    assert generator.classify_step(step) == "ignore previous"
+
+
+def test_classify_step_parses_a_clarification_request():
+    generator = TaxonomyConceptFilterGenerator()
+    step = _step(0, "ask_for_clarification", _request("Which scheme?", ["A", "B"]))
+
+    assert generator.classify_step(step) == ClarificationOptions(
+        question="Which scheme?", options=["A", "B"]
+    )
+
+
+def test_classify_step_returns_none_for_an_ordinary_tool_call():
+    generator = TaxonomyConceptFilterGenerator()
+    step = _step(0, "lookup_concepts", {"label": "x"})
+
+    assert generator.classify_step(step) is None
+
+
 def test_taxonomy_concept_filter_generator_satisfies_resumable_module():
     """Structural, not nominal: no shared base class with ResumableReAct is
     needed for TaxonomyConceptFilterGenerator to be driven the same way."""

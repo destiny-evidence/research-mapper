@@ -271,6 +271,82 @@ def test_an_operation_can_be_parked_on_several_questions(
     assert done["result"] == {"answered": ["first", "second", "third"]}
 
 
+def test_forking_reopens_the_question_without_regenerating_the_suggestion(
+    client, session_factory, queued
+):
+    session_id = client.post("/sessions", json=SESSION).json()["id"]
+    operation_id = client.post(
+        f"/sessions/{session_id}/operations/", json={"type": "drafts"}
+    ).json()["id"]
+    work(session_factory)
+    question = client.get(f"/operations/{operation_id}/").json()["pending_questions"][0]
+    client.post(
+        f"/operations/{operation_id}/respond/",
+        json={"answers": {question["key"]: [ONE]}},
+    )
+    work(session_factory)
+    assert client.generated == [1]
+
+    forked = client.post(
+        f"/sessions/{session_id}/fork/", json={"reopen_decision": question["id"]}
+    )
+    assert forked.status_code == 201
+    fork_id = forked.json()["id"]
+    assert forked.json()["forked_from_id"] == session_id
+    assert forked.json()["question"] == SESSION["question"]
+
+    work(session_factory)
+
+    reopened = client.get(f"/sessions/{fork_id}/operations/").json()
+    assert len(reopened) == 1
+    operation = client.get(f"/operations/{reopened[0]}/").json()
+    assert operation["status"] == "awaiting_input"
+    # The same question, not merely a question of the same shape.
+    asked = operation["pending_questions"][0]
+    assert (asked["prompt"], asked["options"], asked["constraints"]) == (
+        question["prompt"],
+        question["options"],
+        question["constraints"],
+    )
+    assert asked["id"] != question["id"]
+    # The suggestion came across, so the step never re-ran its expensive half.
+    assert client.generated == [1]
+
+    again = operation["pending_questions"][0]
+    client.post(
+        f"/operations/{operation['id']}/respond/",
+        json={"answers": {again["key"]: [ONE, TWO]}},
+    )
+    work(session_factory)
+
+    assert client.get(f"/operations/{operation['id']}/").json()["result"] == {
+        "selected": 2
+    }
+    assert client.get(f"/sessions/{session_id}/").json()["artifacts"] == {
+        "suggested_queries": 1,
+        "queries": 1,
+    }
+
+
+def test_forking_is_refused_while_the_session_is_working(client, session_factory):
+    session_id = client.post("/sessions", json=SESSION).json()["id"]
+    client.post(f"/sessions/{session_id}/operations/", json={"type": "drafts"})
+
+    busy = client.post(
+        f"/sessions/{session_id}/fork/",
+        json={"reopen_decision": "01a05f48-0000-7000-8000-000000000000"},
+    )
+    assert busy.status_code == 409
+
+    work(session_factory)
+    unknown = client.post(
+        f"/sessions/{session_id}/fork/",
+        json={"reopen_decision": "01a05f48-0000-7000-8000-000000000000"},
+    )
+    assert unknown.status_code == 400
+    assert "no decision" in unknown.json()["detail"]
+
+
 def test_asking_for_new_suggestions_records_why(client, session_factory):
     session_id = client.post("/sessions", json=SESSION).json()["id"]
     first = client.post(

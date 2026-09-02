@@ -12,10 +12,11 @@ from research_mapper.api.schemas import (
     CreateOperation,
     CreateSession,
     DecisionOut,
+    ForkSession,
     SessionDetail,
     SessionSummary,
 )
-from research_mapper.engine import runner
+from research_mapper.engine import fork, runner
 from research_mapper.engine.models import (
     CurrentArtifact,
     Decision,
@@ -69,6 +70,23 @@ def read_session(db: DbSession, research_session: SessionOr404) -> SessionDetail
         params=research_session.params,
         artifacts={row.type: row.version for row in artifacts},
     )
+
+
+@router.post("/sessions/{session_id}/fork/", status_code=status.HTTP_201_CREATED)
+def fork_session(
+    body: ForkSession,
+    db: DbSession,
+    user: CurrentUser,
+    research_session: SessionOr404,
+) -> SessionSummary:
+    """Copy a session up to one of its questions, and ask that question again."""
+    try:
+        forked = fork.fork(db, research_session, user.id, body.reopen_decision)
+    except runner.SessionBusy as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return SessionSummary.model_validate(forked)
 
 
 @router.post("/sessions/{session_id}/operations/", status_code=status.HTTP_202_ACCEPTED)

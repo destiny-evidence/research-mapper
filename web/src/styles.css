@@ -158,8 +158,8 @@ input, textarea, select {
 .step { border-bottom: 1px solid var(--line-2); }
 .step.todo { border-bottom-color: var(--hair); }
 .step.open { background: var(--panel); margin: 0 -14px; padding: 0 14px; }
-.step.open.ask { border-left: 3px solid var(--amber); }
-.step.open.failed { border-left: 3px solid var(--red); }
+.step.open.ask { border-left: 3px solid var(--amber); padding-left: 11px; }
+.step.open.failed { border-left: 3px solid var(--red); padding-left: 11px; }
 
 .step-head {
   display: flex; align-items: center; gap: 13px;
@@ -323,6 +323,27 @@ input, textarea, select {
 .workflow-head { display: flex; align-items: center; gap: 13px; width: 100%; padding: 10px 14px; background: #f7f6f2; border: 0; text-align: left; }
 .workflow.closed .workflow-head { background: var(--panel); }
 .workflow-steps { padding: 2px 14px 8px; }
+
+/* fork -------------------------------------------------------------------- */
+.fork-action { display: inline-flex; align-items: center; gap: 6px; color: var(--amber); max-width: 100%; }
+.fork-action:hover { color: var(--amber-ink); }
+.questions { margin-top: 16px; }
+.question-row { display: grid; grid-template-columns: auto 1fr; gap: 0 10px; }
+.question-row.sole { grid-template-columns: 1fr; }
+.question-row + .question-row { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--hair); }
+.question-n { font-family: var(--mono); font-size: 11px; color: var(--dim); padding-top: 2px; }
+.question-q { font-size: 13px; color: var(--muted); line-height: 1.5; max-width: 68ch; }
+.question-a { display: flex; flex-wrap: wrap; gap: 5px; margin: 7px 0 2px; }
+.chose { font-size: 11.5px; color: var(--text); background: var(--tint); border: 1px solid var(--line-2); padding: 2px 7px; }
+.chose.more { color: var(--dim); background: none; border-color: transparent; }
+.questions .reasoning { margin-top: 9px; }
+.questions .fork-action { margin-top: 8px; }
+.fork-question { margin: 0; font-size: 13px; color: var(--ink); border-left: 2px solid var(--amber-line); padding-left: 11px; }
+.session-mark { display: inline-flex; align-items: center; width: 12px; flex-shrink: 0; }
+.lineage { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-family: var(--mono); font-size: 11px; }
+.lineage a { color: var(--dim); text-decoration: none; }
+.lineage span { color: var(--dim); }
+.lineage a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
 
 /* sessions ---------------------------------------------------------------- */
 .list-head { display: flex; align-items: center; gap: 20px; padding: 24px 0 14px; border-bottom: 1px solid var(--line); }

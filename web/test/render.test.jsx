@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 import render from 'preact-render-to-string'
 import { Panel } from '../src/ui/Panel.jsx'
 import { Reasoning } from '../src/ui/Reasoning.jsx'
-import { Trace, iterations } from '../src/ui/Trace.jsx'
 import { Tick, Info } from '../src/ui/Icons.jsx'
 import { Disclaimer } from '../src/ui/Disclaimer.jsx'
 import { Breakable } from '../src/ui/text.jsx'
 import { Chrome } from '../src/ui/Chrome.jsx'
 import { Body } from '../src/ui/Session.jsx'
+import { ForkButton, ForkConfirm } from '../src/ui/Fork.jsx'
+import { Questions } from '../src/ui/Questions.jsx'
+import { Sessions } from '../src/ui/Sessions.jsx'
 import { References, stepReferences, Why } from '../src/ui/References.jsx'
 import { SLICES } from '../src/derive.js'
 import { useAdapter } from '../src/auth.js'
@@ -57,36 +59,8 @@ describe('Reasoning', () => {
   })
 })
 
-const TRAJECTORY = {
-  thought_0: 'See how this vocabulary is organised.',
-  tool_name_0: 'list_schemes',
-  tool_args_0: {},
-  observation_0: '["hpv-barriers"]',
-  thought_1: 'Ask before committing.',
-  tool_name_1: 'ask_for_clarification',
-  tool_args_1: { request: { question: 'Barriers to what?' } },
-}
-
-describe('Trace', () => {
-  it('treats the step with no observation as the one still waiting', () => {
-    const rows = iterations({ trajectory: TRAJECTORY })
-    expect(rows).toHaveLength(2)
-    expect(rows[0].pending).toBe(false)
-    expect(rows[1].pending).toBe(true)
-    expect(rows[0].call).toBe('list_schemes()')
-  })
-
-  it('is collapsed to a single control until opened', () => {
-    const html = render(<Trace payload={{ trajectory: TRAJECTORY }} />)
-    expect(html).toContain('2 steps')
-    expect(html).not.toContain('list_schemes()')
-  })
-
-  it('renders nothing for an operation with no trajectory', () => {
-    expect(render(<Trace payload={null} />)).toBe('')
-  })
-})
-
+// Pairs, not an object: engine.views.Ordered serialises it this way so jsonb
+// keeps the order.
 describe('Breakable', () => {
   it('gives a compound label a break opportunity after each slash', () => {
     const html = render(<Breakable>Channel/Medium/Platform</Breakable>)
@@ -339,6 +313,60 @@ describe('References', () => {
   })
 })
 
+describe('Fork', () => {
+  it('says it makes a new session, not that it edits this one', () => {
+    const html = render(<ForkButton onFork={() => {}} />)
+    expect(html).toContain('Answer differently in a new session')
+  })
+
+  it('offers a fork per question when a step asked several', () => {
+    const html = render(
+      <Questions
+        onFork={() => {}}
+        decisions={[
+          { id: 'a', key: 'clarify:2', prompt: 'first?', options: [], answer: [] },
+          { id: 'b', key: 'clarify:4', prompt: 'second?', options: [], answer: [] },
+        ]}
+      />,
+    )
+    expect(html.match(/Answer differently in a new session/g)).toHaveLength(2)
+  })
+
+  it('says what it will do before it does it', () => {
+    const html = render(
+      <ForkConfirm
+        question="Which of these criteria should we apply?"
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />,
+    )
+    expect(html).toContain('creates a new session from this point')
+    // Names the question, so forking the second of several is unambiguous.
+    expect(html).toContain('Which of these criteria should we apply?')
+    expect(html).toContain('Cancel')
+  })
+})
+
+describe('Sessions', () => {
+  const session = (extra = {}) => ({
+    id: 'a',
+    question: 'Does X affect Y?',
+    community: 'hpv',
+    created_at: '2026-09-02T00:00:00Z',
+    forked_from_id: null,
+    ...extra,
+  })
+
+  it('marks forks and leaves originals alone', () => {
+    const plain = render(<Sessions sessions={[session()]} onOpen={() => {}} onNew={() => {}} />)
+    const forked = render(
+      <Sessions sessions={[session({ forked_from_id: 'b' })]} onOpen={() => {}} onNew={() => {}} />,
+    )
+    expect(plain).not.toContain('fork-mark')
+    expect(forked).toContain('fork-mark')
+  })
+})
+
 describe('Suggest again', () => {
   const row = (extra = {}) => ({
     type: 'enhance_sparse_query',
@@ -359,5 +387,37 @@ describe('Suggest again', () => {
   it('does not offer it on a step that does not', () => {
     const html = render(<Body row={row()} artifact={() => null} refs={{}} onAnswer={() => {}} />)
     expect(html).not.toContain('Suggest again')
+  })
+})
+
+describe('Questions', () => {
+  const decision = (key, prompt, chosen) => ({
+    id: key,
+    key,
+    prompt,
+    options: [
+      { id: '0', label: 'Detection', value: { option: 'Detection' } },
+      { id: '1', label: 'None of these', value: { option: 'None of these' } },
+    ],
+    answer: chosen,
+  })
+
+  const two = [
+    decision('clarify:2', 'Which strategies?', [{ option: 'None of these' }]),
+    decision('clarify:4', 'Which aspects?', [{ option: 'Detection' }]),
+  ]
+
+  it('shows each question, what was chosen, and why it was asked', () => {
+    const html = render(
+      <Questions decisions={two} trajectory={[['thought_2', 'narrowing the scheme']]} onFork={() => {}} />,
+    )
+    expect(html).toContain('Which strategies?')
+    expect(html).toContain('None of these')
+    // The thought behind the question, read out of the trajectory by its key.
+    expect(html).toContain('narrowing the scheme')
+  })
+
+  it('has nothing to say about a step that answered nothing', () => {
+    expect(render(<Questions decisions={[]} onFork={() => {}} />)).toBe('')
   })
 })

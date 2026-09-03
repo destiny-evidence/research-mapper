@@ -19,7 +19,7 @@ function User() {
 }
 
 /** Navbar and disclaimer. */
-export function Chrome({ onHome, onTerms, children }) {
+export function Chrome({ onHome, onTerms, onNewQuestion, children }) {
   return (
     <div class="chrome">
       <div class="topbar">
@@ -28,6 +28,11 @@ export function Chrome({ onHome, onTerms, children }) {
           <span class="brand">Research Mapper</span>
         </button>
         <span class="grow" />
+        {onNewQuestion ? (
+          <button type="button" class="ask-new" onClick={onNewQuestion}>
+            Ask a new question
+          </button>
+        ) : null}
         {children}
         <User />
       </div>

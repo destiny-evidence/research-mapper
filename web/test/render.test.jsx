@@ -151,6 +151,18 @@ describe('Chrome', () => {
     signedInAs({ sub: 'abc' })
     expect(render(<Chrome />)).not.toContain('Sign out')
   })
+
+  it('offers a new question where a view asks for it', () => {
+    useAdapter(null)
+    expect(render(<Chrome onNewQuestion={() => {}} />)).toContain('Ask a new question')
+  })
+
+  // The session list already has the button in its own head, so the topbar
+  // would be showing it twice.
+  it('leaves the topbar alone where a view does not', () => {
+    useAdapter(null)
+    expect(render(<Chrome />)).not.toContain('Ask a new question')
+  })
 })
 
 describe('disclaimer', () => {

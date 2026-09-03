@@ -57,7 +57,12 @@ export function App() {
 
   return (
     <>
-      <Chrome onHome={() => go('#/')} onTerms={() => setTerms('review')} />
+      <Chrome
+        onHome={() => go('#/')}
+        onTerms={() => setTerms('review')}
+        // The list view carries its own; the session view is otherwise a dead end.
+        onNewQuestion={route.view === 'session' ? () => go('#/new') : null}
+      />
       {terms ? (
         <Disclaimer
           mode={terms}

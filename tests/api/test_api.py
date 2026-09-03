@@ -104,7 +104,8 @@ def test_the_whole_flow_over_http(client, session_factory, queued):
 
     operation = client.get(f"/operations/{operation_id}/").json()
     assert operation["status"] == "awaiting_input"
-    question = operation["pending_question"]
+    assert len(operation["pending_questions"]) == 1
+    question = operation["pending_questions"][0]
     assert question["prompt"] == SPEC.prompt
     assert question["options"] == SPEC.options
 
@@ -124,7 +125,7 @@ def test_the_whole_flow_over_http(client, session_factory, queued):
     assert operation["status"] == "complete"
     assert operation["result"] == {"selected": 1}
     assert operation["version_number"] == 1
-    assert operation["pending_question"] is None
+    assert operation["pending_questions"] == []
 
     detail = client.get(f"/sessions/{session_id}/").json()
     assert detail["head_version_number"] == 1
@@ -138,55 +139,6 @@ def test_the_whole_flow_over_http(client, session_factory, queued):
     }
 
     assert client.generated == [1], "the pre-question work must not run twice"
-
-
-def test_pending_question_is_not_null_with_several_open_decisions(
-    client, session_factory
-):
-    """A step can open more than one decision at once (ctx.ask_all, e.g.
-    GenerateMapSubtopics asking one question per dimension) — pending_question
-    should still point at one of them, not silently report null while the
-    operation is genuinely awaiting_input."""
-
-    def body(self, ctx, params):
-        ctx.ask_all(
-            {
-                "first": AskSpec(
-                    type="select_many",
-                    prompt="First?",
-                    options=[{"id": "1", "label": "a", "value": ONE}],
-                    constraints={"min": 1},
-                ),
-                "second": AskSpec(
-                    type="select_many",
-                    prompt="Second?",
-                    options=[{"id": "1", "label": "a", "value": ONE}],
-                    constraints={"min": 1},
-                ),
-            }
-        )
-        return {}
-
-    register(
-        builtins.type(
-            "DraftsMulti",
-            (Step,),
-            {"type": "drafts_multi", "Params": Params, "run": body},
-        )
-    )
-
-    session_id = client.post("/sessions", json=SESSION).json()["id"]
-    operation_id = client.post(
-        f"/sessions/{session_id}/operations/", json={"type": "drafts_multi"}
-    ).json()["id"]
-
-    work(session_factory)
-
-    operation = client.get(f"/operations/{operation_id}/").json()
-    assert operation["status"] == "awaiting_input"
-    assert len(operation["decisions"]) == 2
-    assert operation["pending_question"] is not None
-    assert operation["pending_question"]["key"] in {"first", "second"}
 
 
 def test_an_unknown_operation_type_is_a_400(client):
@@ -232,3 +184,86 @@ def test_a_session_must_declare_a_known_workflow(client):
     created = client.post("/sessions/", json=SESSION)
     assert created.status_code == 201
     assert created.json()["workflow"] == "drafts"
+
+
+BATCH = {
+    key: AskSpec(
+        type="edit_list",
+        prompt=f"Edit the subtopics of {key}.",
+        options=[{"id": "1", "label": key, "value": {"name": key}}],
+        constraints={"min": 1, "allow_new": True},
+    )
+    for key in ("first", "second", "third")
+}
+
+
+@pytest.fixture
+def batching_client(session_factory, queued, stub_workflow):
+    """A client whose one step asks three questions at once, as ask_all does."""
+    before = set(registry.REGISTRY)
+
+    def body(self, ctx, params):
+        answers = ctx.ask_all(BATCH)
+        return {"answered": sorted(answers)}
+
+    register(
+        builtins.type(
+            "Batched", (Step,), {"type": "batched", "Params": Params, "run": body}
+        )
+    )
+    app.dependency_overrides[get_session_factory] = lambda: session_factory
+    with TestClient(app) as test_client:
+        yield test_client
+    init_database()
+    app.dependency_overrides.clear()
+    for operation_type in set(registry.REGISTRY) - before:
+        del registry.REGISTRY[operation_type]
+
+
+def test_an_operation_can_be_parked_on_several_questions(
+    batching_client, session_factory
+):
+    """ask_all opens one decision per question, and all of them must be visible."""
+    session_id = batching_client.post("/sessions/", json=SESSION).json()["id"]
+    operation_id = batching_client.post(
+        f"/sessions/{session_id}/operations/", json={"type": "batched"}
+    ).json()["id"]
+    work(session_factory)
+
+    operation = batching_client.get(f"/operations/{operation_id}/").json()
+    assert operation["status"] == "awaiting_input"
+    assert sorted(row["key"] for row in operation["pending_questions"]) == [
+        "first",
+        "second",
+        "third",
+    ]
+
+    # Answering a subset leaves the operation parked on the rest, rather than
+    # requeueing it with questions still open.
+    partial = batching_client.post(
+        f"/operations/{operation_id}/respond/",
+        json={"answers": {"first": [{"name": "first"}]}},
+    )
+    assert partial.status_code == 200
+    assert partial.json()["status"] == "awaiting_input"
+    assert sorted(row["key"] for row in partial.json()["pending_questions"]) == [
+        "second",
+        "third",
+    ]
+
+    rest = batching_client.post(
+        f"/operations/{operation_id}/respond/",
+        json={
+            "answers": {
+                "second": [{"name": "second"}],
+                "third": [{"name": "third"}],
+            }
+        },
+    )
+    assert rest.json()["status"] == "pending"
+    assert rest.json()["pending_questions"] == []
+
+    work(session_factory)
+    done = batching_client.get(f"/operations/{operation_id}/").json()
+    assert done["status"] == "complete"
+    assert done["result"] == {"answered": ["first", "second", "third"]}

@@ -1,0 +1,21 @@
+{
+  "name": "research-mapper-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "keycloak-js": "^26.2.4",
+    "preact": "^10.25.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.9.3",
+    "preact-render-to-string": "^6.5.13",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8"
+  }
+}

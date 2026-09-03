@@ -14,7 +14,7 @@ The API takes requests and queues work. The worker picks work up and runs it, on
     engine/       runs workflows
     workflows/    the workflows themselves
     db/           tables and migrations
-    demo/         a throwaway UI
+    web/          the browser UI
     ui/           the original terminal app
 
 ## Running it
@@ -27,13 +27,14 @@ If the workflow uses the DESTINY repository API, you'll need to log in there fir
 uv run python -m research_mapper login
 ```
 
-Then bring up Postgres, apply the migrations, and run the API on `:8080` and the worker:
+Then bring up Postgres, apply the migrations, and run the API on `:8080`, the worker, and the UI on
+`:5173`:
 
 ```bash
 docker compose up --build
 ```
 
-[demo/](demo/) adds an experimental UI on top.
+[web/](web/) has the UI's own README.
 
 ## Configuration
 
@@ -59,8 +60,11 @@ There are two separate authentication paths, and they are unrelated to each othe
 | Variable                                      | For                                       |
 | --------------------------------------------- | ----------------------------------------- |
 | `MAPPER_AUTH_ISSUER`, `MAPPER_AUTH_CLIENT_ID` | the issuer and client to validate against |
+| `MAPPER_CORS_ORIGINS`                         | origins allowed to call the API from a browser |
 
 This one is off unless both are set. With it off, the API accepts every request and attributes it all to a single local user.
+
+`MAPPER_CORS_ORIGINS` is a comma-separated list and is likewise off when unset. It is needed because the deployed UI is served from a storage static-website endpoint and so calls the API cross-origin; locally the dev server proxies `/api` and nothing is cross-origin.
 
 ## The terminal app
 

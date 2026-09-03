@@ -48,15 +48,15 @@ def session(db):
     return make_session(db, user)
 
 
-def put_dimensions(db, session, dimensions=DIMENSIONS) -> None:
-    user = make_user(db, "author")
+def put_dimensions(db, session, dimensions=DIMENSIONS, version=1) -> None:
+    user = make_user(db, f"author-{version}")
     operation = make_operation(db, session, user)
     db.add(
         Artifact(
             research_session_id=session.id,
             operation_id=operation.id,
             type=ArtifactType.DIMENSIONS,
-            version=1,
+            version=version,
             payload={"dimensions": dimensions},
         )
     )
@@ -81,6 +81,7 @@ def test_the_map_joins_the_dimensions_artifact_to_the_reference_rows(
             "Outcome": ["Mortality"],
             "Design": ["Cohort"],
         },
+        mapping={"dimensions_version": 1},
     )
     make_reference(db, session, TWO, stage=SessionReferenceStage.EXCLUDED)
     monkeypatch.setattr(
@@ -113,6 +114,7 @@ def test_a_reference_destiny_no_longer_returns_is_dropped(
             destiny_id,
             stage=SessionReferenceStage.MAPPED,
             coordinate={"Setting": ["Urban"]},
+            mapping={"dimensions_version": 1},
         )
     monkeypatch.setattr(
         routes, "get_evidence", lambda ids: [{ONE: Evidence(destiny_id=ONE)}]
@@ -121,6 +123,43 @@ def test_a_reference_destiny_no_longer_returns_is_dropped(
     body = client.get(f"/sessions/{session.id}/map/").json()
 
     assert len(body["mapped_evidence"]) == 1
+
+
+def test_coordinates_from_older_dimensions_are_left_out_of_the_map(
+    client, db, session, monkeypatch
+):
+    """Their subtopics may no longer exist, so they would inflate the totals."""
+    put_dimensions(db, session, version=1)
+    put_dimensions(db, session, version=2)
+    make_reference(
+        db,
+        session,
+        ONE,
+        stage=SessionReferenceStage.MAPPED,
+        coordinate={"Setting": ["Urban"]},
+        mapping={"dimensions_version": 1},
+    )
+    make_reference(
+        db,
+        session,
+        TWO,
+        stage=SessionReferenceStage.MAPPED,
+        coordinate={"Setting": ["Urban"]},
+        mapping={"dimensions_version": 2},
+    )
+    monkeypatch.setattr(
+        routes,
+        "get_evidence",
+        lambda ids: [
+            {destiny_id: Evidence(destiny_id=destiny_id) for destiny_id in ids}
+        ],
+    )
+
+    body = client.get(f"/sessions/{session.id}/map/").json()
+
+    assert [cell["evidence"]["destiny_id"] for cell in body["mapped_evidence"]] == [
+        str(TWO)
+    ]
 
 
 def test_a_dimensions_artifact_that_is_not_three_is_a_clear_error(
@@ -132,3 +171,82 @@ def test_a_dimensions_artifact_that_is_not_three_is_a_clear_error(
     reply = client.get(f"/sessions/{session.id}/map/")
 
     assert reply.status_code == 500
+
+
+def test_references_are_listed_at_every_stage_with_their_reasoning(db, client, session):
+    """The record download's only source for why a reference was set aside."""
+    from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
+
+    included = make_reference(db, session, ONE, stage=SessionReferenceStage.INCLUDED)
+    included.screening = {
+        "include": True,
+        "reasoning": "reports uptake",
+        "criteria_version": 2,
+    }
+    included.coordinate = {"Setting": ["School"]}
+    excluded = make_reference(db, session, TWO, stage=SessionReferenceStage.EXCLUDED)
+    excluded.screening = {
+        "include": False,
+        "reasoning": "high-income only",
+        "criteria_version": 2,
+    }
+    db.commit()
+
+    body = client.get(f"/sessions/{session.id}/references/").json()
+
+    assert {row["stage"] for row in body} == {"included", "excluded"}
+    by_id = {row["destiny_id"]: row for row in body}
+    assert by_id[str(TWO)]["screening"]["reasoning"] == "high-income only"
+    assert by_id[str(TWO)]["coordinate"] is None
+    assert by_id[str(ONE)]["coordinate"] == {"Setting": ["School"]}
+
+
+def test_references_of_another_session_are_not_listed(db, client, session):
+    from research_mapper.engine.models import User
+
+    owner = db.get(User, session.user_id)
+    other = make_session(db, owner, question="Something else?")
+    make_reference(db, other, ONE)
+    make_reference(db, session, TWO)
+
+    body = client.get(f"/sessions/{session.id}/references/").json()
+
+    assert [row["destiny_id"] for row in body] == [str(TWO)]
+
+
+def test_references_carry_bibliographic_detail_when_asked(
+    db, client, session, monkeypatch
+):
+    make_reference(db, session, ONE, stage=SessionReferenceStage.INCLUDED)
+    monkeypatch.setattr(
+        routes,
+        "get_evidence",
+        lambda ids: [{ONE: Evidence(destiny_id=ONE, title="A", year=2019)}],
+    )
+
+    plain = client.get(f"/sessions/{session.id}/references/").json()
+    hydrated = client.get(
+        f"/sessions/{session.id}/references/?include_evidence=true"
+    ).json()
+
+    assert plain[0]["evidence"] is None, "the lookup is opt-in"
+    assert hydrated[0]["evidence"]["title"] == "A"
+    assert hydrated[0]["evidence"]["year"] == 2019
+
+
+def test_a_reference_destiny_no_longer_returns_is_still_listed(
+    db, client, session, monkeypatch
+):
+    """Unlike the map: dropping it would understate the corpus being audited."""
+    make_reference(db, session, ONE, stage=SessionReferenceStage.EXCLUDED)
+    make_reference(db, session, TWO, stage=SessionReferenceStage.EXCLUDED)
+    monkeypatch.setattr(
+        routes, "get_evidence", lambda ids: [{ONE: Evidence(destiny_id=ONE)}]
+    )
+
+    body = client.get(
+        f"/sessions/{session.id}/references/?include_evidence=true"
+    ).json()
+
+    assert [row["destiny_id"] for row in body] == [str(ONE), str(TWO)]
+    assert body[1]["evidence"] is None

@@ -96,6 +96,74 @@ def test_references_can_be_filtered_by_stage(ctx):
     assert [r.destiny_id for r in gathered] == [ONE]
 
 
+def screened_in(ctx, *destiny_ids):
+    """Put every id through screening, so they land at INCLUDED."""
+    ctx.record_references([RefRow(destiny_id, {}) for destiny_id in destiny_ids])
+    ctx.set_screening(
+        [
+            ScreeningRow(
+                destiny_id, include=True, reasoning="on topic", criteria_version=1
+            )
+            for destiny_id in destiny_ids
+        ]
+    )
+
+
+def test_a_fresh_run_has_every_screened_in_reference_to_map(ctx):
+    screened_in(ctx, ONE, TWO)
+
+    assert {r.destiny_id for r in ctx.references_to_map(1)} == {ONE, TWO}
+    assert ctx.count_mapped_at(1) == 0
+
+
+def test_a_retry_skips_what_the_failed_attempt_already_placed(ctx):
+    """The whole point of not simply reading INCLUDED|MAPPED: resuming stays cheap."""
+    screened_in(ctx, ONE, TWO)
+    ctx.set_coordinates(
+        [CoordinateRow(ONE, {"Setting": ["Urban"]}, "urban", dimensions_version=1)]
+    )
+
+    assert [r.destiny_id for r in ctx.references_to_map(1)] == [TWO]
+    assert ctx.count_mapped_at(1) == 1
+
+
+def test_bumping_the_dimensions_brings_placed_references_back(ctx):
+    """Reading INCLUDED alone stranded these: no step would ever revisit them."""
+    screened_in(ctx, ONE, TWO)
+    ctx.set_coordinates(
+        [
+            CoordinateRow(ONE, {"Setting": ["Urban"]}, "urban", dimensions_version=1),
+            CoordinateRow(TWO, {"Setting": ["Rural"]}, "rural", dimensions_version=1),
+        ]
+    )
+
+    assert {r.destiny_id for r in ctx.references_to_map(2)} == {ONE, TWO}
+    assert ctx.count_mapped_at(2) == 0, "nothing is placed against the new dimensions"
+
+
+def test_an_excluded_reference_is_never_up_for_mapping(ctx):
+    ctx.record_references([RefRow(ONE, {}), RefRow(TWO, {})])
+    ctx.set_screening(
+        [
+            ScreeningRow(ONE, include=True, reasoning="on topic", criteria_version=1),
+            ScreeningRow(TWO, include=False, reasoning="off topic", criteria_version=1),
+        ]
+    )
+
+    assert [r.destiny_id for r in ctx.references_to_map(1)] == [ONE]
+    assert [r.destiny_id for r in ctx.screened_in()] == [ONE]
+
+
+def test_screened_in_ignores_what_was_already_placed(ctx):
+    """The taxonomy tail writes fresh dimensions, so it re-places everything."""
+    screened_in(ctx, ONE, TWO)
+    ctx.set_coordinates(
+        [CoordinateRow(ONE, {"Scheme": ["A"]}, "a", dimensions_version=1)]
+    )
+
+    assert {r.destiny_id for r in ctx.screened_in()} == {ONE, TWO}
+
+
 def test_the_workflow_declares_this_context():
     """The worker builds contexts from the registry, so the pairing lives there."""
     from research_mapper import workflows

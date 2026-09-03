@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import Select, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
@@ -78,6 +78,60 @@ class EvidenceMapContext(StepContext):
             )
             for row in rows
         ]
+
+    def _screened_in(self) -> Select[tuple[SessionReference]]:
+        """Select every reference screening kept, placed or not."""
+        return (
+            select(SessionReference)
+            .where(SessionReference.research_session_id == self.research_session_id)
+            .where(
+                SessionReference.stage.in_(
+                    [SessionReferenceStage.INCLUDED, SessionReferenceStage.MAPPED]
+                )
+            )
+        )
+
+    def _views(self, statement: Select[tuple[SessionReference]]) -> list[ReferenceView]:
+        with self._sf() as db:
+            rows = db.execute(statement.order_by(SessionReference.id)).scalars().all()
+        return [
+            ReferenceView(
+                destiny_id=row.destiny_id,
+                stage=row.stage,
+                screening=row.screening,
+                coordinate=row.coordinate,
+            )
+            for row in rows
+        ]
+
+    def screened_in(self) -> list[ReferenceView]:
+        """Every reference screening kept."""
+        return self._views(self._screened_in())
+
+    def references_to_map(self, dimensions_version: int) -> list[ReferenceView]:
+        """References a run against these dimensions has yet to place."""
+        return self._views(
+            self._screened_in().where(
+                SessionReference.mapping["dimensions_version"].astext.is_distinct_from(
+                    str(dimensions_version)
+                )
+            )
+        )
+
+    def count_mapped_at(self, dimensions_version: int) -> int:
+        """How many references are already placed against these dimensions."""
+        statement = (
+            select(func.count())
+            .select_from(SessionReference)
+            .where(SessionReference.research_session_id == self.research_session_id)
+            .where(SessionReference.stage == SessionReferenceStage.MAPPED)
+            .where(
+                SessionReference.mapping["dimensions_version"].astext
+                == str(dimensions_version)
+            )
+        )
+        with self._sf() as db:
+            return db.execute(statement).scalar_one()
 
     def set_screening(self, rows: list[ScreeningRow]) -> None:
         """Record screening verdicts and move each reference in or out."""

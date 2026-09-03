@@ -9,7 +9,7 @@ wheels/
 # Virtual environments
 .venv
 /.idea
-/.env
+.env
 
 # Terraform
 .terraform/
@@ -20,3 +20,5 @@ wheels/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
+# Web UI (dist/ is already covered above)
+node_modules/

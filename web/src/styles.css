@@ -1,0 +1,393 @@
+:root {
+  --bg: #f4f3f0;
+  --panel: #fff;
+  --line: #d6d2ca;
+  --line-2: #e0ddd6;
+  --hair: #eeebe5;
+  --ink: #2b2a27;
+  --text: #4a4843;
+  --muted: #86837c;
+  --dim: #a09c94;
+  --faint: #b8b4ac;
+  --tint: #f2f0eb;
+  --chip: #e6e3dc;
+  --amber: #a8551a;
+  --amber-bg: #f7ecdb;
+  --amber-line: #ddc59d;
+  --amber-ink: #7d3d11;
+  --red: #9c3a2f;
+  --red-bg: #fbf1ef;
+  --red-line: #e8d2ce;
+  --green: #5f7d69;
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  --serif: 'Literata', Charter, Georgia, ui-serif, serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--amber); }
+button { font: inherit; color: inherit; cursor: pointer; }
+/* Form controls do not inherit type from the page on their own, and the
+   browser default is nothing like ours. */
+input, textarea, select {
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.field { padding: 6px 9px; border: 1px solid var(--line); background: var(--panel); }
+.field.grow { flex-grow: 1; max-width: 320px; }
+.field.block { display: block; width: 100%; max-width: 700px; margin-top: 20px; padding: 11px; font-size: 15px; resize: vertical; }
+.mono { font-family: var(--mono); }
+
+.lab {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* chrome ------------------------------------------------------------------ */
+/* Above the grid's own sticky headers, which sit at z-index 3. */
+.chrome { position: sticky; top: 0; z-index: 20; }
+.topbar {
+  display: flex; align-items: center; gap: 13px;
+  height: 46px; padding: 0 18px;
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.mark {
+  width: 20px; height: 20px; display: grid; place-items: center;
+  background: var(--ink); color: var(--bg);
+  font-family: var(--mono); font-size: 9.5px; font-weight: 600;
+}
+.brand { font-family: var(--mono); font-size: 12.5px; font-weight: 500; color: var(--ink); }
+.home { display: flex; align-items: center; gap: 13px; background: none; border: 0; padding: 0; }
+.home:hover .brand { color: var(--amber); }
+.grow { flex-grow: 1; }
+
+.who { display: flex; align-items: center; gap: 12px; }
+.who-name { font-size: 12.5px; color: var(--text); }
+/* Not .btn.plain: that is form-sized, and equal specificity would make the
+   override depend on where in this file it landed. */
+.signout, .ask-new {
+  padding: 4px 11px; font-size: 12px;
+  background: var(--panel); color: var(--ink); border: 1px solid #b3b0a9;
+}
+.signout:hover, .ask-new:hover { border-color: var(--ink); }
+
+.hazard { height: 7px; background: repeating-linear-gradient(45deg, var(--amber-line) 0 7px, #3d3b36 7px 14px); }
+.banner {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 18px; background: var(--amber-bg); border-bottom: 1px solid var(--amber-line);
+  color: var(--amber-ink); font-size: 12px;
+}
+/* The sentence is the only thing here that should wrap: a letterspaced label
+   breaking mid-phrase reads as a rendering fault, and the icon must not squash. */
+.banner > svg { flex-shrink: 0; }
+.banner .lab { color: var(--amber); font-weight: 600; flex-shrink: 0; white-space: nowrap; }
+.banner-info {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  background: none; border: 0; padding: 2px 0;
+  font-size: 11.5px; color: var(--amber-ink); text-decoration: underline;
+  text-underline-offset: 2px; text-decoration-color: var(--amber-line);
+}
+.banner-info:hover { text-decoration-color: var(--amber); }
+
+/* terms ------------------------------------------------------------------- */
+.offscreen { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.scrim {
+  position: fixed; inset: 0; z-index: 40;
+  display: grid; place-items: center; padding: 28px;
+  background: rgba(43, 42, 39, 0.42);
+}
+.terms {
+  display: flex; flex-direction: column;
+  width: 100%; max-width: 620px; max-height: 100%;
+  background: var(--panel); border: 1px solid var(--line);
+  box-shadow: 0 18px 44px rgba(43, 42, 39, 0.22);
+}
+.terms-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 22px; background: var(--amber-bg);
+  border-bottom: 1px solid var(--amber-line);
+}
+.terms-title { font-size: 13.5px; font-weight: 600; color: var(--amber-ink); }
+.terms-body { overflow-y: auto; padding: 4px 22px 18px; }
+.terms-section { padding-top: 18px; }
+.terms-heading { margin: 0 0 8px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.terms-list { margin: 0; padding-left: 18px; }
+.terms-list li { margin-bottom: 5px; font-size: 12.5px; line-height: 1.55; }
+/* An unwritten destination, marked so it reads as missing rather than as text. */
+.terms-unset { border-bottom: 1px dashed var(--red-line); color: var(--red); }
+.terms-todo {
+  padding: 8px 11px; border: 1px dashed var(--red-line); background: var(--red-bg);
+  font-family: var(--mono); font-size: 11px; color: var(--red);
+}
+.terms-foot {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 22px; border-top: 1px solid var(--line-2); background: var(--tint);
+}
+.terms-tick { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--ink); }
+
+.page { max-width: 1020px; margin: 0 auto; padding: 0 32px 60px; }
+
+/* session header ---------------------------------------------------------- */
+.session-head { display: flex; align-items: flex-start; gap: 24px; padding: 22px 0 16px; border-bottom: 1px solid var(--line); }
+.question { font-size: 17px; line-height: 1.4; color: var(--ink); font-weight: 500; max-width: 640px; }
+.meta { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-top: 8px; }
+.scope { max-width: 640px; margin-top: 9px; font-size: 11.5px; line-height: 1.5; color: var(--muted); }
+.quiet {
+  display: flex; align-items: center; gap: 6px;
+  background: none; border: 0; padding: 3px 0;
+  font-size: 11.5px; color: var(--muted);
+}
+.quiet:hover { color: var(--ink); }
+.quiet[disabled], .quiet[disabled]:hover { color: var(--faint); cursor: default; }
+
+/* steps ------------------------------------------------------------------- */
+.step { border-bottom: 1px solid var(--line-2); }
+.step.todo { border-bottom-color: var(--hair); }
+.step.open { background: var(--panel); margin: 0 -14px; padding: 0 14px; }
+.step.open.ask { border-left: 3px solid var(--amber); }
+.step.open.failed { border-left: 3px solid var(--red); }
+
+.step-head {
+  display: flex; align-items: center; gap: 13px;
+  width: 100%; padding: 11px 0;
+  background: none; border: 0; text-align: left;
+}
+.step-title { font-size: 13px; color: var(--ink); width: 172px; flex-shrink: 0; }
+.step.open .step-title { font-weight: 600; }
+.step.todo .step-title { color: var(--dim); }
+.step.ask .step-title, .step.ask .step-summary { color: var(--amber); }
+.step.failed .step-title, .step.failed .step-summary { color: var(--red); }
+.step-summary { font-size: 12.5px; color: var(--muted); flex-grow: 1; }
+/* Every artifact and every note inside a step shares one measure, rather than
+   each setting its own — the evidence grid is the only thing wide enough to
+   need the full page, and it lives outside the steps. */
+.step-body { padding: 0 0 16px 33px; max-width: 820px; }
+.decision + .decision { margin-top: 20px; }
+.decision-prompt { font-size: 13px; font-weight: 500; color: var(--ink); margin-top: 14px; }
+
+.pip { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; background: var(--panel); border: 1px solid #b3b0a9; }
+/* The spinner is the ring, so the pip does not draw a second one round it. */
+.pip.running { border: 0; background: none; }
+.pip.ask { border: 1.5px solid var(--amber); background: var(--amber-bg); }
+.pip.failed { border: 1.5px solid var(--red); }
+.pip.todo { border: 1px dashed #cfcbc3; background: none; }
+
+.toggle { width: 22px; height: 22px; display: grid; place-items: center; flex-shrink: 0; border: 1px solid var(--line-2); background: var(--panel); }
+.toggle.on { border-color: #b3b0a9; background: var(--chip); }
+
+/* reasoning --------------------------------------------------------------- */
+.reasoning { margin-top: 14px; border: 1px solid var(--line-2); background: var(--panel); }
+.reasoning-head {
+  padding: 6px 11px; background: var(--tint);
+  border-bottom: 1px solid var(--line-2); color: #6f6b63;
+}
+.reasoning-text {
+  padding: 10px 11px;
+  font-family: var(--mono);
+  font-size: 11.5px; line-height: 1.6; color: var(--text);
+}
+
+/* shared bits ------------------------------------------------------------- */
+.bar { height: 4px; background: var(--chip); max-width: 560px; overflow: hidden; }
+.bar > div { height: 4px; background: var(--ink); }
+/* Nothing to count: show that it is working without inventing a number. */
+.bar.working > div { width: 32%; animation: sliding 1.5s ease-in-out infinite; }
+@keyframes sliding {
+  0%, 100% { margin-left: 0; }
+  50% { margin-left: 68%; }
+}
+.spinner { animation: spin 0.8s linear infinite; transform-origin: 50% 50%; }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar.working > div { animation: none; width: 100%; opacity: 0.35; }
+  /* Still needs to read as busy, so slow it right down rather than stopping it. */
+  .spinner { animation-duration: 2.4s; }
+}
+.counts { display: flex; gap: 28px; margin-top: 14px; }
+.counts .n { font-family: var(--mono); font-size: 16px; color: var(--ink); margin-top: 2px; }
+.counts .bad .n { color: var(--red); }
+.counts .bad .lab { color: #b57a72; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { font-family: var(--mono); font-size: 10.5px; color: var(--text); background: var(--chip); padding: 4px 8px; }
+.chip.gone { color: var(--faint); background: var(--tint); text-decoration: line-through; }
+.tag { font-size: 11.5px; color: #6f6b63; background: var(--chip); padding: 4px 9px; }
+
+.btn { background: var(--ink); color: var(--bg); border: 0; padding: 8px 20px; font-size: 12.5px; font-weight: 500; }
+.btn[disabled] { background: #eae7e1; color: var(--faint); cursor: default; }
+.btn.plain { background: var(--panel); color: var(--ink); border: 1px solid #b3b0a9; padding: 7px 14px; font-weight: 400; }
+
+.error { font-family: var(--mono); font-size: 11.5px; color: var(--red); background: var(--red-bg); border: 1px solid var(--red-line); padding: 9px 11px; max-width: 620px; line-height: 1.5; }
+.note { font-size: 11.5px; color: var(--muted); margin-top: 13px; max-width: 560px; }
+
+/* options ----------------------------------------------------------------- */
+.options { margin-top: 14px; border-top: 1px solid var(--hair); }
+.option { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px; border: 0; border-bottom: 1px solid var(--hair); background: none; text-align: left; }
+.option.on { background: #faf8f4; }
+.box { width: 15px; height: 15px; border: 1px solid #b3b0a9; background: var(--panel); flex-shrink: 0; display: grid; place-items: center; }
+.box.on { background: var(--amber); border-color: var(--amber); }
+.box.saved { background: var(--green); border-color: var(--green); }
+.edit-list { margin-top: 10px; border-top: 1px solid var(--hair); }
+.edit-row { display: flex; align-items: flex-start; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--hair); }
+.edit-name { font-size: 12.5px; color: var(--ink); }
+.edit-why { margin-top: 3px; font-size: 11.5px; line-height: 1.5; color: var(--muted); max-width: 560px; }
+.edit-drop { background: none; border: 0; padding: 3px 0 0; display: flex; flex-shrink: 0; }
+.option-label { font-size: 13px; color: var(--ink); }
+
+.actions { display: flex; align-items: center; gap: 12px; margin-top: 15px; flex-wrap: wrap; }
+
+/* A fork in the plan: two ways to build the map, and starting one is the choice. */
+.choices { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.choice {
+  display: flex; flex-direction: column; gap: 5px;
+  flex: 1 1 260px; max-width: 340px;
+  padding: 12px 14px; text-align: left;
+  background: var(--panel); border: 1px solid var(--line);
+}
+.choice:hover { border-color: var(--amber); }
+.choice-label { font-size: 13px; font-weight: 500; color: var(--ink); }
+.choice-detail { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+.hint { font-size: 11.5px; color: var(--dim); }
+
+/* trace ------------------------------------------------------------------- */
+.trace { margin-top: 20px; border-top: 1px solid var(--line); }
+.trace-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 0; border: 0; border-bottom: 1px solid var(--hair); background: none; text-align: left; }
+.trace-idx { font-family: var(--mono); font-size: 10.5px; color: #c4c0b8; width: 14px; flex-shrink: 0; }
+.call { font-family: var(--mono); font-size: 11px; color: var(--text); flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.call.bad { color: var(--red); }
+.trace-open { display: flex; gap: 12px; margin: 0 -8px; padding: 11px 8px; border: 1px dashed var(--amber); background: #fdfaf5; }
+.obs { font-family: var(--mono); font-size: 10.5px; color: var(--dim); margin-top: 3px; word-break: break-word; }
+.obs.pending { color: var(--amber); }
+
+/* map --------------------------------------------------------------------- */
+.map-head { margin-bottom: 14px; }
+.map-title { font-size: 14px; color: var(--ink); font-weight: 600; }
+/* Axis pickers and facets share a row and wrap together — the facet list is as
+   long as the dimension has subtopics, so it cannot be allowed to push out. */
+.map-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-bottom: 4px; }
+.axis { display: flex; align-items: center; gap: 7px; }
+.axis .field { padding: 4px 6px; }
+.facets { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-width: 0; }
+.facets > .lab { margin-right: 2px; }
+.facet {
+  display: flex; align-items: baseline; gap: 7px;
+  font-size: 11.5px; color: var(--text);
+  background: var(--panel); border: 1px solid var(--line); padding: 4px 9px;
+}
+.facet .facet-n { font-family: var(--mono); font-size: 10.5px; color: var(--dim); }
+.facet.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.facet.on .facet-n { color: #b3b0a9; }
+/* Enough subtopics and the columns would squash to nothing, so past a legible
+   size the map scrolls rather than degrading — with the headers pinned, since a
+   scrolled cell you cannot name is no use. */
+.map-figure { margin: 12px 0 0; border: 1px solid var(--line); background: var(--panel); }
+.grid-scroll { overflow: auto; max-height: 78vh; border-bottom: 1px solid var(--line); }
+/* No background here: once the tracks are wider than the element, this box
+   stops short of them and the page shows through. The cells paint themselves. */
+.grid { display: grid; }
+.grid > div { border-right: 1px solid var(--hair); border-bottom: 1px solid var(--hair); }
+/* Row and column headers are the same kind of label and read as one set. */
+.grid .head {
+  position: sticky;
+  background: var(--panel);
+  font-size: 12px; color: var(--muted); line-height: 1.35; overflow-wrap: break-word;
+}
+.grid .col-head { top: 0; z-index: 2; padding: 9px 12px; align-self: stretch; display: flex; align-items: flex-end; }
+.grid .row-head { left: 0; z-index: 1; padding: 10px 12px; display: flex; align-items: center; }
+.grid .head.faded { color: var(--faint); }
+/* Where they meet, and so above both. */
+.grid .corner { position: sticky; top: 0; left: 0; z-index: 3; background: var(--panel); }
+.grid .cell { height: 70px; display: grid; place-items: center; background: var(--panel); }
+.grid .cell.zero { background: #faf9f6; }
+.bubble { border-radius: 50%; background: #3d3b36; color: var(--bg); display: grid; place-items: center; font-family: var(--mono); }
+.nothing { width: 9px; height: 9px; border-radius: 50%; border: 1px solid #cfcbc3; }
+
+/* workflow bar ------------------------------------------------------------ */
+.workflow { background: var(--panel); border: 1px solid var(--line); margin-bottom: 22px; }
+.workflow-head { display: flex; align-items: center; gap: 13px; width: 100%; padding: 10px 14px; background: #f7f6f2; border: 0; text-align: left; }
+.workflow.closed .workflow-head { background: var(--panel); }
+.workflow-steps { padding: 2px 14px 8px; }
+
+/* sessions ---------------------------------------------------------------- */
+.list-head { display: flex; align-items: center; gap: 20px; padding: 24px 0 14px; border-bottom: 1px solid var(--line); }
+.list-title { font-size: 16px; color: var(--ink); font-weight: 500; }
+.session-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 0; border: 0; border-bottom: 1px solid var(--line-2); background: none; text-align: left; }
+.session-q { font-size: 13.5px; color: var(--ink); line-height: 1.4; flex-grow: 1; max-width: 640px; }
+.pill { font-family: var(--mono); font-size: 10.5px; color: var(--muted); border: 1px solid var(--line-2); padding: 2px 6px; flex-shrink: 0; }
+.when { font-family: var(--mono); font-size: 11px; color: var(--dim); flex-shrink: 0; }
+
+/* references -------------------------------------------------------------- */
+.refs { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); }
+.refs-head { margin-bottom: 16px; }
+/* The chip a map cell puts on the table, so a click up there has a visible
+   landing place down here. */
+.cell-chip {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11.5px; color: var(--amber-ink);
+  background: var(--amber-bg); border: 1px solid var(--amber-line); padding: 4px 9px;
+}
+.refs-count { font-size: 12px; color: var(--muted); margin-top: 5px; }
+/* A step's own slice of the table: no section rule of its own, and a long list
+   scrolls inside the step rather than pushing the rest of the workflow away. */
+.refs.inset { margin-top: 18px; padding-top: 0; border-top: 0; }
+.refs.inset .refs-head { margin-bottom: 11px; }
+.refs.inset .ref-list { max-height: 420px; overflow-y: auto; }
+.ref-list { margin-top: 14px; border-top: 1px solid var(--line); }
+.ref-row { display: flex; align-items: center; gap: 2px; border-bottom: 1px solid var(--line-2); }
+.ref-row:hover { background: #faf9f6; }
+/* Open, the row stays on the page ground. A full-bleed white block behind
+   left-aligned prose read as a stray box; the body hangs off a rule instead. */
+.ref-row.open { border-bottom: 0; }
+.ref-row.open .ref-title { font-weight: 500; }
+.ref-main {
+  display: flex; align-items: center; gap: 16px;
+  flex-grow: 1; min-width: 0; padding: 11px 2px;
+  border: 0; background: none; text-align: left;
+}
+/* Title over its own metadata line: a long title needs the width, and squeezing
+   authors into a fixed column truncated nearly all of them. */
+.ref-text { display: flex; flex-direction: column; gap: 3px; flex-grow: 1; min-width: 0; }
+.ref-title { font-size: 13px; line-height: 1.45; color: var(--ink); }
+.ref-meta { font-size: 11.5px; color: var(--text); }
+/* Small type carries the row, so every colour here clears 4.5:1 on the page
+   ground — the palette's --muted and --dim do not at this size. */
+.ref-stage {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: #57534b;
+  background: var(--chip); padding: 3px 7px; flex-shrink: 0;
+}
+.ref-stage.included, .ref-stage.mapped { color: #3f5a49; }
+.ref-stage.failed { color: #8c3328; }
+.ref-link { display: flex; padding: 8px 4px; flex-shrink: 0; }
+.ref-link:hover > svg { stroke: var(--amber); }
+.ref-why {
+  border-bottom: 1px solid var(--line-2); border-left: 2px solid var(--line);
+  margin-left: 3px; padding: 2px 0 18px 15px; max-width: 820px;
+}
+.ref-why-part { margin-top: 13px; }
+/* One row per axis. In the taxonomy tail an axis is a scheme and a reference can
+   sit in several of its subtopics, so the name has to travel with the chips. */
+.ref-axis { display: grid; grid-template-columns: 150px 1fr; gap: 12px; margin-top: 7px; }
+.ref-axis-name { font-size: 11.5px; line-height: 1.4; color: var(--text); overflow-wrap: break-word; }
+.ref-why-text { margin-top: 4px; font-size: 12px; line-height: 1.6; color: var(--text); }
+.ref-why-id { margin-top: 4px; font-size: 11px; color: #6f6b63; }
+/* The hit area is the cell, not the circle: a 22px bubble is a poor target. */
+.bubble-hit { width: 100%; height: 100%; display: grid; place-items: center; border: 0; background: none; padding: 0; }
+.bubble-hit:hover .bubble { background: var(--amber); }
+.bubble-hit.on .bubble { background: var(--amber); box-shadow: 0 0 0 2px var(--amber-bg), 0 0 0 3px var(--amber); }

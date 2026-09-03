@@ -51,3 +51,30 @@ jobs:
 
       - name: Run unit tests
         run: uv run pytest -m "not integration" --tb=short
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      # The deploy builds with the real endpoints; this only proves it builds.
+      - name: Build
+        run: npm run build

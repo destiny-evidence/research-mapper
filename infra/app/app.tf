@@ -245,3 +245,75 @@ resource "azurerm_container_app" "worker" {
     ignore_changes = [template[0].container[0].image]
   }
 }
+
+resource "azurerm_container_app" "api" {
+  name                         = "${local.name}-api"
+  resource_group_name          = azurerm_resource_group.this.name
+  container_app_environment_id = azurerm_container_app_environment.this.id
+  revision_mode                = "Single"
+  workload_profile_name        = "Consumption"
+  tags                         = local.minimum_resource_tags
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.app.id]
+  }
+
+  registry {
+    server   = data.azurerm_container_registry.this.login_server
+    identity = azurerm_user_assigned_identity.app.id
+  }
+
+  ingress {
+    external_enabled           = true
+    allow_insecure_connections = false
+    target_port                = 8080
+    transport                  = "auto"
+
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+
+  template {
+    min_replicas = 1
+    max_replicas = 1
+
+    container {
+      name = "api"
+
+      image   = "mcr.microsoft.com/k8se/quickstart:latest"
+      cpu     = 0.5
+      memory  = "1Gi"
+      command = ["python", "-m", "research_mapper", "api"]
+
+      dynamic "env" {
+        for_each = local.app_env
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+
+      env {
+        name  = "MAPPER_AUTH_ISSUER"
+        value = local.keycloak_issuer
+      }
+
+      env {
+        name  = "MAPPER_AUTH_CLIENT_ID"
+        value = local.keycloak_client_id
+      }
+
+      env {
+        name  = "MAPPER_CORS_ORIGINS"
+        value = local.web_origin
+      }
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [template[0].container[0].image]
+  }
+}

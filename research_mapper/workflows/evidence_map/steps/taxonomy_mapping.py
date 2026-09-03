@@ -13,7 +13,6 @@ from research_mapper.modules.taxonomy_mapping import TaxonomySchemeDimensionGene
 from research_mapper.taxonomy import RepoCommunity, build_concept_index, get_graph
 from research_mapper.workflows.evidence_map import artifacts
 from research_mapper.workflows.evidence_map.context import EvidenceMapContext
-from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
 from research_mapper.workflows.evidence_map.hydrate import get_evidence
 from research_mapper.workflows.evidence_map.steps.mapping import NothingToMap
 from research_mapper.workflows.evidence_map.views import CoordinateRow
@@ -35,7 +34,7 @@ class GenerateTaxonomyMap(Step[GenerateTaxonomyMapParams, EvidenceMapContext]):
 
     def run(self, ctx: EvidenceMapContext, params: GenerateTaxonomyMapParams) -> dict:
         """Pick three schemes, then place each reference from its own annotations."""
-        references = ctx.references(SessionReferenceStage.INCLUDED)
+        references = ctx.screened_in()
         if not references:
             msg = "screening included no evidence, so there is nothing to map"
             raise NothingToMap(msg)

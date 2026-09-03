@@ -319,6 +319,94 @@ def test_the_map_route_reads_what_generate_map_wrote(db, ctx, session, monkeypat
     }
 
 
+def test_the_map_can_skip_hydration_entirely(db, ctx, session, monkeypatch):
+    """Looking every reference up in DESTINY is most of what /map costs, and a
+    caller that only wants the shape of the map should not pay it."""
+    from fastapi.testclient import TestClient
+
+    from research_mapper.api.app import app
+    from research_mapper.api.deps import get_session_factory
+    from research_mapper.config import init_database
+
+    ctx.write_artifact(
+        artifacts.DIMENSIONS,
+        artifacts.Dimensions.model_validate({"dimensions": with_subtopics()}),
+    )
+    make_reference(db, session, ONE, stage=SessionReferenceStage.INCLUDED)
+    hydrate(monkeypatch, ONE)
+    monkeypatch.setattr(
+        mapping.EvidenceMapper,
+        "__call__",
+        lambda self, **_: dspy.Prediction(
+            dimension1_subtopic="School",
+            dimension2_subtopic="Teens",
+            dimension3_subtopic="Uptake",
+            reasoning="why",
+        ),
+    )
+    mapping.GenerateMap().run(ctx, mapping.GenerateMapParams())
+
+    from research_mapper.workflows.evidence_map import routes
+
+    def explode(_ids):
+        raise AssertionError("DESTINY should not be called")
+
+    monkeypatch.setattr(routes, "get_evidence", explode)
+    app.dependency_overrides[get_session_factory] = lambda: ctx._sf
+    try:
+        with TestClient(app) as client:
+            body = client.get(
+                f"/sessions/{session.id}/map/?include_evidence=false"
+            ).json()
+    finally:
+        app.dependency_overrides.clear()
+        init_database()
+
+    # Same shape, same coordinates — the evidence is just an id.
+    assert body["mapped_evidence"][0]["coordinate"] == {
+        "Setting": ["School"],
+        "Population": ["Teens"],
+        "Outcome": ["Uptake"],
+    }
+    assert body["mapped_evidence"][0]["evidence"]["destiny_id"] == str(ONE)
+    assert body["mapped_evidence"][0]["evidence"]["title"] is None
+
+
+def test_subtopic_reasoning_is_kept_per_dimension(db, ctx, operation, monkeypatch):
+    """SubtopicGenerator is a ChainOfThought fanned out one call per dimension,
+    so each dimension has its own reasoning. All of them used to be dropped."""
+    ctx.write_artifact(
+        artifacts.MAP_DIMENSIONS,
+        artifacts.MapDimensions.model_validate({"dimensions": AXES}),
+    )
+
+    def fake_call(self, dimension, **_):
+        return dspy.Prediction(
+            subtopics=SUBTOPICS[dimension.name],
+            reasoning=f"because of {dimension.name}",
+        )
+
+    monkeypatch.setattr(mapping.SubtopicGenerator, "__call__", fake_call)
+
+    with pytest.raises(NeedsInput):
+        mapping.GenerateMapSubtopics().run(ctx, mapping.GenerateMapSubtopicsParams())
+
+    suggested = ctx.get_artifact(artifacts.SUGGESTED_DIMENSION_SUBTOPICS)
+    assert suggested.subtopic_reasoning == {
+        axis["name"]: f"because of {axis['name']}" for axis in AXES
+    }
+
+    # It has to survive the user's edits too, or it is only ever visible while
+    # the question is open.
+    for axis in AXES:
+        answer(db, operation, f"edit_subtopics:{axis['name']}", SUBTOPICS[axis["name"]])
+    mapping.GenerateMapSubtopics().run(ctx, mapping.GenerateMapSubtopicsParams())
+
+    assert ctx.get_artifact(artifacts.DIMENSIONS).subtopic_reasoning == {
+        axis["name"]: f"because of {axis['name']}" for axis in AXES
+    }
+
+
 def test_a_map_that_dies_partway_keeps_the_pages_it_finished(
     db, ctx, session, monkeypatch
 ):

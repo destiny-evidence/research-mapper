@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -18,11 +19,37 @@ from research_mapper.workflows.evidence_map.models import SessionReference
 router = APIRouter(tags=["evidence map"])
 
 
-def _coordinates(db: Session, session_id: UUID) -> dict[UUID, dict[str, list[str]]]:
+class SessionReferenceOut(BaseModel):
+    """One reference and everything the session recorded about it."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    destiny_id: UUID
+    stage: SessionReferenceStage
+    provenance: list[dict]
+    screening: dict | None
+    coordinate: dict | None
+    mapping: dict | None
+    evidence: Evidence | None = None
+
+
+def _coordinates(
+    db: Session, session_id: UUID, dimensions_version: int
+) -> dict[UUID, dict[str, list[str]]]:
+    """Coordinates placed against the dimensions this map is about to render.
+
+    Both mapping tails stamp the dimensions artifact version they mapped against.
+    An older stamp means subtopic names that may no longer exist, which would land
+    in no cell while still counting towards the totals printed around the grid.
+    """
     rows = db.execute(
         select(SessionReference.destiny_id, SessionReference.coordinate)
         .where(SessionReference.research_session_id == session_id)
         .where(SessionReference.stage == SessionReferenceStage.MAPPED)
+        .where(
+            SessionReference.mapping["dimensions_version"].astext
+            == str(dimensions_version)
+        )
         .order_by(SessionReference.id)
     ).all()
     return {row.destiny_id: row.coordinate for row in rows if row.coordinate}
@@ -36,8 +63,16 @@ def _hydrate(destiny_ids: list[UUID]) -> dict[UUID, Evidence]:
 
 
 @router.get("/sessions/{session_id}/map/")
-def read_map(db: DbSession, research_session: SessionOr404) -> EvidenceMap:
-    """Get the screened evidence map."""
+def read_map(
+    db: DbSession, research_session: SessionOr404, include_evidence: bool = True
+) -> EvidenceMap:
+    """Get the screened evidence map.
+
+    Hydrating the evidence means a DESTINY lookup per hundred references, which
+    is most of the time this takes. A caller that only needs the shape of the
+    map — counts per cell — can ask for `include_evidence=false` and get the
+    same structure with nothing but ids in it.
+    """
     artifact = db.execute(
         select(CurrentArtifact)
         .where(CurrentArtifact.research_session_id == research_session.id)
@@ -52,8 +87,12 @@ def read_map(db: DbSession, research_session: SessionOr404) -> EvidenceMap:
         raise HTTPException(500, msg)
     first, second, third = dimensions
 
-    coordinates = _coordinates(db, research_session.id)
-    evidence = _hydrate(list(coordinates))
+    coordinates = _coordinates(db, research_session.id, artifact.version)
+    evidence = (
+        _hydrate(list(coordinates))
+        if include_evidence
+        else {destiny_id: Evidence(destiny_id=destiny_id) for destiny_id in coordinates}
+    )
     return EvidenceMap(
         dimensions=(first, second, third),
         mapped_evidence=[
@@ -62,3 +101,21 @@ def read_map(db: DbSession, research_session: SessionOr404) -> EvidenceMap:
             if destiny_id in evidence
         ],
     )
+
+
+@router.get("/sessions/{session_id}/references/")
+def list_references(
+    db: DbSession, research_session: SessionOr404, include_evidence: bool = False
+) -> list[SessionReferenceOut]:
+    """Every reference in the session."""
+    rows = db.execute(
+        select(SessionReference)
+        .where(SessionReference.research_session_id == research_session.id)
+        .order_by(SessionReference.id)
+    ).scalars()
+    references = [SessionReferenceOut.model_validate(row) for row in rows]
+    if include_evidence:
+        evidence = _hydrate([reference.destiny_id for reference in references])
+        for reference in references:
+            reference.evidence = evidence.get(reference.destiny_id)
+    return references

@@ -54,6 +54,19 @@ def client(session_factory, stub_workflow):
     app.dependency_overrides.clear()
 
 
+def strangers_session(db) -> ResearchSession:
+    """A session belonging to someone other than the token's subject."""
+    stranger = User(issuer=ISSUER, subject="someone-else")
+    db.add(stranger)
+    db.commit()
+    theirs = ResearchSession(
+        user_id=stranger.id, workflow="drafts", question="q", community="hpv"
+    )
+    db.add(theirs)
+    db.commit()
+    return theirs
+
+
 @pytest.fixture
 def keycloak(monkeypatch):
     """Turn auth on, against a signing key the test controls."""
@@ -96,19 +109,20 @@ def test_an_expired_token_is_a_401(client, keycloak):
     assert client.get("/sessions/", headers=bearer(exp=stale)).status_code == 401
 
 
-def test_another_users_session_is_a_404(client, keycloak, db, session_factory):
+def test_another_users_session_opens_from_a_link(client, keycloak, db):
+    """Deep links have to work for whoever follows them, not just the owner."""
+    theirs = strangers_session(db)
+    assert client.get(f"/sessions/{theirs.id}/", headers=bearer()).status_code == 200
+
+
+def test_another_users_session_still_needs_a_token(client, keycloak, db):
+    theirs = strangers_session(db)
+    assert client.get(f"/sessions/{theirs.id}/").status_code == 401
+
+
+def test_the_list_stays_the_callers_own(client, keycloak, db):
     created = client.post("/sessions/", json=SESSION, headers=bearer()).json()
-
-    stranger = User(issuer=ISSUER, subject="someone-else")
-    db.add(stranger)
-    db.commit()
-    theirs = ResearchSession(
-        user_id=stranger.id, workflow="drafts", question="q", community="hpv"
-    )
-    db.add(theirs)
-    db.commit()
-
-    assert client.get(f"/sessions/{theirs.id}/", headers=bearer()).status_code == 404
+    strangers_session(db)
     listed = client.get("/sessions/", headers=bearer()).json()
     assert [row["id"] for row in listed] == [created["id"]]
 

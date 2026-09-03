@@ -72,6 +72,7 @@ class MapDimensions(BaseModel):
 class Dimensions(BaseModel):
     dimensions: list[MappingDimensionWithSubTopics]
     reasoning: str = ""
+    subtopic_reasoning: dict[str, str] = {}
 
 
 SUGGESTED_SEARCH_QUERIES = ArtifactSpec(

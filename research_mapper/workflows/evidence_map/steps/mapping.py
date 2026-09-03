@@ -2,6 +2,7 @@
 
 import builtins
 import logging
+from itertools import batched
 from typing import ClassVar, Protocol
 
 import dspy
@@ -18,8 +19,10 @@ from research_mapper.models.mapping import (
 )
 from research_mapper.workflows.evidence_map import artifacts
 from research_mapper.workflows.evidence_map.context import EvidenceMapContext
-from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
-from research_mapper.workflows.evidence_map.fanout import ProgressTracker
+from research_mapper.workflows.evidence_map.fanout import (
+    MAX_CONCURRENCY,
+    ProgressTracker,
+)
 from research_mapper.workflows.evidence_map.hydrate import get_evidence
 from research_mapper.workflows.evidence_map.pipeline import (
     DimensionGenerator,
@@ -130,7 +133,10 @@ class GenerateMapSubtopics(Step[GenerateMapSubtopicsParams, StepContext]):
         dimensions = ctx.require_artifact(artifacts.MAP_DIMENSIONS).dimensions
 
         def generate() -> artifacts.Dimensions:
-            return artifacts.Dimensions(dimensions=self._suggest(ctx, dimensions))
+            suggested, reasoning = self._suggest(ctx, dimensions)
+            return artifacts.Dimensions(
+                dimensions=suggested, subtopic_reasoning=reasoning
+            )
 
         suggested = ctx.get_or_generate_artifact(
             artifacts.SUGGESTED_DIMENSION_SUBTOPICS, generate, params.regenerate
@@ -168,7 +174,11 @@ class GenerateMapSubtopics(Step[GenerateMapSubtopicsParams, StepContext]):
         ]
         version = ctx.write_artifact(
             artifacts.DIMENSIONS,
-            artifacts.Dimensions(dimensions=edited, reasoning=suggested.reasoning),
+            artifacts.Dimensions(
+                dimensions=edited,
+                reasoning=suggested.reasoning,
+                subtopic_reasoning=suggested.subtopic_reasoning,
+            ),
         )
         return {
             "dimensions": len(edited),
@@ -178,7 +188,7 @@ class GenerateMapSubtopics(Step[GenerateMapSubtopicsParams, StepContext]):
 
     def _suggest(
         self, ctx: StepContext, dimensions: list[MappingDimension]
-    ) -> list[MappingDimensionWithSubTopics]:
+    ) -> tuple[list[MappingDimensionWithSubTopics], dict[str, str]]:
         """Generate subtopics for every dimension at once."""
         user_query = UserQuery(query=ctx.research_session.question)
         examples = [
@@ -198,6 +208,7 @@ class GenerateMapSubtopics(Step[GenerateMapSubtopicsParams, StepContext]):
         )
 
         suggested = []
+        reasoning: dict[str, str] = {}
         for dimension, prediction in zip(dimensions, predictions, strict=True):
             if prediction is None:
                 msg = f"no subtopics were generated for {dimension.name}"
@@ -209,7 +220,8 @@ class GenerateMapSubtopics(Step[GenerateMapSubtopicsParams, StepContext]):
                     subtopics=prediction.subtopics,
                 )
             )
-        return suggested
+            reasoning[dimension.name] = getattr(prediction, "reasoning", "") or ""
+        return suggested, reasoning
 
 
 class GenerateMapParams(BaseModel):
@@ -232,8 +244,11 @@ class GenerateMap(Step[GenerateMapParams, EvidenceMapContext]):
             )
             raise ValueError(msg)
         dimensions_version = ctx.get_artifact_version(artifacts.DIMENSIONS)
-        references = ctx.references(SessionReferenceStage.INCLUDED)
-        already_mapped = len(ctx.references(SessionReferenceStage.MAPPED))
+        if not dimensions_version:
+            msg = "dimensions artifact not found"
+            raise RuntimeError(msg)
+        references = ctx.references_to_map(dimensions_version)
+        already_mapped = ctx.count_mapped_at(dimensions_version)
         if not references and not already_mapped:
             msg = "screening included no evidence, so there is nothing to map"
             raise NothingToMap(msg)
@@ -247,35 +262,35 @@ class GenerateMap(Step[GenerateMapParams, EvidenceMapContext]):
 
         mapped = 0
         for evidence_page in get_evidence([r.destiny_id for r in references]):
-            evidence = evidence_page.values()
-            examples = [
-                dspy.Example(
-                    user_query=user_query, evidence=item, dimensions=axes
-                ).with_inputs("user_query", "evidence", "dimensions")
-                for item in evidence
-            ]
-            predictions = tracker.fan_out(EvidenceMapper(), examples)
+            for evidence in batched(evidence_page.values(), MAX_CONCURRENCY):
+                examples = [
+                    dspy.Example(
+                        user_query=user_query, evidence=item, dimensions=axes
+                    ).with_inputs("user_query", "evidence", "dimensions")
+                    for item in evidence
+                ]
+                predictions = tracker.fan_out(EvidenceMapper(), examples)
 
-            rows: list[CoordinateRow] = []
-            for item, prediction in zip(evidence, predictions, strict=True):
-                if prediction is None:
-                    logger.warning("mapping failed for id %s", item.destiny_id)
-                    continue
-                rows.append(
-                    CoordinateRow(
-                        destiny_id=item.destiny_id,
-                        coordinate={
-                            dimension.name: [getattr(prediction, field)]
-                            for dimension, field in zip(
-                                dimensions, SUBTOPIC_FIELDS, strict=True
-                            )
-                        },
-                        reasoning=prediction.reasoning,
-                        dimensions_version=dimensions_version or 1,
+                rows: list[CoordinateRow] = []
+                for item, prediction in zip(evidence, predictions, strict=True):
+                    if prediction is None:
+                        logger.warning("mapping failed for id %s", item.destiny_id)
+                        continue
+                    rows.append(
+                        CoordinateRow(
+                            destiny_id=item.destiny_id,
+                            coordinate={
+                                dimension.name: [getattr(prediction, field)]
+                                for dimension, field in zip(
+                                    dimensions, SUBTOPIC_FIELDS, strict=True
+                                )
+                            },
+                            reasoning=prediction.reasoning,
+                            dimensions_version=dimensions_version or 1,
+                        )
                     )
-                )
-            ctx.set_coordinates(rows)
-            mapped += len(rows)
+                ctx.set_coordinates(rows)
+                mapped += len(rows)
 
         return {"mapped": mapped, "failed": tracker.failed}
 

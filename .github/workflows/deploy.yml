@@ -40,6 +40,15 @@ jobs:
           containerAppEnvironment: ${{ vars.CONTAINER_APP_ENV }}
           imageToDeploy: ${{ env.IMAGE }}
 
+      - name: Deploy built image to the API
+        uses: Azure/cli@v2.0.0
+        with:
+          inlineScript: |
+            az containerapp update \
+              --name ${{ vars.API_APP_NAME }} \
+              --resource-group ${{ vars.RESOURCE_GROUP }} \
+              --image ${{ env.IMAGE }}
+
       - name: Deploy built image to the worker
         uses: Azure/cli@v2.0.0
         with:
@@ -78,3 +87,83 @@ jobs:
             az containerapp job start \
               --name "db-migrator-${{ vars.ENVIRONMENT_NAME }}" \
               --resource-group ${{ vars.RESOURCE_GROUP }}
+
+  # Independent of the image: the UI is a static bundle and only needs the
+  # Terraform-published endpoints, so it does not wait on the docker build.
+  web:
+    runs-on: ubuntu-latest
+    environment: staging
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      - run: npm test
+
+      # Vite inlines these, so they are build inputs rather than container
+      # environment. Changing one means rebuilding, not restarting.
+      - name: Build
+        env:
+          VITE_API_BASE: ${{ vars.API_BASE_URL }}
+          VITE_KEYCLOAK_URL: ${{ vars.KEYCLOAK_URL }}
+          VITE_KEYCLOAK_REALM: ${{ vars.KEYCLOAK_REALM }}
+          VITE_KEYCLOAK_CLIENT_ID: ${{ vars.KEYCLOAK_CLIENT_ID }}
+          # The stack's environment is the DESTINY environment it talks to, so
+          # the repository links the UI builds resolve to the same instance the
+          # API reads from (MAPPER_DESTINY_ENV in app.tf).
+          VITE_DESTINY_ENV: ${{ vars.ENVIRONMENT_NAME }}
+        run: npm run build
+
+      - name: "Az CLI login"
+        uses: azure/login@v2.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # The two upload passes below are disjoint patterns, so anything Vite
+      # emits outside assets/ that is not .html would be silently skipped.
+      - name: Check the bundle is only index.html and assets/
+        run: |
+          unexpected=$(find dist -type f ! -name '*.html' ! -path 'dist/assets/*')
+          if [ -n "$unexpected" ]; then
+            echo "not covered by the upload patterns:" >&2
+            echo "$unexpected" >&2
+            exit 1
+          fi
+
+      # Assets first, index.html last, so the page is never served naming a
+      # bundle that has not landed yet. Asset filenames are content-hashed and
+      # so are safe to cache forever; index.html names them and is not.
+      # Superseded assets are left in place deliberately — a client mid-session
+      # still wants the bundle it loaded with.
+      - name: Upload the bundle
+        run: |
+          az storage blob upload-batch \
+            --account-name "${{ vars.WEB_STORAGE_ACCOUNT }}" \
+            --auth-mode login \
+            --destination '$web' \
+            --source dist \
+            --pattern 'assets/*' \
+            --overwrite \
+            --content-cache "public, max-age=31536000, immutable"
+
+      - name: Publish the new bundle
+        run: |
+          az storage blob upload-batch \
+            --account-name "${{ vars.WEB_STORAGE_ACCOUNT }}" \
+            --auth-mode login \
+            --destination '$web' \
+            --source dist \
+            --pattern '*.html' \
+            --overwrite \
+            --content-cache "no-cache"

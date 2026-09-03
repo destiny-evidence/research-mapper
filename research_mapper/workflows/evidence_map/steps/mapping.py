@@ -9,6 +9,7 @@ import dspy
 from pydantic import BaseModel
 
 from research_mapper.engine.context import StepContext
+from research_mapper.config import reroll
 from research_mapper.engine.registry import Step
 from research_mapper.engine.views import AskSpec
 from research_mapper.models.common import UserQuery
@@ -69,10 +70,11 @@ class GenerateMapDimensions(Step[GenerateMapDimensionsParams, StepContext]):
     def run(self, ctx: StepContext, params: GenerateMapDimensionsParams) -> dict:
         """Suggest three mapping dimensions, then keep the user's edited set."""
 
-        def generate() -> artifacts.MapDimensions:
-            prediction = DimensionGenerator()(
-                user_query=UserQuery(query=ctx.research_session.question)
-            )
+        def generate(seed: int) -> artifacts.MapDimensions:
+            with reroll(seed):
+                prediction = DimensionGenerator()(
+                    user_query=UserQuery(query=ctx.research_session.question)
+                )
             return artifacts.MapDimensions(
                 dimensions=[
                     prediction.dimension1,
@@ -132,8 +134,9 @@ class GenerateMapSubtopics(Step[GenerateMapSubtopicsParams, StepContext]):
         """Suggest subtopics per dimension, then keep the user's edited sets."""
         dimensions = ctx.require_artifact(artifacts.MAP_DIMENSIONS).dimensions
 
-        def generate() -> artifacts.Dimensions:
-            suggested, reasoning = self._suggest(ctx, dimensions)
+        def generate(seed: int) -> artifacts.Dimensions:
+            with reroll(seed):
+                suggested, reasoning = self._suggest(ctx, dimensions)
             return artifacts.Dimensions(
                 dimensions=suggested, subtopic_reasoning=reasoning
             )

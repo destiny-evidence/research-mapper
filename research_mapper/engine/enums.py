@@ -9,6 +9,7 @@ class OperationStatus(StrEnum):
     AWAITING_INPUT = auto()
     COMPLETE = auto()
     FAILED = auto()
+    SUPERSEDED = auto()
 
 
 class DecisionType(StrEnum):

@@ -106,18 +106,24 @@ class StepContext:
     def get_or_generate_artifact[T: BaseModel](
         self,
         artifact: ArtifactSpec[T],
-        generate: Callable[[], T],
+        generate: Callable[[int], T],
         regenerate: bool = False,
     ) -> T:
         """The current artifact, generating and storing it if there isn't one.
 
-        Used to checkpoint steps that require user input after agentic work.
+        Used to checkpoint steps that require user input after agentic work. An
+        operation generates at most once however often it is resumed, so what the
+        user answered against stays the current version. `generate` is handed the
+        version it supersedes, so a regenerated suggestion can be made to differ.
         """
-        if not regenerate:
-            existing = self.get_artifact(artifact)
-            if existing is not None:
-                return existing
-        generated = generate()
+        with self._sf() as db:
+            current = self._current(db, artifact.name)
+            payload = None if current is None else current.payload
+            superseded = 0 if current is None else current.version
+            mine = current is not None and current.operation_id == self.operation_id
+        if payload is not None and (mine or not regenerate):
+            return artifact.model.model_validate(payload)
+        generated = generate(superseded)
         self.write_artifact(artifact, generated)
         return generated
 

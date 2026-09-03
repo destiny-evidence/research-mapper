@@ -70,7 +70,6 @@ class GenerateConceptFilters(Step[GenerateConceptFiltersParams, StepContext]):
             if saved
             else advance(None)
         )
-        asked = 0
         while isinstance(result, LoopStep):
             outcome = generator.classify_step(result)
             if isinstance(outcome, str):
@@ -84,7 +83,6 @@ class GenerateConceptFilters(Step[GenerateConceptFiltersParams, StepContext]):
                     ),
                 )
                 answer = ctx.ask(f"clarify:{result.idx}", _spec(outcome))
-                asked += 1
                 result = result.with_observation([a["option"] for a in answer])
             result = advance(result)
 
@@ -108,7 +106,7 @@ class GenerateConceptFilters(Step[GenerateConceptFiltersParams, StepContext]):
                 community=community, groups=groups, reasoning=filters.reasoning
             ),
         )
-        return {"filter_groups": len(groups), "questions": asked, "version": version}
+        return {"filter_groups": len(groups), "version": version}
 
 
 def _spec(request: ClarificationOptions) -> AskSpec:

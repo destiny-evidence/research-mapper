@@ -5,6 +5,7 @@ from typing import ClassVar
 
 from pydantic import BaseModel
 
+from research_mapper.config import reroll
 from research_mapper.engine.registry import Step
 from research_mapper.engine.views import AskSpec
 from research_mapper.models.common import UserQuery
@@ -28,10 +29,11 @@ class EnhanceSparseQuery(Step[SparseQueryParams, EvidenceMapContext]):
     def run(self, ctx: EvidenceMapContext, params: SparseQueryParams) -> dict:
         """Suggest Lucene queries, then keep the ones the user picks."""
 
-        def generate() -> artifacts.SearchQueries:
-            prediction = SparseQueryGenerator()(
-                user_query=UserQuery(query=ctx.research_session.question)
-            )
+        def generate(seed: int) -> artifacts.SearchQueries:
+            with reroll(seed):
+                prediction = SparseQueryGenerator()(
+                    user_query=UserQuery(query=ctx.research_session.question)
+                )
             return artifacts.SearchQueries(
                 queries=prediction.search_queries, reasoning=prediction.reasoning
             )

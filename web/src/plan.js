@@ -3,6 +3,7 @@ export const PLAN = [
   {
     type: "enhance_sparse_query",
     mode: "sparse",
+    regenerate: true,
     title: "Draft search queries",
   },
   {
@@ -20,16 +21,22 @@ export const PLAN = [
     mode: "taxonomy",
     title: "Search by concept",
   },
-  { type: "generate_screening_criteria", title: "Set screening criteria" },
+  {
+    type: "generate_screening_criteria",
+    regenerate: true,
+    title: "Set screening criteria",
+  },
   { type: "screen_evidence", title: "Screen the evidence" },
   {
     type: "generate_map_dimensions",
     map: "suggested",
+    regenerate: true,
     title: "Choose map dimensions",
   },
   {
     type: "generate_map_subtopics",
     map: "suggested",
+    regenerate: true,
     title: "Fill in subtopics",
   },
   {

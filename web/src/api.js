@@ -41,6 +41,9 @@ export const createSession = (body) =>
 export const listSessions = () => request("/sessions/");
 export const getSession = (id) => request(`/sessions/${id}/`);
 
+export const forkSession = (id, body) =>
+  request(`/sessions/${id}/fork/`, { method: "POST", body });
+
 export const startOperation = (sessionId, type, params = {}) =>
   request(`/sessions/${sessionId}/operations/`, {
     method: "POST",
@@ -59,9 +62,6 @@ export const respond = (operationId, answers) =>
   });
 export const retry = (operationId) =>
   request(`/operations/${operationId}/retry/`, { method: "POST" });
-
-export const listDecisions = (sessionId, { unanswered = true } = {}) =>
-  request(`/sessions/${sessionId}/decisions/?unanswered=${unanswered}`);
 
 export const getArtifact = (sessionId, type) =>
   request(`/sessions/${sessionId}/artifacts/${type}/`);

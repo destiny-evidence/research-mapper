@@ -8,6 +8,7 @@ import {
   nextToStart,
   stateOf,
   steps,
+  family,
   summarise,
 } from '../src/derive.js'
 
@@ -284,5 +285,47 @@ describe('the mapping branch', () => {
     expect(rows.some((row) => row.type === MAP_BRANCH)).toBe(false)
     expect(rows[rows.length - 1].type).toBe('generate_taxonomy_map')
     expect(rows.some((row) => row.type === 'generate_map_dimensions')).toBe(false)
+  })
+})
+
+
+describe('family', () => {
+  const at = (id, day, forked_from_id = null) => ({
+    id,
+    forked_from_id,
+    created_at: `2026-09-0${day}T00:00:00Z`,
+  })
+  const shape = (rows) => rows.map(({ session, depth }) => [session.id, depth])
+
+  it('puts forks under their root, oldest first', () => {
+    const rows = family([at('fork', 3, 'root'), at('root', 1), at('other', 2)])
+    expect(shape(rows)).toEqual([
+      ['root', 0],
+      ['fork', 1],
+      ['other', 0],
+    ])
+  })
+
+  it('indents a fork of a fork one level deeper', () => {
+    const rows = family([at('root', 1), at('child', 2, 'root'), at('grandchild', 3, 'child')])
+    expect(shape(rows)).toEqual([
+      ['root', 0],
+      ['child', 1],
+      ['grandchild', 2],
+    ])
+  })
+
+  it('stands a fork of an unlisted session on its own', () => {
+    const rows = family([at('mine', 2, 'someone-elses'), at('other', 1)])
+    expect(shape(rows)).toEqual([['mine', 0], ['other', 0]])
+  })
+
+  it('orders families by their most recent session', () => {
+    const rows = family([at('old-root', 1), at('fresh-fork', 4, 'old-root'), at('newer', 3)])
+    expect(shape(rows)).toEqual([
+      ['old-root', 0],
+      ['fresh-fork', 1],
+      ['newer', 0],
+    ])
   })
 })

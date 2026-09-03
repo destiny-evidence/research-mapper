@@ -36,10 +36,12 @@ const RESULT = {
       r.failed ? `${r.failed} queries failed` : null,
     ]),
   retrieve_concept_evidence: (r) => plural(r.references, "reference"),
-  generate_concept_filters: (r) =>
+  generate_concept_filters: (r, operation) =>
     join([
       plural(r.filter_groups, "group"),
-      r.questions ? plural(r.questions, "question") : null,
+      operation?.decisions?.length
+        ? plural(operation.decisions.length, "question")
+        : null,
     ]),
   screen_evidence: (r) =>
     join([
@@ -84,7 +86,7 @@ export function summarise(operation) {
     const format = RESULT[operation.type];
     try {
       return format
-        ? format(operation.result)
+        ? format(operation.result, operation)
         : genericResult(operation.result);
     } catch {
       return genericResult(operation.result);
@@ -141,11 +143,62 @@ export const mapIsReady = (rows) =>
       row.state === "done",
   );
 
+const startedAt = (row) => new Date(row.session.created_at).getTime();
+
+/**
+ * Sessions as {session, depth}, each grouped under the oldest ancestor still in
+ * the list, oldest first. A fork of someone else's session has no ancestor here,
+ * so it stands as its own root.
+ */
+export function family(sessions = []) {
+  const byId = new Map(sessions.map((session) => [session.id, session]));
+  const rootOf = (session) => {
+    let depth = 0;
+    let current = session;
+    while (byId.has(current.forked_from_id) && depth < sessions.length) {
+      current = byId.get(current.forked_from_id);
+      depth += 1;
+    }
+    return [current.id, depth];
+  };
+
+  const groups = new Map();
+  for (const session of sessions) {
+    const [rootId, depth] = rootOf(session);
+    groups.set(rootId, [...(groups.get(rootId) ?? []), { session, depth }]);
+  }
+  return [...groups.values()]
+    .map((rows) => rows.sort((a, b) => startedAt(a) - startedAt(b)))
+    .sort((a, b) => startedAt(b.at(-1)) - startedAt(a.at(-1)))
+    .flat();
+}
+
 /** The step a session is currently sitting on, if any. */
 export const activeStep = (rows) =>
   rows.find((row) => row.state === "ask") ??
   rows.find((row) => row.state === "failed") ??
   rows.find((row) => row.state === "running");
+
+/** jsonb drops key order, so a trajectory is stored as [key, value] pairs. */
+export const asTrajectory = (value) =>
+  Array.isArray(value) ? Object.fromEntries(value) : (value ?? {});
+
+/** What was chosen for a decision, by the labels it was offered under. */
+export function answerLabels(decision) {
+  const options = decision?.options ?? [];
+  const named = (value) =>
+    options.find((option) => JSON.stringify(option.value) === JSON.stringify(value))
+      ?.label;
+  return (decision?.answer ?? []).map(
+    (value) =>
+      named(value) ??
+      value?.label ??
+      value?.name ??
+      value?.option ??
+      value?.query ??
+      JSON.stringify(value),
+  );
+}
 
 /** What changed between a suggested artifact and the chosen one. */
 export function diffChoice(suggested = [], chosen = [], key = JSON.stringify) {

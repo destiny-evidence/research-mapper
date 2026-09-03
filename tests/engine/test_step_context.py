@@ -4,7 +4,12 @@ from pydantic import BaseModel
 from factories import make_operation, make_session, make_user
 from research_mapper.engine.context import NeedsInput, StepContext
 from research_mapper.engine.enums import DecisionType
-from research_mapper.engine.models import Decision, Operation, ResearchSession
+from research_mapper.engine.models import (
+    Decision,
+    Operation,
+    ResearchSession,
+    User,
+)
 from research_mapper.engine.views import ArtifactSpec, AskSpec, Ordered, Progress
 
 ONE = {"query": "a"}
@@ -89,25 +94,57 @@ def test_generating_an_artifact_happens_once_across_restarts(ctx):
     """The checkpoint: a step that blocks on a question doesn't pay for the LM twice."""
     calls = []
 
-    def generate() -> Payload:
-        calls.append(1)
+    def generate(seed: int) -> Payload:
+        calls.append(seed)
         return Payload(n=len(calls))
 
     assert ctx.get_or_generate_artifact(PAYLOAD, generate) == Payload(n=1)
     assert ctx.get_or_generate_artifact(PAYLOAD, generate) == Payload(n=1)
-    assert calls == [1]
+    assert calls == [0]
     assert ctx.get_artifact_version(PAYLOAD) == 1
 
 
-def test_regenerating_overwrites_the_checkpoint(ctx):
-    def generate() -> Payload:
+def test_regenerating_replaces_an_earlier_run_s_checkpoint(
+    ctx, operation, db, session_factory
+):
+    seeds = []
+
+    def generate(seed: int) -> Payload:
+        seeds.append(seed)
         return Payload(n=9)
 
     ctx.write_artifact(PAYLOAD, Payload(n=1))
+    again = make_operation(
+        db,
+        db.get(ResearchSession, operation.research_session_id),
+        db.get(User, operation.created_by_id),
+        type="enhance_sparse_query",
+        params={"regenerate": True},
+    )
+    fresh = StepContext(again.id, session_factory)
+
+    assert fresh.get_or_generate_artifact(
+        PAYLOAD, generate, regenerate=True
+    ) == Payload(n=9)
+    assert fresh.get_artifact_version(PAYLOAD) == 2
+    # Handed the version it superseded, so the LM can be asked to differ.
+    assert seeds == [1]
+
+
+def test_an_operation_does_not_regenerate_over_its_own_checkpoint(ctx):
+    """A resumed run must leave standing whatever the user answered against."""
+    calls = []
+
+    def generate(seed: int) -> Payload:
+        calls.append(seed)
+        return Payload(n=9)
+
+    ctx.get_or_generate_artifact(PAYLOAD, generate, regenerate=True)
     assert ctx.get_or_generate_artifact(PAYLOAD, generate, regenerate=True) == Payload(
         n=9
     )
-    assert ctx.get_artifact_version(PAYLOAD) == 2
+    assert len(calls) == 1
+    assert ctx.get_artifact_version(PAYLOAD) == 1
 
 
 def test_writing_a_model_the_spec_does_not_declare_is_refused(ctx):

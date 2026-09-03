@@ -1,6 +1,8 @@
 import logging
 import os
 import sys
+from collections.abc import Generator
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 
@@ -75,6 +77,21 @@ def configure_dspy() -> None:
         logger.warning("LLM sanity check returned nothing: %s", result)
     dspy.configure(lm=lm)
     logger.info("DSPy configured successfully!")
+
+
+@contextmanager
+def reroll(seed: int) -> Generator[None]:
+    """Ask the LLM again without being served its cached answer.
+
+    rollout_id varies the cache key, and DSPy ignores it at zero temperature.
+    """
+    lm = dspy.settings.lm
+    if not seed or lm is None:
+        yield
+        return
+    temperature = lm.kwargs.get("temperature") or 1
+    with dspy.context(lm=lm.copy(rollout_id=seed, temperature=temperature)):
+        yield
 
 
 def _destiny_auth(env: str) -> httpx.Auth | None:

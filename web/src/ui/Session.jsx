@@ -15,7 +15,6 @@ import { downloadRecord } from "../record.js";
 import { usePoll } from "../poll.js";
 import { Panel, Toggle, Pip } from "./Panel.jsx";
 import { Question } from "./Ask.jsx";
-import { Trace } from "./Trace.jsx";
 import { EvidenceMap } from "./EvidenceMap.jsx";
 import { References, stepReferences, useReferences } from "./References.jsx";
 import {
@@ -26,7 +25,9 @@ import {
   WANTED,
 } from "./artifacts/index.jsx";
 import { Reasoning } from "./Reasoning.jsx";
-import { Download, Spinner } from "./Icons.jsx";
+import { Questions } from "./Questions.jsx";
+import { ForkConfirm } from "./Fork.jsx";
+import { Download, Fork, Spinner } from "./Icons.jsx";
 import { Scope } from "./Scope.jsx";
 
 const MOVING = new Set(["pending", "running"]);
@@ -83,13 +84,16 @@ export function Session({ id }) {
     deps: [id],
   });
   const [overrides, setOverrides] = useState({});
-  const [saving, setSaving] = useState(false);
+  // The key being answered, so one question's spinner is not every question's.
+  const [saving, setSaving] = useState(null);
   const [map, setMap] = useState(null);
   const [cell, setCell] = useState(null);
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const started = useRef(new Set());
   const [problem, setProblem] = useState(null);
   const [downloading, setDownloading] = useState(false);
+  const [forking, setForking] = useState(null);
+  const [forkBusy, setForkBusy] = useState(false);
 
   const session = data?.session;
   const artifact = useArtifacts(id, session?.artifacts);
@@ -147,12 +151,12 @@ export function Session({ id }) {
     setOverrides({ ...overrides, [row.type]: !isOpen(row) });
 
   const answer = async (operationId, key, value) => {
-    setSaving(true);
+    setSaving(key);
     try {
       await api.respond(operationId, { [key]: value });
       refresh();
     } finally {
-      setSaving(false);
+      setSaving(null);
     }
   };
 
@@ -162,10 +166,24 @@ export function Session({ id }) {
   };
 
   // Starting a step by hand
-  const startStep = async (type) => {
+  const startStep = async (type, params = {}) => {
     started.current.add(type);
-    await api.startOperation(id, type);
+    await api.startOperation(id, type, params);
     refresh();
+  };
+
+  const fork = async () => {
+    setForkBusy(true);
+    setProblem(null);
+    try {
+      const forked = await api.forkSession(id, forking.body);
+      setForking(null);
+      window.location.hash = `#/session/${forked.id}`;
+    } catch (failure) {
+      setProblem(`Could not fork: ${failure.message}`);
+    } finally {
+      setForkBusy(false);
+    }
   };
 
   const download = async () => {
@@ -191,6 +209,18 @@ export function Session({ id }) {
     error: refsError,
   };
 
+  // Only an answered question can be answered differently.
+  const answered = (row) =>
+    (row.operation?.decisions ?? []).filter(
+      (decision) => decision.answer != null,
+    );
+  const busy = rows.some((row) => row.state === "running");
+  const openFork = (decision) =>
+    setForking({
+      question: decision.prompt,
+      body: { reopen_decision: decision.id },
+    });
+
   const stepList = rows.map((row) => (
     <Panel
       key={row.type}
@@ -204,7 +234,10 @@ export function Session({ id }) {
         row={row}
         artifact={artifact}
         refs={refs}
+        forkable={answered(row)}
+        busy={busy}
         onAnswer={answer}
+        onFork={openFork}
         onRetry={retryStep}
         onStart={startStep}
         saving={saving}
@@ -214,6 +247,14 @@ export function Session({ id }) {
 
   return (
     <div class="page">
+      {forking ? (
+        <ForkConfirm
+          question={forking.question}
+          busy={forkBusy}
+          onConfirm={fork}
+          onCancel={() => setForking(null)}
+        />
+      ) : null}
       <div class="session-head">
         <div class="grow">
           <div class="question">{session.question}</div>
@@ -221,6 +262,17 @@ export function Session({ id }) {
             {session.community.toUpperCase()} ·{" "}
             {new Date(session.created_at).toLocaleString()}
           </div>
+          {session.forked_from_id ? (
+            <div class="lineage">
+              <Fork colour="#a09c94" />
+              <a href={`#/session/${session.forked_from_id}`}>
+                Forked from another session
+              </a>
+              {session.forked_at_step ? (
+                <span>at {titleOf(session.forked_at_step)}</span>
+              ) : null}
+            </div>
+          ) : null}
           <Scope community={session.community} />
         </div>
         <button class="quiet" onClick={download} disabled={downloading}>
@@ -310,12 +362,16 @@ export function Body({
   row,
   artifact,
   refs,
+  forkable = [],
+  busy = false,
   onAnswer,
+  onFork = () => {},
   onRetry = () => {},
   onStart = () => {},
   saving,
 }) {
   const table = stepReferences(row.type, refs);
+  const loop = artifact("concept_filter_loop");
 
   if (row.state === "failed") {
     const other = Object.values(MAP_TAILS).find(
@@ -369,20 +425,34 @@ export function Body({
           <Question
             key={decision.id}
             decision={decision}
-            saving={saving}
+            saving={saving === decision.key}
             onAnswer={(value) =>
               onAnswer(row.operation.id, decision.key, value)
             }
           />
         ))}
-        {row.questions.length > 1 ? (
+        {row.operation.decisions.length > 1 ? (
           <div class="hint" style="margin-top: 12px;">
             {row.operation.decisions.filter((d) => d.answer != null).length} of{" "}
             {row.operation.decisions.length} saved
           </div>
         ) : null}
-        {row.type === "generate_concept_filters" ? (
-          <Trace payload={artifact("concept_filter_loop")} />
+        <Questions
+          decisions={forkable}
+          trajectory={loop?.trajectory}
+          busy={busy}
+          onFork={onFork}
+        />
+        {row.regenerate ? (
+          <div class="actions">
+            <button
+              class="btn plain"
+              disabled={saving !== null}
+              onClick={() => onStart(row.type, { regenerate: true })}
+            >
+              Suggest again
+            </button>
+          </div>
         ) : null}
         <Reasoning text={suggestion?.reasoning} />
       </>
@@ -419,12 +489,8 @@ export function Body({
   const result = row.operation?.result;
 
   const reasoning = payload?.reasoning || suggestion?.reasoning;
-  const trace =
-    row.type === "generate_concept_filters"
-      ? artifact("concept_filter_loop")
-      : null;
 
-  if (!payload && !result && !reasoning && !trace && !table) {
+  if (!payload && !result && !reasoning && !forkable.length && !table) {
     return <div class="note">Nothing to show for this step.</div>;
   }
   return (
@@ -438,7 +504,12 @@ export function Body({
       ) : (
         <Result result={result} />
       )}
-      {trace ? <Trace payload={trace} /> : null}
+      <Questions
+        decisions={forkable}
+        trajectory={loop?.trajectory}
+        busy={busy}
+        onFork={onFork}
+      />
       <Reasoning text={reasoning} />
       {table}
     </>

@@ -8,6 +8,7 @@ from typing import ClassVar, Protocol
 import dspy
 from pydantic import BaseModel
 
+from research_mapper.config import reroll
 from research_mapper.engine.registry import Step
 from research_mapper.engine.views import AskSpec
 from research_mapper.models.common import UserQuery
@@ -53,10 +54,11 @@ class GenerateScreeningCriteria(
     ) -> dict:
         """Suggest screening criteria, then keep the ones the user picks."""
 
-        def generate() -> artifacts.ScreeningCriteria:
-            prediction = CriteriaGenerator()(
-                user_query=UserQuery(query=ctx.research_session.question)
-            )
+        def generate(seed: int) -> artifacts.ScreeningCriteria:
+            with reroll(seed):
+                prediction = CriteriaGenerator()(
+                    user_query=UserQuery(query=ctx.research_session.question)
+                )
             return artifacts.ScreeningCriteria(
                 criteria=prediction.screening_criteria, reasoning=prediction.reasoning
             )

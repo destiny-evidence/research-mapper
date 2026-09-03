@@ -123,7 +123,7 @@ def run(ctx) -> dict:
 def test_a_loop_that_never_asks_writes_its_filters(ctx, monkeypatch):
     agent(monkeypatch, done())
 
-    assert run(ctx) == {"filter_groups": 1, "questions": 0, "version": 1}
+    assert run(ctx) == {"filter_groups": 1, "version": 1}
 
     stored = ctx.get_artifact(artifacts.CONCEPT_FILTERS)
     assert stored is not None

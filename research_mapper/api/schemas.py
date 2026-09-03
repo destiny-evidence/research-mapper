@@ -17,6 +17,10 @@ class CreateSession(BaseModel):
     params: dict = {}
 
 
+class ForkSession(BaseModel):
+    reopen_decision: UUID
+
+
 class SessionSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -25,6 +29,8 @@ class SessionSummary(BaseModel):
     question: str
     community: str
     head_version_number: int
+    forked_from_id: UUID | None
+    forked_at_step: str | None
     created_at: datetime
 
 
@@ -58,6 +64,7 @@ class OperationOut(BaseModel):
     id: UUID
     research_session_id: UUID
     type: str
+    params: dict
     status: OperationStatus
     version_number: int | None
     attempt: int

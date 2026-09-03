@@ -43,6 +43,43 @@ describe('step body', () => {
     expect(html).toContain('1 of 3 saved')
   })
 
+  it('keeps an answered question forkable while the step asks the next one', () => {
+    const answered = { id: 3, key: 'clarify:2', prompt: 'Which strategies?', options: [], answer: [{ option: 'Detection' }] }
+    const open = { id: 4, key: 'clarify:5', type: 'select_many', prompt: 'Which aspects?', options: [], constraints: {} }
+    const html = render(
+      <Body
+        row={row({
+          type: 'generate_concept_filters',
+          state: 'ask',
+          questions: [open],
+          operation: { id: 'o9', decisions: [answered, open] },
+        })}
+        artifact={() => null}
+        forkable={[answered]}
+        onAnswer={noop}
+      />,
+    )
+    expect(html).toContain('Which aspects?')
+    // Changing a settled answer is a fork, so the question has to stay in view.
+    expect(html).toContain('Which strategies?')
+    expect(html).toContain('Answer differently in a new session')
+  })
+
+  it('numbers nothing when a step only ever asked one thing', () => {
+    const answered = { id: 5, key: 'select_queries', prompt: 'Which searches?', options: [], answer: [{ query: 'a' }] }
+    const html = render(
+      <Body
+        row={row({ type: 'enhance_sparse_query', operation: { id: 'o10', decisions: [answered] } })}
+        artifact={() => null}
+        forkable={[answered]}
+        onAnswer={noop}
+      />,
+    )
+    expect(html).toContain('Which searches?')
+    expect(html).toContain('Answer differently in a new session')
+    expect(html).not.toContain('question-n')
+  })
+
   it('shows the suggestion’s reasoning while the question is still open', () => {
     const questions = [{ id: 1, key: 'select_queries', type: 'select_many', prompt: 'Which searches?', options: [], constraints: {} }]
     const html = render(

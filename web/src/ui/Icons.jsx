@@ -156,3 +156,23 @@ export const Spinner = ({ colour = "#86837c", size = 13.5 }) => (
     <path d="M6 1.5 A4.5 4.5 0 0 1 10.5 6" />
   </svg>
 );
+
+export const Fork = ({ colour = "currentColor", size = 12 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 12 12"
+    fill="none"
+    aria-hidden="true"
+  >
+    <path
+      d="M3 3.6v3.1c0 1 .8 1.9 1.9 1.9h2.2M9 3.6v2"
+      stroke={colour}
+      stroke-width="1.3"
+      stroke-linecap="round"
+    />
+    <circle cx="3" cy="3.4" r="1.2" stroke={colour} stroke-width="1.3" />
+    <circle cx="9" cy="3.4" r="1.2" stroke={colour} stroke-width="1.3" />
+    <circle cx="8.4" cy="8.6" r="1.2" stroke={colour} stroke-width="1.3" />
+  </svg>
+);

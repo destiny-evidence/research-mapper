@@ -1,6 +1,7 @@
 """Choosing which kind of map to build."""
 
 import builtins
+from enum import StrEnum, auto
 from typing import ClassVar
 
 from pydantic import BaseModel
@@ -9,27 +10,30 @@ from research_mapper.engine.context import StepContext
 from research_mapper.engine.registry import Step
 from research_mapper.engine.views import AskSpec
 
-SUGGESTED = "suggested"
-TAXONOMY = "taxonomy"
+
+class MapStyle(StrEnum):
+    SUGGESTED = auto()
+    TAXONOMY = auto()
+
 
 STYLES = [
     {
-        "id": SUGGESTED,
+        "id": MapStyle.SUGGESTED,
         "label": "Let it suggest dimensions from your question",
         "detail": (
             "The agent proposes three novel axes. You can edit or update them, "
             "then it places each reference on the map."
         ),
-        "value": {"style": SUGGESTED},
+        "value": {"style": MapStyle.SUGGESTED},
     },
     {
-        "id": TAXONOMY,
+        "id": MapStyle.TAXONOMY,
         "label": "Use the taxonomy's own schemes",
         "detail": (
             "The agent selects axes from the taxonomy. References are placed on "
             "the map according to their existing coded values."
         ),
-        "value": {"style": TAXONOMY},
+        "value": {"style": MapStyle.TAXONOMY},
     },
 ]
 
@@ -57,4 +61,4 @@ class ChooseMapStyle(Step[ChooseMapStyleParams, StepContext]):
                 constraints={"min": 1, "max": 1},
             ),
         )
-        return {"style": chosen[0]["style"]}
+        return {"style": MapStyle(chosen[0]["style"])}

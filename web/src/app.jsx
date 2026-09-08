@@ -79,7 +79,7 @@ export function App() {
       {route.view === 'privacy' ? (
         <Privacy onBack={() => go('#/')} />
       ) : route.view === 'session' ? (
-        <Session id={route.id} />
+        <Session key={route.id} id={route.id} />
       ) : (
         <div class="page">
           {route.view === 'new' ? (

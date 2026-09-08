@@ -450,3 +450,22 @@ input, textarea, select {
   .feedback-tab { padding: 13px; }
   .feedback-tab span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 }
+
+/* privacy policy ---------------------------------------------------------- */
+.policy { max-width: 760px; padding-top: 24px; }
+.policy-title { font-size: 26px; font-weight: 600; color: var(--ink); margin: 18px 0 6px; }
+.policy-dates { font-family: var(--mono); font-size: 11px; color: var(--dim); margin: 0 0 22px; }
+.policy-heading { font-size: 15px; font-weight: 600; color: var(--ink); margin: 0 0 10px; }
+.policy-sub { margin-top: 16px; }
+.policy-text { font-size: 13px; line-height: 1.65; color: var(--text); margin: 0 0 11px; max-width: 68ch; }
+.policy .terms-section { padding-top: 26px; border-top: 1px solid var(--hair); margin-top: 26px; }
+.policy .terms-list { margin-bottom: 11px; }
+.policy-address { font-style: normal; font-size: 13px; line-height: 1.7; color: var(--text); margin-bottom: 11px; }
+/* A three-column table has nowhere to go on a narrow window but sideways. */
+.policy-scroll { overflow-x: auto; margin-bottom: 14px; }
+.policy-table { border-collapse: collapse; font-size: 12.5px; min-width: 520px; }
+.policy-table th, .policy-table td {
+  border: 1px solid var(--line-2); padding: 8px 11px;
+  text-align: left; vertical-align: top; line-height: 1.5;
+}
+.policy-table th { background: var(--tint); color: var(--ink); font-weight: 600; }

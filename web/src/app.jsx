@@ -5,12 +5,14 @@ import { Sessions } from './ui/Sessions.jsx'
 import { NewSession } from './ui/NewSession.jsx'
 import { Session } from './ui/Session.jsx'
 import { Disclaimer } from './ui/Disclaimer.jsx'
+import { Privacy } from './ui/Privacy.jsx'
 import { accepted, accept } from './terms.js'
 
 // Two views, so a hash fragment and a switch rather than a router.
 const routeOf = (hash) => {
   const match = /^#\/session\/(.+)$/.exec(hash || '')
   if (match) return { view: 'session', id: match[1] }
+  if (hash === '#/privacy') return { view: 'privacy' }
   return { view: hash === '#/new' ? 'new' : 'list' }
 }
 
@@ -63,7 +65,7 @@ export function App() {
         // The list view carries its own; the session view is otherwise a dead end.
         onNewQuestion={route.view === 'session' ? () => go('#/new') : null}
       />
-      {terms ? (
+      {terms && route.view !== 'privacy' ? (
         <Disclaimer
           mode={terms}
           onAccept={() => {
@@ -74,7 +76,9 @@ export function App() {
         />
       ) : null}
       {error ? <div class="page"><div class="error" style="margin-top: 20px;">{String(error.message)}</div></div> : null}
-      {route.view === 'session' ? (
+      {route.view === 'privacy' ? (
+        <Privacy onBack={() => go('#/')} />
+      ) : route.view === 'session' ? (
         <Session id={route.id} />
       ) : (
         <div class="page">

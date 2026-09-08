@@ -4,6 +4,7 @@ import { Panel } from '../src/ui/Panel.jsx'
 import { Reasoning } from '../src/ui/Reasoning.jsx'
 import { Tick, Info } from '../src/ui/Icons.jsx'
 import { Disclaimer, Link } from '../src/ui/Disclaimer.jsx'
+import { Privacy } from '../src/ui/Privacy.jsx'
 import { Breakable } from '../src/ui/text.jsx'
 import { Chrome } from '../src/ui/Chrome.jsx'
 import { Body } from '../src/ui/Session.jsx'
@@ -161,6 +162,14 @@ describe('Chrome', () => {
 describe('disclaimer', () => {
   it('has copy in every section', () => {
     expect(render(<Disclaimer mode="review" />)).not.toContain('terms-todo')
+  })
+
+  it('sends the reader to the policy for anything it does not summarise', () => {
+    const html = render(<Disclaimer mode="review" />)
+    expect(html).toContain('What we do with your data')
+    expect(html).toContain('href="#/privacy"')
+    // The surprising one: it leaves the building.
+    expect(html).toContain('sent to an AI provider')
   })
 
   it('marks an unwritten destination rather than linking nowhere', () => {
@@ -494,5 +503,24 @@ describe('why a reference is not on the map', () => {
       />,
     )
     expect(html).not.toContain('Not on the map')
+  })
+})
+
+describe('Privacy', () => {
+  const html = () => render(<Privacy onBack={() => {}} />)
+
+  it('carries the parts a reader has to be able to find', () => {
+    const page = html()
+    expect(page).toContain('Veritas Health Innovation Ltd')
+    expect(page).toContain('privacy@futureevidence.org')
+    // Section 4 is a table; the others are prose we would not notice losing.
+    expect(page).toContain('Legal basis (GDPR)')
+    expect(page).toContain('Legitimate interests')
+    for (const n of [1, 5, 9, 13]) expect(page).toContain(`${n}. `)
+  })
+
+  it('is dated, rather than carrying the placeholder from the source', () => {
+    expect(html()).not.toContain('[DATE]')
+    expect(html()).toContain('8 September 2026')
   })
 })

@@ -70,6 +70,31 @@ const SECTIONS = [
     ],
   },
   {
+    id: "data",
+    heading: "What we do with your data",
+    body: [
+      <>
+        Your name and email, the questions you ask and every answer you give are
+        stored against your account.
+      </>,
+      <>
+        Your question, and the titles and abstracts of the references it finds,
+        are sent to an AI provider to be screened and mapped.
+      </>,
+      <>
+        Feedback you send goes to a Google Form, with the email you submit it
+        under.
+      </>,
+      <>
+        <a href="#/privacy" target="_blank" rel="noreferrer">
+          The privacy policy
+        </a>{" "}
+        covers how long this is kept, who it is shared with, and your rights
+        over it.
+      </>,
+    ],
+  },
+  {
     id: "accountability",
     heading: "What you are accountable for",
     body: [
@@ -147,7 +172,10 @@ export function Disclaimer({ mode = "accept", onAccept, onClose }) {
                 <span class={`box ${ticked ? "on" : ""}`}>
                   {ticked ? <Tick colour="#fff" size={11} /> : null}
                 </span>
-                <span>I have read and understood the above.</span>
+                <span>
+                  I have read and understood the above, including the privacy
+                  policy.
+                </span>
               </label>
               <span class="grow" />
               <button

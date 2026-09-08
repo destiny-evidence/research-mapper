@@ -3,7 +3,7 @@
 const KEY = "research-mapper.terms";
 
 // Bump when the terms change materially, so everyone is asked again.
-export const TERMS_VERSION = 1;
+export const TERMS_VERSION = 2;
 
 /**
  * Development overrides.

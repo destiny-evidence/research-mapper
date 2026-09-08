@@ -30,6 +30,7 @@ import { Questions } from "./Questions.jsx";
 import { ForkButton, ForkConfirm } from "./Fork.jsx";
 import { Download, Fork, Spinner } from "./Icons.jsx";
 import { CopyLink } from "./CopyLink.jsx";
+import { FeedbackTab } from "./Feedback.jsx";
 import { Scope } from "./Scope.jsx";
 
 const MOVING = new Set(["pending", "running"]);
@@ -341,6 +342,7 @@ export function Session({ id }) {
       ) : (
         stepList
       )}
+      <FeedbackTab question={session.question} />
     </div>
   );
 }

@@ -95,6 +95,7 @@ locals {
     KEYCLOAK_URL        = var.keycloak_url
     KEYCLOAK_REALM      = var.keycloak_realm
     KEYCLOAK_CLIENT_ID  = local.keycloak_client_id
+    FEEDBACK_FORM_URL   = var.feedback_form_url
   }
 }
 

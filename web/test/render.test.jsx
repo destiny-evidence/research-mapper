@@ -3,7 +3,7 @@ import render from 'preact-render-to-string'
 import { Panel } from '../src/ui/Panel.jsx'
 import { Reasoning } from '../src/ui/Reasoning.jsx'
 import { Tick, Info } from '../src/ui/Icons.jsx'
-import { Disclaimer } from '../src/ui/Disclaimer.jsx'
+import { Disclaimer, Link } from '../src/ui/Disclaimer.jsx'
 import { Breakable } from '../src/ui/text.jsx'
 import { Chrome } from '../src/ui/Chrome.jsx'
 import { Body } from '../src/ui/Session.jsx'
@@ -164,11 +164,16 @@ describe('disclaimer', () => {
   })
 
   it('marks an unwritten destination rather than linking nowhere', () => {
-    // Both outward links are unset. They must read as gaps, not as text that
-    // happens to look ordinary — a silent placeholder is how one ships.
-    const html = render(<Disclaimer mode="review" />)
-    expect(html).toContain('terms-unset')
-    expect(html).not.toContain('href="#"')
+    // A gap must read as a gap, not as text that happens to look ordinary.
+    // Whether the feedback form is configured is a build input, so this covers
+    // both shapes rather than whichever one this environment produces.
+    const unset = render(<Link to={null}>Tell us</Link>)
+    expect(unset).toContain('terms-unset')
+    expect(unset).not.toContain('href')
+
+    expect(render(<Link to="https://forms.example/x">Tell us</Link>)).toContain(
+      'href="https://forms.example/x"',
+    )
   })
 })
 

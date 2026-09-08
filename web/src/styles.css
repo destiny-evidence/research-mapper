@@ -433,3 +433,20 @@ input, textarea, select {
 .bubble-hit { width: 100%; height: 100%; display: grid; place-items: center; border: 0; background: none; padding: 0; }
 .bubble-hit:hover .bubble { background: var(--amber); }
 .bubble-hit.on .bubble { background: var(--amber); box-shadow: 0 0 0 2px var(--amber-bg), 0 0 0 3px var(--amber); }
+
+/* feedback ---------------------------------------------------------------- */
+/* Pinned: a session is long, and the moment something looks wrong is never at
+   the top of it. */
+.feedback-tab {
+  position: fixed; right: 20px; bottom: 20px; z-index: 30;
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 11px 18px; text-decoration: none;
+  background: var(--amber); color: #fff;
+  font-size: 13.5px; font-weight: 500;
+  box-shadow: 0 7px 20px rgba(125, 61, 17, 0.28);
+}
+.feedback-tab:hover { background: var(--amber-ink); }
+@media (max-width: 620px) {
+  .feedback-tab { padding: 13px; }
+  .feedback-tab span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}

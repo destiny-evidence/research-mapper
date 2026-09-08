@@ -190,3 +190,18 @@ export const Link = ({ colour = "#86837c", size = 13 }) => (
     <path d="M7 5 A2 2 0 0 0 4.2 5 L2.4 6.8 A2 2 0 0 0 5.2 9.6 L6 8.8" />
   </svg>
 );
+
+export const Flag = ({ colour = "currentColor", size = 13 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 12 12"
+    stroke={colour}
+    {...stroke}
+    stroke-width="1.4"
+    aria-hidden="true"
+  >
+    <path d="M3 10.5 V1.8" />
+    <path d="M3 2.2 H9.4 L8 4.6 L9.4 7 H3" />
+  </svg>
+);

@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { feedbackUrl } from "../feedback.js";
 import { repoUrl } from "../repo.js";
 import { Warning, Tick } from "./Icons.jsx";
 
@@ -9,10 +10,11 @@ import { Warning, Tick } from "./Icons.jsx";
 
 const LINKS = {
   repository: repoUrl("destiny"),
-  report: null,
+  // No session is open from here, so the form gets no context.
+  report: feedbackUrl(),
 };
 
-const Link = ({ to, children }) =>
+export const Link = ({ to, children }) =>
   to ? (
     <a href={to}>{children}</a>
   ) : (

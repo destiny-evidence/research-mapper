@@ -121,6 +121,9 @@ jobs:
           # the repository links the UI builds resolve to the same instance the
           # API reads from (MAPPER_DESTINY_ENV in app.tf).
           VITE_DESTINY_ENV: ${{ vars.ENVIRONMENT_NAME }}
+          # A Google Forms pre-filled link with {url} and {question} left in it:
+          # see web/.env.example. Unset, the UI offers no form.
+          VITE_FEEDBACK_FORM_URL: ${{ vars.FEEDBACK_FORM_URL }}
         run: npm run build
 
       - name: "Az CLI login"

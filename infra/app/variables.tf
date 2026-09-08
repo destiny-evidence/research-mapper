@@ -111,3 +111,14 @@ variable "keycloak_realm" {
   type        = string
   default     = "destiny"
 }
+
+# Feedback
+
+variable "feedback_form_url" {
+  description = <<-EOT
+    Google Forms pre-filled link for the feedback form, with the sentinel
+    answers replaced by {url} and {question}.
+  EOT
+  type        = string
+  default     = ""
+}

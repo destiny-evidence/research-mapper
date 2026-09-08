@@ -21,7 +21,15 @@ export const Toggle = ({ open }) => (
 /**
  * One step. Collapsed it is a single line.
  */
-export function Panel({ state, title, summary, open, onToggle, children }) {
+export function Panel({
+  state,
+  title,
+  summary,
+  open,
+  onToggle,
+  action = null,
+  children,
+}) {
   const collapsible = state !== "todo" && children;
   const classes = ["step", state, open && collapsible ? "open" : ""]
     .filter(Boolean)
@@ -29,16 +37,29 @@ export function Panel({ state, title, summary, open, onToggle, children }) {
   const Head = collapsible ? "button" : "div";
   return (
     <div class={classes}>
-      <Head
-        class="step-head"
-        type={collapsible ? "button" : undefined}
-        onClick={collapsible ? onToggle : undefined}
-      >
-        <Pip state={state} />
-        <span class="step-title">{title}</span>
-        <span class="step-summary">{summary}</span>
-        {collapsible ? <Toggle open={open} /> : null}
-      </Head>
+      {/* The head is its own button, so `action` can be one too. */}
+      <div class="step-bar">
+        <Head
+          class="step-head"
+          type={collapsible ? "button" : undefined}
+          onClick={collapsible ? onToggle : undefined}
+        >
+          <Pip state={state} />
+          <span class="step-title">{title}</span>
+          <span class="step-summary">{summary}</span>
+        </Head>
+        {action}
+        {collapsible ? (
+          <button
+            type="button"
+            class="step-toggle"
+            aria-label={open ? `Collapse ${title}` : `Expand ${title}`}
+            onClick={onToggle}
+          >
+            <Toggle open={open} />
+          </button>
+        ) : null}
+      </div>
       {open && collapsible ? <div class="step-body">{children}</div> : null}
     </div>
   );

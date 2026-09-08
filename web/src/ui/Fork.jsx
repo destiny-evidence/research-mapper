@@ -1,14 +1,15 @@
 import { Fork as ForkIcon } from "./Icons.jsx";
 
-export function ForkButton({ disabled = false, onFork }) {
+export function ForkButton({ disabled = false, small = false, onFork }) {
   return (
     <button
       type="button"
-      class="quiet fork-action"
+      class={small ? "fork-action small" : "fork-action"}
       disabled={disabled}
       onClick={onFork}
     >
-      <ForkIcon /> Answer differently in a new session
+      <ForkIcon />{" "}
+      {small ? "Answer differently" : "Answer differently in a new session"}
     </button>
   );
 }

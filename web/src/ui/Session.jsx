@@ -26,7 +26,7 @@ import {
 } from "./artifacts/index.jsx";
 import { Reasoning } from "./Reasoning.jsx";
 import { Questions } from "./Questions.jsx";
-import { ForkConfirm } from "./Fork.jsx";
+import { ForkButton, ForkConfirm } from "./Fork.jsx";
 import { Download, Fork, Spinner } from "./Icons.jsx";
 import { CopyLink } from "./CopyLink.jsx";
 import { Scope } from "./Scope.jsx";
@@ -222,6 +222,14 @@ export function Session({ id }) {
       body: { reopen_decision: decision.id },
     });
 
+  // Collapsed, a step's questions are out of sight, so the head carries the
+  // fork for the first of them.
+  const headFork = (row) => {
+    const [first] = answered(row);
+    if (isOpen(row) || !first) return null;
+    return <ForkButton small disabled={busy} onFork={() => openFork(first)} />;
+  };
+
   const stepList = rows.map((row) => (
     <Panel
       key={row.type}
@@ -230,6 +238,7 @@ export function Session({ id }) {
       summary={row.summary}
       open={isOpen(row)}
       onToggle={() => toggle(row)}
+      action={headFork(row)}
     >
       <Body
         row={row}
@@ -303,9 +312,7 @@ export function Session({ id }) {
               onClick={() => setWorkflowOpen(!workflowOpen)}
             >
               <Pip state="done" />
-              <span style="font-size: 13px; color: var(--ink); font-weight: 500;">
-                Workflow
-              </span>
+              <span class="workflow-title">Workflow</span>
               <span class="step-summary">{overview(rows)}</span>
               <Toggle open={workflowOpen} />
             </button>

@@ -1,9 +1,4 @@
-/**
- * Copying text to the clipboard.
- *
- * navigator.clipboard only exists in a secure context, which the dev server on
- * a bare http:// host is not, so there is a fallback for it to fall back to.
- */
+/** Copy text to the clipboard. */
 export async function copy(text, target = globalThis) {
   const api = target.navigator?.clipboard;
   if (api) {

@@ -4,11 +4,7 @@ import { Link, Tick } from "./Icons.jsx";
 
 const SETTLE_MS = 2600;
 
-/**
- * Copies the address of whatever is on screen. The button says which address
- * before the click and that it went before it settles back, so a silent
- * clipboard is never mistaken for a copied one.
- */
+/** Copies the address of whatever is on screen. */
 export function CopyLink({ href = null, label = "Copy link" }) {
   const [state, setState] = useState("idle");
   const timer = useRef(null);

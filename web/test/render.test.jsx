@@ -39,6 +39,23 @@ describe('Panel', () => {
     const html = render(<Panel state="todo" title="Place evidence" summary="" open={false} />)
     expect(html).not.toContain('<button')
   })
+
+  it('carries an action beside the head without nesting it in the head button', () => {
+    const html = render(
+      <Panel
+        state="done"
+        title="Screen the evidence"
+        summary="94 included"
+        open={false}
+        action={<ForkButton small onFork={() => {}} />}
+      >
+        <p>the body</p>
+      </Panel>,
+    )
+    expect(html).toContain('Answer differently')
+    // A button inside a button is invalid, and browsers drop the inner one.
+    expect(html).not.toMatch(/<button[^>]*>(?:(?!<\/button>)[\s\S])*<button/)
+  })
 })
 
 describe('Reasoning', () => {
@@ -430,3 +447,4 @@ describe('CopyLink', () => {
     expect(html).toContain('https://mapper.example/#/session/abc')
   })
 })
+

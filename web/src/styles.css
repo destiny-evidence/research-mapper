@@ -153,6 +153,11 @@ input, textarea, select {
 }
 .quiet:hover { color: var(--ink); }
 .quiet[disabled], .quiet[disabled]:hover { color: var(--faint); cursor: default; }
+/* A row, so the fallback field appears below the copy button without shoving
+   the download button about. */
+.head-actions { display: flex; align-items: flex-start; gap: 20px; flex-shrink: 0; }
+.copy-link { display: flex; flex-direction: column; gap: 5px; }
+.copy-url { width: 240px; font-size: 11px; }
 
 /* steps ------------------------------------------------------------------- */
 .step { border-bottom: 1px solid var(--line-2); }

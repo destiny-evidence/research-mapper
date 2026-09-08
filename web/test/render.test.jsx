@@ -11,6 +11,7 @@ import { ForkButton, ForkConfirm } from '../src/ui/Fork.jsx'
 import { Questions } from '../src/ui/Questions.jsx'
 import { Sessions } from '../src/ui/Sessions.jsx'
 import { References, stepReferences, Why } from '../src/ui/References.jsx'
+import { CopyLink } from '../src/ui/CopyLink.jsx'
 import { SLICES } from '../src/derive.js'
 import { useAdapter } from '../src/auth.js'
 
@@ -419,5 +420,13 @@ describe('Questions', () => {
 
   it('has nothing to say about a step that answered nothing', () => {
     expect(render(<Questions decisions={[]} onFork={() => {}} />)).toBe('')
+  })
+})
+
+describe('CopyLink', () => {
+  it('names the address it would copy, so the click is not a guess', () => {
+    const html = render(<CopyLink href="https://mapper.example/#/session/abc" />)
+    expect(html).toContain('Copy link')
+    expect(html).toContain('https://mapper.example/#/session/abc')
   })
 })

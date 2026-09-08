@@ -28,6 +28,7 @@ import { Reasoning } from "./Reasoning.jsx";
 import { Questions } from "./Questions.jsx";
 import { ForkConfirm } from "./Fork.jsx";
 import { Download, Fork, Spinner } from "./Icons.jsx";
+import { CopyLink } from "./CopyLink.jsx";
 import { Scope } from "./Scope.jsx";
 
 const MOVING = new Set(["pending", "running"]);
@@ -275,10 +276,13 @@ export function Session({ id }) {
           ) : null}
           <Scope community={session.community} />
         </div>
-        <button class="quiet" onClick={download} disabled={downloading}>
-          {downloading ? <Spinner colour="#b8b4ac" /> : <Download />} Download
-          audit
-        </button>
+        <div class="head-actions">
+          <CopyLink label="Copy link to this session" />
+          <button class="quiet" onClick={download} disabled={downloading}>
+            {downloading ? <Spinner colour="#b8b4ac" /> : <Download />} Download
+            audit
+          </button>
+        </div>
       </div>
 
       {problem ? (

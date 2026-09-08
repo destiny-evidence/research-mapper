@@ -187,8 +187,9 @@ export const asTrajectory = (value) =>
 export function answerLabels(decision) {
   const options = decision?.options ?? [];
   const named = (value) =>
-    options.find((option) => JSON.stringify(option.value) === JSON.stringify(value))
-      ?.label;
+    options.find(
+      (option) => JSON.stringify(option.value) === JSON.stringify(value),
+    )?.label;
   return (decision?.answer ?? []).map(
     (value) =>
       named(value) ??
@@ -252,6 +253,29 @@ export const SLICES = {
   },
 };
 
+/** Why a screened-in reference has no place on the map. */
+export const UNPLACED = {
+  failed: "The run could not process this reference at all.",
+  missing: "The repository could not find this reference.",
+  unplaced: "The model could not place this reference.",
+  unannotated:
+    "This reference does not have any coded concepts in the repository.",
+  partial:
+    "This reference does not have a coded concept in all of the mapped schemes, so cannot be placed.",
+};
+
+export function unplacedBecause(reference, tail = "suggested") {
+  if (reference?.stage === "failed") return UNPLACED.failed;
+  if (placementOf(reference) === "mapped") return null;
+  // Anything screening left out was never a candidate to be placed.
+  if (verdictOf(reference) !== "included") return null;
+  if (!reference?.evidence) return UNPLACED.missing;
+  if (tail !== "taxonomy") return UNPLACED.unplaced;
+  return reference.evidence.known_concepts?.length
+    ? UNPLACED.partial
+    : UNPLACED.unannotated;
+}
+
 /** How many references sit in each of a slice's buckets. */
 export const bucketCounts = (references = [], slice = SLICES.stage) =>
   slice.order
@@ -283,11 +307,13 @@ export const REFERENCE_VIEWS = {
     subset: screenedIn,
     slice: SLICES.placement,
     shows: ["mapping", "coordinate"],
+    tail: "suggested",
   },
   generate_taxonomy_map: {
     subset: screenedIn,
     slice: SLICES.placement,
     shows: ["mapping", "coordinate"],
+    tail: "taxonomy",
   },
 };
 

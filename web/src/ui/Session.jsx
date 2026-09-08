@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import * as api from "../api.js";
-import { MAP_TAILS, titleOf } from "../plan.js";
+import { MAP_TAILS, tailOf, titleOf } from "../plan.js";
 import {
   steps,
   activeStep,
@@ -10,6 +10,7 @@ import {
   progressText,
   REFERENCE_VIEWS,
   referenceStamp,
+  unplacedBecause,
 } from "../derive.js";
 import { downloadRecord } from "../record.js";
 import { usePoll } from "../poll.js";
@@ -328,6 +329,9 @@ export function Session({ id }) {
             references={references}
             community={session.community}
             filterGroups={artifact("concept_filters")?.groups}
+            reason={(reference) =>
+              unplacedBecause(reference, tailOf(data.operations))
+            }
             cell={cell}
             onClearCell={() => setCell(null)}
             loading={refsLoading}
@@ -381,7 +385,7 @@ export function Body({
   onStart = () => {},
   saving,
 }) {
-  const table = stepReferences(row.type, refs);
+  const table = stepReferences(row.type, refs, row.state);
   const loop = artifact("concept_filter_loop");
 
   if (row.state === "failed") {

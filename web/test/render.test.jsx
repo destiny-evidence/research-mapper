@@ -12,7 +12,7 @@ import { Questions } from '../src/ui/Questions.jsx'
 import { Sessions } from '../src/ui/Sessions.jsx'
 import { References, stepReferences, Why } from '../src/ui/References.jsx'
 import { CopyLink } from '../src/ui/CopyLink.jsx'
-import { SLICES } from '../src/derive.js'
+import { SLICES, UNPLACED, unplacedBecause } from '../src/derive.js'
 import { useAdapter } from '../src/auth.js'
 
 describe('Panel', () => {
@@ -304,6 +304,11 @@ describe('References', () => {
       expect(html).not.toContain('Barriers in Kenya')
     })
 
+    it('waits for the step to finish before offering a reason for a gap', () => {
+      expect(stepReferences('generate_map', refs(), 'running').props.reason).toBe(null)
+      expect(stepReferences('generate_map', refs(), 'done').props.reason).toBeTypeOf('function')
+    })
+
     it('says the references are coming rather than showing untitled rows', () => {
       const html = render(
         stepReferences('screen_evidence', refs({ references: null, loading: true })),
@@ -448,3 +453,41 @@ describe('CopyLink', () => {
   })
 })
 
+
+describe('why a reference is not on the map', () => {
+  const included = {
+    destiny_id: 'c',
+    stage: 'included',
+    provenance: [],
+    screening: { include: true },
+    coordinate: null,
+    mapping: null,
+    evidence: { title: 'A trial' },
+  }
+
+  it('tells the reference why it is not there', () => {
+    const html = render(
+      <Why
+        reference={included}
+        filterGroups={[]}
+        shows={['mapping', 'coordinate']}
+        reason={(reference) => unplacedBecause(reference, 'suggested')}
+      />,
+    )
+    expect(html).toContain('Not on the map')
+    expect(html).toContain(UNPLACED.unplaced)
+  })
+
+  it('says nothing about a reference that was placed', () => {
+    const mapped = { ...included, stage: 'mapped', coordinate: { Setting: ['Urban'] } }
+    const html = render(
+      <Why
+        reference={mapped}
+        filterGroups={[]}
+        shows={['mapping', 'coordinate']}
+        reason={(reference) => unplacedBecause(reference, 'suggested')}
+      />,
+    )
+    expect(html).not.toContain('Not on the map')
+  })
+})

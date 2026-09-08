@@ -10,6 +10,8 @@ import {
   referencesFor,
   referenceStamp,
   SLICES,
+  UNPLACED,
+  unplacedBecause,
   verdictOf,
 } from '../src/derive.js'
 
@@ -270,5 +272,43 @@ describe('foundBy', () => {
   it('names the group as a whole without the concept_filters artifact', () => {
     const found = foundBy(viaFilters(['http://v/detect']))
     expect(found.concepts).toEqual(['Misinformation · 3 concepts'])
+  })
+})
+
+describe('unplacedBecause', () => {
+  const included = (extra = {}) =>
+    reference('included', { screening: { include: true }, ...extra })
+
+  it('has nothing to explain about a reference that is on the map', () => {
+    expect(unplacedBecause(MAPPED)).toBe(null)
+  })
+
+  it('has nothing to explain about a reference screening left out', () => {
+    const out = reference('excluded', { screening: { include: false } })
+    expect(unplacedBecause(out)).toBe(null)
+  })
+
+  it('blames the missing record when the repository returned none', () => {
+    expect(unplacedBecause(included())).toBe(UNPLACED.missing)
+  })
+
+  it('blames the model when the reference had everything it needed', () => {
+    expect(unplacedBecause(included({ evidence: { title: 'A trial' } }))).toBe(
+      UNPLACED.unplaced,
+    )
+  })
+
+  it('blames the annotations on a taxonomy map, not the model', () => {
+    const bare = included({ evidence: { title: 'A trial', known_concepts: [] } })
+    expect(unplacedBecause(bare, 'taxonomy')).toBe(UNPLACED.unannotated)
+
+    const partial = included({
+      evidence: { title: 'A trial', known_concepts: ['https://vocab/1'] },
+    })
+    expect(unplacedBecause(partial, 'taxonomy')).toBe(UNPLACED.partial)
+  })
+
+  it('reports a reference the run could not process at all', () => {
+    expect(unplacedBecause(reference('failed'))).toBe(UNPLACED.failed)
   })
 })

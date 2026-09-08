@@ -414,24 +414,6 @@ export function Body({
     );
   }
 
-  if (row.branch) {
-    return (
-      <div class="choices">
-        {Object.entries(row.branch).map(([key, tail]) => (
-          <button
-            type="button"
-            class="choice"
-            key={key}
-            onClick={() => onStart(tail.head)}
-          >
-            <span class="choice-label">{tail.label}</span>
-            <span class="choice-detail">{tail.detail}</span>
-          </button>
-        ))}
-      </div>
-    );
-  }
-
   if (row.state === "ask") {
     const suggestion = artifact(SUGGESTION_FOR_STEP[row.type]);
     return (

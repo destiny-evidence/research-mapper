@@ -181,23 +181,44 @@ describe('step body', () => {
     expect(html).toContain('Three dimensions that cut across each other.')
   })
 
-  it('offers both ways to build the map at the branch', () => {
+  it('offers both ways to build the map, each with why you would pick it', () => {
+    const decision = {
+      id: 1,
+      key: 'map_style',
+      type: 'select_one',
+      prompt: 'How should the map be built?',
+      options: [
+        {
+          id: 'suggested',
+          label: 'Let it suggest dimensions',
+          detail: 'The agent proposes three novel axes.',
+          value: { style: 'suggested' },
+        },
+        {
+          id: 'taxonomy',
+          label: "Use the taxonomy's own schemes",
+          detail: 'References are placed by their existing coded values.',
+          value: { style: 'taxonomy' },
+        },
+      ],
+      constraints: { min: 1, max: 1 },
+    }
     const html = render(
       <Body
         row={row({
-          type: 'choose-how-to-map',
+          type: 'choose_map_style',
           state: 'ask',
-          branch: {
-            suggested: { head: 'generate_map_dimensions', label: 'Let it suggest dimensions', detail: 'a' },
-            taxonomy: { head: 'generate_taxonomy_map', label: "Use the taxonomy's own schemes", detail: 'b' },
-          },
+          questions: [decision],
+          operation: { id: 'o1', decisions: [decision] },
         })}
         artifact={() => null}
         onAnswer={noop}
       />,
     )
     expect(html).toContain('Let it suggest dimensions')
+    expect(html).toContain('The agent proposes three novel axes.')
     expect(html).toContain('Use the taxonomy')
+    expect(html).toContain('References are placed by their existing coded values.')
   })
 
   it('offers the other approach when a mapping step fails, since retrying will not help', () => {

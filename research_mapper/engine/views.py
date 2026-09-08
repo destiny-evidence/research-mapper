@@ -9,7 +9,7 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSeriali
 class AskSpec(BaseModel):
     """A question for the user."""
 
-    type: Literal["select_many", "edit_list"]
+    type: Literal["select_many", "select_one", "edit_list"]
     prompt: str
     options: list[dict]
     constraints: dict = Field(default_factory=dict)

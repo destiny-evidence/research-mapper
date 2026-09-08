@@ -1,6 +1,6 @@
 // Pure functions over API payloads.
 
-import { MAP_TAILS, planFor, tailOf } from "./plan.js";
+import { MAP_STYLE_STEP, MAP_TAILS, planFor, tailOf } from "./plan.js";
 
 /** Newest operation per step type. */
 export function byType(operations) {
@@ -52,6 +52,7 @@ const RESULT = {
   generate_map_dimensions: (r) => plural(r.dimensions, "dimension"),
   generate_map_subtopics: (r) =>
     join([plural(r.dimensions, "dimension"), plural(r.subtopics, "subtopic")]),
+  choose_map_style: (r) => MAP_TAILS[r.style]?.label ?? r.style,
   generate_map: (r) =>
     join([`${r.mapped} placed`, r.failed ? `${r.failed} failed` : null]),
   generate_taxonomy_map: (r) =>
@@ -95,12 +96,11 @@ export function summarise(operation) {
   return progressText(operation.progress);
 }
 
-export const MAP_BRANCH = "choose-how-to-map";
-
 export function steps({ session, operations = [] }) {
   const newest = byType(operations);
   const tail = tailOf(operations);
-  const rows = planFor(session?.params, tail).map((step) => {
+  const asked = Boolean(newest[MAP_STYLE_STEP]) || !tail;
+  return planFor(session?.params, tail, asked).map((step) => {
     const operation = newest[step.type];
     const questions = operation?.pending_questions ?? [];
     return {
@@ -111,28 +111,12 @@ export function steps({ session, operations = [] }) {
       questions,
     };
   });
-
-  if (tail) return rows;
-  const reachable = rows.every((row) => row.state === "done");
-  return [
-    ...rows,
-    {
-      type: MAP_BRANCH,
-      title: "Build the map",
-      state: reachable ? "ask" : "todo",
-      summary: "",
-      branch: reachable ? MAP_TAILS : null,
-      questions: [],
-    },
-  ];
 }
 
 /** The step the client should queue next, or null. */
 export function nextToStart(rows) {
   const next = rows.find((row) => row.state !== "done");
-  // A branch is the user's to resolve; queueing anything past it would be
-  // guessing which map they want.
-  if (!next || next.branch) return null;
+  if (!next) return null;
   return next.operation ? null : next.type;
 }
 

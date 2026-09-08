@@ -269,6 +269,8 @@ input, textarea, select {
   background: var(--panel); border: 1px solid var(--line);
 }
 .choice:hover { border-color: var(--amber); }
+.choice.on { border-color: var(--amber); background: var(--amber-bg); }
+.choice.on .choice-label { color: var(--amber-ink); font-weight: 600; }
 .choice-label { font-size: 13px; font-weight: 500; color: var(--ink); }
 .choice-detail { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
 .hint { font-size: 11.5px; color: var(--dim); }

@@ -10,6 +10,7 @@ describe('planFor', () => {
       'retrieve_concept_evidence',
       'generate_screening_criteria',
       'screen_evidence',
+      'choose_map_style',
     ])
   })
 
@@ -47,12 +48,26 @@ describe('planFor', () => {
 
 describe('tailOf', () => {
   const ops = (types) => types.map((type) => ({ type }))
+  const chose = (style) => ({
+    type: 'choose_map_style',
+    decisions: [{ key: 'map_style', answer: [{ style }] }],
+  })
 
   it('is nothing until a mapping step has been started', () => {
     expect(tailOf(ops(['screen_evidence']))).toBeNull()
   })
 
-  it('reads the choice off whichever tail was started, which is the only record of it', () => {
+  it('reads the choice off the decision that settled it', () => {
+    expect(tailOf([chose('taxonomy')])).toBe('taxonomy')
+    expect(tailOf([chose('suggested')])).toBe('suggested')
+  })
+
+  it('is nothing while the choice is still being asked', () => {
+    const asking = { type: 'choose_map_style', decisions: [{ key: 'map_style', answer: null }] }
+    expect(tailOf([asking])).toBeNull()
+  })
+
+  it('falls back to whichever tail ran, for sessions older than the step', () => {
     expect(tailOf(ops(['screen_evidence', 'generate_map_dimensions']))).toBe('suggested')
     expect(tailOf(ops(['screen_evidence', 'generate_taxonomy_map']))).toBe('taxonomy')
   })

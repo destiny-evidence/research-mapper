@@ -176,3 +176,32 @@ export const Fork = ({ colour = "currentColor", size = 12 }) => (
     <circle cx="8.4" cy="8.6" r="1.2" stroke={colour} stroke-width="1.3" />
   </svg>
 );
+
+export const Link = ({ colour = "#86837c", size = 13 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 12 12"
+    stroke={colour}
+    {...stroke}
+    stroke-width="1.4"
+  >
+    <path d="M5 7 A2 2 0 0 0 7.8 7 L9.6 5.2 A2 2 0 0 0 6.8 2.4 L6 3.2" />
+    <path d="M7 5 A2 2 0 0 0 4.2 5 L2.4 6.8 A2 2 0 0 0 5.2 9.6 L6 8.8" />
+  </svg>
+);
+
+export const Flag = ({ colour = "currentColor", size = 13 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 12 12"
+    stroke={colour}
+    {...stroke}
+    stroke-width="1.4"
+    aria-hidden="true"
+  >
+    <path d="M3 10.5 V1.8" />
+    <path d="M3 2.2 H9.4 L8 4.6 L9.4 7 H3" />
+  </svg>
+);

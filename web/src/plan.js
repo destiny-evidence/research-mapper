@@ -27,6 +27,7 @@ export const PLAN = [
     title: "Set screening criteria",
   },
   { type: "screen_evidence", title: "Screen the evidence" },
+  { type: "choose_map_style", choice: true, title: "Build the map" },
   {
     type: "generate_map_dimensions",
     map: "suggested",
@@ -68,15 +69,25 @@ export const MAP_TAILS = {
   },
 };
 
-export function planFor({ mode = "both" } = {}, mapTail = null) {
+export function planFor({ mode = "both" } = {}, mapTail = null, asked = true) {
   return PLAN.filter(
     (step) =>
       (!step.mode || mode === "both" || step.mode === mode) &&
-      (!step.map || step.map === mapTail),
+      (!step.map || step.map === mapTail) &&
+      (!step.choice || asked),
   );
 }
 
+export const MAP_STYLE_STEP = "choose_map_style";
+
+/** Which map this session is building. */
 export function tailOf(operations = []) {
+  const chosen = (
+    operations.find((o) => o?.type === MAP_STYLE_STEP)?.decisions ?? []
+  ).find((decision) => decision.key === "map_style")?.answer?.[0]?.style;
+  if (chosen && MAP_TAILS[chosen]) return chosen;
+
+  // Fallback for sessions mapped before the map style choice was a step
   const types = new Set(operations.map((operation) => operation?.type));
   return (
     Object.keys(MAP_TAILS).find((tail) =>

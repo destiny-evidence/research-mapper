@@ -49,6 +49,9 @@ export function Chrome({ onHome, onTerms, onNewQuestion, children }) {
           <Info />
           <span>What this means</span>
         </button>
+        <a class="banner-info" href="#/privacy" target="_blank" rel="noreferrer">
+          <span>Privacy</span>
+        </a>
       </div>
     </div>
   );

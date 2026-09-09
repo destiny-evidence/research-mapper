@@ -1,0 +1,31 @@
+/** Copy text to the clipboard. */
+export async function copy(text, target = globalThis) {
+  const api = target.navigator?.clipboard;
+  if (api) {
+    try {
+      await api.writeText(text);
+      return true;
+    } catch {
+      // Denied or unavailable: try the old way before giving up.
+    }
+  }
+  return legacyCopy(text, target.document);
+}
+
+function legacyCopy(text, document) {
+  if (!document?.body) return false;
+  const field = document.createElement("textarea");
+  field.value = text;
+  field.setAttribute("readonly", "");
+  field.style.position = "fixed";
+  field.style.opacity = "0";
+  document.body.appendChild(field);
+  try {
+    field.select();
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    field.remove();
+  }
+}

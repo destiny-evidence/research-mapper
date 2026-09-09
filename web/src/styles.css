@@ -153,6 +153,11 @@ input, textarea, select {
 }
 .quiet:hover { color: var(--ink); }
 .quiet[disabled], .quiet[disabled]:hover { color: var(--faint); cursor: default; }
+/* A row, so the fallback field appears below the copy button without shoving
+   the download button about. */
+.head-actions { display: flex; align-items: flex-start; gap: 20px; flex-shrink: 0; }
+.copy-link { display: flex; flex-direction: column; gap: 5px; }
+.copy-url { width: 240px; font-size: 11px; }
 
 /* steps ------------------------------------------------------------------- */
 .step { border-bottom: 1px solid var(--line-2); }
@@ -161,11 +166,14 @@ input, textarea, select {
 .step.open.ask { border-left: 3px solid var(--amber); padding-left: 11px; }
 .step.open.failed { border-left: 3px solid var(--red); padding-left: 11px; }
 
+.step-bar { display: flex; align-items: center; gap: 12px; }
 .step-head {
   display: flex; align-items: center; gap: 13px;
-  width: 100%; padding: 11px 0;
+  flex-grow: 1; min-width: 0; padding: 11px 0;
   background: none; border: 0; text-align: left;
 }
+.step-toggle { display: flex; flex-shrink: 0; padding: 0; background: none; border: 0; }
+.fork-action.small { flex-shrink: 0; padding: 4px 9px; font-size: 11.5px; gap: 6px; }
 .step-title { font-size: 13px; color: var(--ink); width: 172px; flex-shrink: 0; }
 .step.open .step-title { font-weight: 600; }
 .step.todo .step-title { color: var(--dim); }
@@ -261,6 +269,8 @@ input, textarea, select {
   background: var(--panel); border: 1px solid var(--line);
 }
 .choice:hover { border-color: var(--amber); }
+.choice.on { border-color: var(--amber); background: var(--amber-bg); }
+.choice.on .choice-label { color: var(--amber-ink); font-weight: 600; }
 .choice-label { font-size: 13px; font-weight: 500; color: var(--ink); }
 .choice-detail { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
 .hint { font-size: 11.5px; color: var(--dim); }
@@ -322,11 +332,22 @@ input, textarea, select {
 .workflow { background: var(--panel); border: 1px solid var(--line); margin-bottom: 22px; }
 .workflow-head { display: flex; align-items: center; gap: 13px; width: 100%; padding: 10px 14px; background: #f7f6f2; border: 0; text-align: left; }
 .workflow.closed .workflow-head { background: var(--panel); }
+.workflow-title { font-size: 13px; color: var(--ink); font-weight: 500; }
 .workflow-steps { padding: 2px 14px 8px; }
 
 /* fork -------------------------------------------------------------------- */
-.fork-action { display: inline-flex; align-items: center; gap: 6px; color: var(--amber); max-width: 100%; }
-.fork-action:hover { color: var(--amber-ink); }
+/* A whole second session comes out of this, so it is a button rather than the
+   quiet text link it started as. */
+.fork-action {
+  display: inline-flex; align-items: center; gap: 7px; max-width: 100%;
+  padding: 5px 10px; text-align: left;
+  background: var(--panel); border: 1px solid var(--amber-line);
+  font-size: 12px; color: var(--amber);
+}
+.fork-action:hover { border-color: var(--amber); background: var(--amber-bg); color: var(--amber-ink); }
+.fork-action[disabled], .fork-action[disabled]:hover {
+  background: var(--tint); border-color: var(--line-2); color: var(--faint); cursor: default;
+}
 .questions { margin-top: 16px; }
 .question-row { display: grid; grid-template-columns: auto 1fr; gap: 0 10px; }
 .question-row.sole { grid-template-columns: 1fr; }
@@ -337,7 +358,7 @@ input, textarea, select {
 .chose { font-size: 11.5px; color: var(--text); background: var(--tint); border: 1px solid var(--line-2); padding: 2px 7px; }
 .chose.more { color: var(--dim); background: none; border-color: transparent; }
 .questions .reasoning { margin-top: 9px; }
-.questions .fork-action { margin-top: 8px; }
+.questions .fork-action { margin-top: 10px; }
 .fork-question { margin: 0; font-size: 13px; color: var(--ink); border-left: 2px solid var(--amber-line); padding-left: 11px; }
 .session-mark { display: inline-flex; align-items: center; width: 12px; flex-shrink: 0; }
 .lineage { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-family: var(--mono); font-size: 11px; }
@@ -412,3 +433,39 @@ input, textarea, select {
 .bubble-hit { width: 100%; height: 100%; display: grid; place-items: center; border: 0; background: none; padding: 0; }
 .bubble-hit:hover .bubble { background: var(--amber); }
 .bubble-hit.on .bubble { background: var(--amber); box-shadow: 0 0 0 2px var(--amber-bg), 0 0 0 3px var(--amber); }
+
+/* feedback ---------------------------------------------------------------- */
+/* Pinned: a session is long, and the moment something looks wrong is never at
+   the top of it. */
+.feedback-tab {
+  position: fixed; right: 20px; bottom: 20px; z-index: 30;
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 11px 18px; text-decoration: none;
+  background: var(--amber); color: #fff;
+  font-size: 13.5px; font-weight: 500;
+  box-shadow: 0 7px 20px rgba(125, 61, 17, 0.28);
+}
+.feedback-tab:hover { background: var(--amber-ink); }
+@media (max-width: 620px) {
+  .feedback-tab { padding: 13px; }
+  .feedback-tab span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}
+
+/* privacy policy ---------------------------------------------------------- */
+.policy { max-width: 760px; padding-top: 24px; }
+.policy-title { font-size: 26px; font-weight: 600; color: var(--ink); margin: 18px 0 6px; }
+.policy-dates { font-family: var(--mono); font-size: 11px; color: var(--dim); margin: 0 0 22px; }
+.policy-heading { font-size: 15px; font-weight: 600; color: var(--ink); margin: 0 0 10px; }
+.policy-sub { margin-top: 16px; }
+.policy-text { font-size: 13px; line-height: 1.65; color: var(--text); margin: 0 0 11px; max-width: 68ch; }
+.policy .terms-section { padding-top: 26px; border-top: 1px solid var(--hair); margin-top: 26px; }
+.policy .terms-list { margin-bottom: 11px; }
+.policy-address { font-style: normal; font-size: 13px; line-height: 1.7; color: var(--text); margin-bottom: 11px; }
+/* A three-column table has nowhere to go on a narrow window but sideways. */
+.policy-scroll { overflow-x: auto; margin-bottom: 14px; }
+.policy-table { border-collapse: collapse; font-size: 12.5px; min-width: 520px; }
+.policy-table th, .policy-table td {
+  border: 1px solid var(--line-2); padding: 8px 11px;
+  text-align: left; vertical-align: top; line-height: 1.5;
+}
+.policy-table th { background: var(--tint); color: var(--ink); font-weight: 600; }

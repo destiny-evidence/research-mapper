@@ -1,6 +1,6 @@
 // Pure functions over API payloads.
 
-import { MAP_TAILS, planFor, tailOf } from "./plan.js";
+import { MAP_STYLE_STEP, MAP_TAILS, planFor, tailOf } from "./plan.js";
 
 /** Newest operation per step type. */
 export function byType(operations) {
@@ -52,6 +52,7 @@ const RESULT = {
   generate_map_dimensions: (r) => plural(r.dimensions, "dimension"),
   generate_map_subtopics: (r) =>
     join([plural(r.dimensions, "dimension"), plural(r.subtopics, "subtopic")]),
+  choose_map_style: (r) => MAP_TAILS[r.style]?.label ?? r.style,
   generate_map: (r) =>
     join([`${r.mapped} placed`, r.failed ? `${r.failed} failed` : null]),
   generate_taxonomy_map: (r) =>
@@ -95,12 +96,11 @@ export function summarise(operation) {
   return progressText(operation.progress);
 }
 
-export const MAP_BRANCH = "choose-how-to-map";
-
 export function steps({ session, operations = [] }) {
   const newest = byType(operations);
   const tail = tailOf(operations);
-  const rows = planFor(session?.params, tail).map((step) => {
+  const asked = Boolean(newest[MAP_STYLE_STEP]) || !tail;
+  return planFor(session?.params, tail, asked).map((step) => {
     const operation = newest[step.type];
     const questions = operation?.pending_questions ?? [];
     return {
@@ -111,28 +111,12 @@ export function steps({ session, operations = [] }) {
       questions,
     };
   });
-
-  if (tail) return rows;
-  const reachable = rows.every((row) => row.state === "done");
-  return [
-    ...rows,
-    {
-      type: MAP_BRANCH,
-      title: "Build the map",
-      state: reachable ? "ask" : "todo",
-      summary: "",
-      branch: reachable ? MAP_TAILS : null,
-      questions: [],
-    },
-  ];
 }
 
 /** The step the client should queue next, or null. */
 export function nextToStart(rows) {
   const next = rows.find((row) => row.state !== "done");
-  // A branch is the user's to resolve; queueing anything past it would be
-  // guessing which map they want.
-  if (!next || next.branch) return null;
+  if (!next) return null;
   return next.operation ? null : next.type;
 }
 
@@ -187,8 +171,9 @@ export const asTrajectory = (value) =>
 export function answerLabels(decision) {
   const options = decision?.options ?? [];
   const named = (value) =>
-    options.find((option) => JSON.stringify(option.value) === JSON.stringify(value))
-      ?.label;
+    options.find(
+      (option) => JSON.stringify(option.value) === JSON.stringify(value),
+    )?.label;
   return (decision?.answer ?? []).map(
     (value) =>
       named(value) ??
@@ -252,6 +237,29 @@ export const SLICES = {
   },
 };
 
+/** Why a screened-in reference has no place on the map. */
+export const UNPLACED = {
+  failed: "The run could not process this reference at all.",
+  missing: "The repository could not find this reference.",
+  unplaced: "The model could not place this reference.",
+  unannotated:
+    "This reference does not have any coded concepts in the repository.",
+  partial:
+    "This reference does not have a coded concept in all of the mapped schemes, so cannot be placed.",
+};
+
+export function unplacedBecause(reference, tail = "suggested") {
+  if (reference?.stage === "failed") return UNPLACED.failed;
+  if (placementOf(reference) === "mapped") return null;
+  // Anything screening left out was never a candidate to be placed.
+  if (verdictOf(reference) !== "included") return null;
+  if (!reference?.evidence) return UNPLACED.missing;
+  if (tail !== "taxonomy") return UNPLACED.unplaced;
+  return reference.evidence.known_concepts?.length
+    ? UNPLACED.partial
+    : UNPLACED.unannotated;
+}
+
 /** How many references sit in each of a slice's buckets. */
 export const bucketCounts = (references = [], slice = SLICES.stage) =>
   slice.order
@@ -283,11 +291,13 @@ export const REFERENCE_VIEWS = {
     subset: screenedIn,
     slice: SLICES.placement,
     shows: ["mapping", "coordinate"],
+    tail: "suggested",
   },
   generate_taxonomy_map: {
     subset: screenedIn,
     slice: SLICES.placement,
     shows: ["mapping", "coordinate"],
+    tail: "taxonomy",
   },
 };
 

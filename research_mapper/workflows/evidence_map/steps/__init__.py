@@ -4,6 +4,7 @@ from research_mapper.engine.registry import Step
 from research_mapper.workflows.evidence_map.steps.concept_filters import (
     GenerateConceptFilters,
 )
+from research_mapper.workflows.evidence_map.steps.map_style import ChooseMapStyle
 from research_mapper.workflows.evidence_map.steps.mapping import (
     GenerateMap,
     GenerateMapDimensions,
@@ -29,6 +30,7 @@ STEPS: list[type[Step]] = [
     RetrieveConceptEvidence,
     GenerateScreeningCriteria,
     ScreenEvidence,
+    ChooseMapStyle,
     GenerateMapDimensions,
     GenerateMapSubtopics,
     GenerateMap,

@@ -5,13 +5,50 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const label = (option) =>
   option.label ?? option.value?.name ?? JSON.stringify(option.value);
 
+const BODIES = { edit_list: EditList, select_one: SelectOne };
+
 export function Question({ decision, onAnswer, saving }) {
-  const Body = decision.type === "edit_list" ? EditList : SelectMany;
+  const Body = BODIES[decision.type] ?? SelectMany;
   return (
     <div class="decision">
       <div class="decision-prompt">{decision.prompt}</div>
       <Body decision={decision} onAnswer={onAnswer} saving={saving} />
     </div>
+  );
+}
+
+function SelectOne({ decision, onAnswer, saving }) {
+  const [picked, setPicked] = useState(null);
+  return (
+    <>
+      <div class="choices">
+        {decision.options.map((option) => {
+          const on = picked !== null && same(picked, option.value);
+          return (
+            <button
+              type="button"
+              class={`choice ${on ? "on" : ""}`}
+              key={option.id}
+              onClick={() => setPicked(option.value)}
+            >
+              <span class="choice-label">{label(option)}</span>
+              {option.detail ? (
+                <span class="choice-detail">{option.detail}</span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+      <div class="actions">
+        <button
+          class="btn"
+          disabled={picked === null || saving}
+          onClick={() => onAnswer([picked])}
+        >
+          Answer
+        </button>
+      </div>
+    </>
   );
 }
 

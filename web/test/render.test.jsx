@@ -3,7 +3,8 @@ import render from 'preact-render-to-string'
 import { Panel } from '../src/ui/Panel.jsx'
 import { Reasoning } from '../src/ui/Reasoning.jsx'
 import { Tick, Info } from '../src/ui/Icons.jsx'
-import { Disclaimer } from '../src/ui/Disclaimer.jsx'
+import { Disclaimer, Link } from '../src/ui/Disclaimer.jsx'
+import { Privacy } from '../src/ui/Privacy.jsx'
 import { Breakable } from '../src/ui/text.jsx'
 import { Chrome } from '../src/ui/Chrome.jsx'
 import { Body } from '../src/ui/Session.jsx'
@@ -11,7 +12,8 @@ import { ForkButton, ForkConfirm } from '../src/ui/Fork.jsx'
 import { Questions } from '../src/ui/Questions.jsx'
 import { Sessions } from '../src/ui/Sessions.jsx'
 import { References, stepReferences, Why } from '../src/ui/References.jsx'
-import { SLICES } from '../src/derive.js'
+import { CopyLink } from '../src/ui/CopyLink.jsx'
+import { SLICES, UNPLACED, unplacedBecause } from '../src/derive.js'
 import { useAdapter } from '../src/auth.js'
 
 describe('Panel', () => {
@@ -37,6 +39,23 @@ describe('Panel', () => {
   it('gives a todo step no control to press', () => {
     const html = render(<Panel state="todo" title="Place evidence" summary="" open={false} />)
     expect(html).not.toContain('<button')
+  })
+
+  it('carries an action beside the head without nesting it in the head button', () => {
+    const html = render(
+      <Panel
+        state="done"
+        title="Screen the evidence"
+        summary="94 included"
+        open={false}
+        action={<ForkButton small onFork={() => {}} />}
+      >
+        <p>the body</p>
+      </Panel>,
+    )
+    expect(html).toContain('Answer differently')
+    // A button inside a button is invalid, and browsers drop the inner one.
+    expect(html).not.toMatch(/<button[^>]*>(?:(?!<\/button>)[\s\S])*<button/)
   })
 })
 
@@ -145,12 +164,25 @@ describe('disclaimer', () => {
     expect(render(<Disclaimer mode="review" />)).not.toContain('terms-todo')
   })
 
-  it('marks an unwritten destination rather than linking nowhere', () => {
-    // Both outward links are unset. They must read as gaps, not as text that
-    // happens to look ordinary — a silent placeholder is how one ships.
+  it('sends the reader to the policy for anything it does not summarise', () => {
     const html = render(<Disclaimer mode="review" />)
-    expect(html).toContain('terms-unset')
-    expect(html).not.toContain('href="#"')
+    expect(html).toContain('What we do with your data')
+    expect(html).toContain('href="#/privacy"')
+    // The surprising one: it leaves the building.
+    expect(html).toContain('sent to an AI provider')
+  })
+
+  it('marks an unwritten destination rather than linking nowhere', () => {
+    // A gap must read as a gap, not as text that happens to look ordinary.
+    // Whether the feedback form is configured is a build input, so this covers
+    // both shapes rather than whichever one this environment produces.
+    const unset = render(<Link to={null}>Tell us</Link>)
+    expect(unset).toContain('terms-unset')
+    expect(unset).not.toContain('href')
+
+    expect(render(<Link to="https://forms.example/x">Tell us</Link>)).toContain(
+      'href="https://forms.example/x"',
+    )
   })
 })
 
@@ -286,6 +318,11 @@ describe('References', () => {
       expect(html).not.toContain('Barriers in Kenya')
     })
 
+    it('waits for the step to finish before offering a reason for a gap', () => {
+      expect(stepReferences('generate_map', refs(), 'running').props.reason).toBe(null)
+      expect(stepReferences('generate_map', refs(), 'done').props.reason).toBeTypeOf('function')
+    })
+
     it('says the references are coming rather than showing untitled rows', () => {
       const html = render(
         stepReferences('screen_evidence', refs({ references: null, loading: true })),
@@ -419,5 +456,71 @@ describe('Questions', () => {
 
   it('has nothing to say about a step that answered nothing', () => {
     expect(render(<Questions decisions={[]} onFork={() => {}} />)).toBe('')
+  })
+})
+
+describe('CopyLink', () => {
+  it('names the address it would copy, so the click is not a guess', () => {
+    const html = render(<CopyLink href="https://mapper.example/#/session/abc" />)
+    expect(html).toContain('Copy link')
+    expect(html).toContain('https://mapper.example/#/session/abc')
+  })
+})
+
+
+describe('why a reference is not on the map', () => {
+  const included = {
+    destiny_id: 'c',
+    stage: 'included',
+    provenance: [],
+    screening: { include: true },
+    coordinate: null,
+    mapping: null,
+    evidence: { title: 'A trial' },
+  }
+
+  it('tells the reference why it is not there', () => {
+    const html = render(
+      <Why
+        reference={included}
+        filterGroups={[]}
+        shows={['mapping', 'coordinate']}
+        reason={(reference) => unplacedBecause(reference, 'suggested')}
+      />,
+    )
+    expect(html).toContain('Not on the map')
+    expect(html).toContain(UNPLACED.unplaced)
+  })
+
+  it('says nothing about a reference that was placed', () => {
+    const mapped = { ...included, stage: 'mapped', coordinate: { Setting: ['Urban'] } }
+    const html = render(
+      <Why
+        reference={mapped}
+        filterGroups={[]}
+        shows={['mapping', 'coordinate']}
+        reason={(reference) => unplacedBecause(reference, 'suggested')}
+      />,
+    )
+    expect(html).not.toContain('Not on the map')
+  })
+})
+
+describe('Privacy', () => {
+  const html = () => render(<Privacy onBack={() => {}} />)
+
+  it('carries the parts a reader has to be able to find', () => {
+    const page = html()
+    expect(page).toContain('Veritas Health Innovation Ltd')
+    expect(page).toContain('privacy@futureevidence.org')
+    // Section 4 is a table; the others are prose we would not notice losing.
+    expect(page).toContain('Legal basis (GDPR)')
+    expect(page).toContain('Legitimate interests')
+    for (const n of [1, 5, 9, 13]) expect(page).toContain(`${n}. `)
+  })
+
+  it('is dated, rather than carrying the placeholder from the source', () => {
+    expect(html()).not.toContain('[DATE]')
+    expect(html()).toContain('8 September 2026')
   })
 })

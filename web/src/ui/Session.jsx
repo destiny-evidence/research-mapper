@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import * as api from "../api.js";
-import { MAP_TAILS, titleOf } from "../plan.js";
+import { MAP_TAILS, tailOf, titleOf } from "../plan.js";
 import {
   steps,
   activeStep,
@@ -10,6 +10,7 @@ import {
   progressText,
   REFERENCE_VIEWS,
   referenceStamp,
+  unplacedBecause,
 } from "../derive.js";
 import { downloadRecord } from "../record.js";
 import { usePoll } from "../poll.js";
@@ -26,8 +27,10 @@ import {
 } from "./artifacts/index.jsx";
 import { Reasoning } from "./Reasoning.jsx";
 import { Questions } from "./Questions.jsx";
-import { ForkConfirm } from "./Fork.jsx";
+import { ForkButton, ForkConfirm } from "./Fork.jsx";
 import { Download, Fork, Spinner } from "./Icons.jsx";
+import { CopyLink } from "./CopyLink.jsx";
+import { FeedbackTab } from "./Feedback.jsx";
 import { Scope } from "./Scope.jsx";
 
 const MOVING = new Set(["pending", "running"]);
@@ -221,6 +224,14 @@ export function Session({ id }) {
       body: { reopen_decision: decision.id },
     });
 
+  // Collapsed, a step's questions are out of sight, so the head carries the
+  // fork for the first of them.
+  const headFork = (row) => {
+    const [first] = answered(row);
+    if (isOpen(row) || !first) return null;
+    return <ForkButton small disabled={busy} onFork={() => openFork(first)} />;
+  };
+
   const stepList = rows.map((row) => (
     <Panel
       key={row.type}
@@ -229,6 +240,7 @@ export function Session({ id }) {
       summary={row.summary}
       open={isOpen(row)}
       onToggle={() => toggle(row)}
+      action={headFork(row)}
     >
       <Body
         row={row}
@@ -275,10 +287,13 @@ export function Session({ id }) {
           ) : null}
           <Scope community={session.community} />
         </div>
-        <button class="quiet" onClick={download} disabled={downloading}>
-          {downloading ? <Spinner colour="#b8b4ac" /> : <Download />} Download
-          audit
-        </button>
+        <div class="head-actions">
+          <CopyLink label="Copy link to this session" />
+          <button class="quiet" onClick={download} disabled={downloading}>
+            {downloading ? <Spinner colour="#b8b4ac" /> : <Download />} Download
+            audit
+          </button>
+        </div>
       </div>
 
       {problem ? (
@@ -299,9 +314,7 @@ export function Session({ id }) {
               onClick={() => setWorkflowOpen(!workflowOpen)}
             >
               <Pip state="done" />
-              <span style="font-size: 13px; color: var(--ink); font-weight: 500;">
-                Workflow
-              </span>
+              <span class="workflow-title">Workflow</span>
               <span class="step-summary">{overview(rows)}</span>
               <Toggle open={workflowOpen} />
             </button>
@@ -317,6 +330,9 @@ export function Session({ id }) {
             references={references}
             community={session.community}
             filterGroups={artifact("concept_filters")?.groups}
+            reason={(reference) =>
+              unplacedBecause(reference, tailOf(data.operations))
+            }
             cell={cell}
             onClearCell={() => setCell(null)}
             loading={refsLoading}
@@ -326,6 +342,7 @@ export function Session({ id }) {
       ) : (
         stepList
       )}
+      <FeedbackTab question={session.question} />
     </div>
   );
 }
@@ -370,7 +387,7 @@ export function Body({
   onStart = () => {},
   saving,
 }) {
-  const table = stepReferences(row.type, refs);
+  const table = stepReferences(row.type, refs, row.state);
   const loop = artifact("concept_filter_loop");
 
   if (row.state === "failed") {
@@ -396,24 +413,6 @@ export function Body({
         </div>
         {table}
       </>
-    );
-  }
-
-  if (row.branch) {
-    return (
-      <div class="choices">
-        {Object.entries(row.branch).map(([key, tail]) => (
-          <button
-            type="button"
-            class="choice"
-            key={key}
-            onClick={() => onStart(tail.head)}
-          >
-            <span class="choice-label">{tail.label}</span>
-            <span class="choice-detail">{tail.detail}</span>
-          </button>
-        ))}
-      </div>
     );
   }
 

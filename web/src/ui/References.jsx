@@ -8,6 +8,7 @@ import {
   REFERENCE_VIEWS,
   referencesFor,
   SLICES,
+  unplacedBecause,
 } from "../derive.js";
 import { usePoll } from "../poll.js";
 import { referenceUrl } from "../repo.js";
@@ -84,8 +85,9 @@ const Chips = ({ label, children }) => (
 );
 
 /** Why this reference is where it is, as far as the view being read goes. */
-export function Why({ reference, filterGroups, shows = null }) {
+export function Why({ reference, filterGroups, shows = null, reason = null }) {
   const has = (part) => !shows || shows.includes(part);
+  const unplaced = reason?.(reference) ?? null;
   const found = has("found") ? foundBy(reference, filterGroups) : null;
   const coordinate = has("coordinate")
     ? Object.entries(reference.coordinate ?? {})
@@ -105,6 +107,12 @@ export function Why({ reference, filterGroups, shows = null }) {
           label="Model reasoning: mapping"
           text={reference.mapping?.reasoning}
         />
+      ) : null}
+      {unplaced ? (
+        <div class="ref-why-part">
+          <div class="lab">Not on the map</div>
+          <div class="ref-why-text">{unplaced}</div>
+        </div>
       ) : null}
       {coordinate.length ? (
         <div class="ref-why-part">
@@ -159,7 +167,7 @@ export function Why({ reference, filterGroups, shows = null }) {
 
 const slug = (bucket) => bucket.replace(/ /g, "-");
 
-function Row({ reference, community, filterGroups, slice, shows }) {
+function Row({ reference, community, filterGroups, slice, shows, reason }) {
   const [open, setOpen] = useState(false);
   const { evidence } = reference;
   const meta = [authorLine(evidence), evidence?.year]
@@ -197,7 +205,12 @@ function Row({ reference, community, filterGroups, slice, shows }) {
         </a>
       </div>
       {open ? (
-        <Why reference={reference} filterGroups={filterGroups} shows={shows} />
+        <Why
+          reference={reference}
+          filterGroups={filterGroups}
+          shows={shows}
+          reason={reason}
+        />
       ) : null}
     </>
   );
@@ -213,6 +226,7 @@ export function References({
   error,
   slice = SLICES.stage,
   shows = null,
+  reason = null,
   inset = false,
 }) {
   const [bucket, setBucket] = useState(null);
@@ -325,6 +339,7 @@ export function References({
               filterGroups={filterGroups}
               slice={slice}
               shows={shows}
+              reason={reason}
             />
           ))
         ) : (
@@ -338,7 +353,7 @@ export function References({
 /**
  * A step's own slice of the table.
  */
-export function stepReferences(type, refs) {
+export function stepReferences(type, refs, state = "done") {
   const view = REFERENCE_VIEWS[type];
   if (!view || !refs) return null;
   const shown = referencesFor(type, refs.references);
@@ -350,6 +365,11 @@ export function stepReferences(type, refs) {
       inset
       slice={view.slice}
       shows={view.shows}
+      reason={
+        view.tail && state === "done"
+          ? (reference) => unplacedBecause(reference, view.tail)
+          : null
+      }
       references={shown}
       community={refs.community}
       filterGroups={refs.filterGroups}

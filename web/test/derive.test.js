@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { MAP_BRANCH } from '../src/derive.js'
 import {
   buildGrid,
   byType,
@@ -244,47 +243,59 @@ describe('mapIsReady', () => {
 })
 
 
-describe('the mapping branch', () => {
+const BEFORE = [
+  'enhance_sparse_query',
+  'retrieve_sparse_evidence',
+  'generate_concept_filters',
+  'retrieve_concept_evidence',
+  'generate_screening_criteria',
+  'screen_evidence',
+]
+
+describe('the mapping choice', () => {
   const session = { params: {} }
   const done = (type) => operation(type, { status: 'complete', result: {} })
-
-  it('keeps the choice quiet until everything before it is done', () => {
-    const rows = steps({
-      session,
-      operations: [operation('screen_evidence', { status: 'running' })],
+  const chose = (style) =>
+    operation('choose_map_style', {
+      status: 'complete',
+      result: { style },
+      decisions: [{ id: 'd1', key: 'map_style', prompt: 'How?', answer: [{ style }] }],
     })
+
+  it('ends the thread on the choice until it is answered', () => {
+    const rows = steps({ session, operations: BEFORE.map(done) })
     const last = rows[rows.length - 1]
-    expect(last.type).toBe(MAP_BRANCH)
-    expect(last.state).toBe('todo')
-    expect(last.branch).toBeNull()
+    expect(last.type).toBe('choose_map_style')
+    expect(rows.some((row) => row.map)).toBe(false)
   })
 
-  it('ends the thread on a choice while no mapping tail has been started', () => {
+  it('will not queue anything past the choice while it is unanswered', () => {
     const rows = steps({
       session,
-      operations: ['enhance_sparse_query', 'retrieve_sparse_evidence', 'generate_concept_filters',
-        'retrieve_concept_evidence', 'generate_screening_criteria', 'screen_evidence'].map(done),
+      operations: [...BEFORE.map(done), operation('choose_map_style', { status: 'awaiting_input' })],
     })
-    const last = rows[rows.length - 1]
-    expect(last.type).toBe(MAP_BRANCH)
-    expect(last.state).toBe('ask')
-    expect(Object.keys(last.branch)).toEqual(['suggested', 'taxonomy'])
+    expect(nextToStart(rows)).toBeNull()
   })
 
-  it('will not queue anything past the choice', () => {
-    const rows = steps({ session, operations: [done('screen_evidence')] })
-    // Everything before it is done, so without the guard this would start a step.
-    expect(nextToStart(rows.filter((row) => row.state === 'done' || row.branch))).toBeNull()
-  })
-
-  it('replaces the choice with the chosen tail once one is started', () => {
-    const rows = steps({
-      session,
-      operations: [done('screen_evidence'), operation('generate_taxonomy_map', { status: 'running' })],
-    })
-    expect(rows.some((row) => row.type === MAP_BRANCH)).toBe(false)
+  it('queues the chosen tail once the choice is settled', () => {
+    const rows = steps({ session, operations: [...BEFORE.map(done), chose('taxonomy')] })
     expect(rows[rows.length - 1].type).toBe('generate_taxonomy_map')
     expect(rows.some((row) => row.type === 'generate_map_dimensions')).toBe(false)
+    expect(nextToStart(rows)).toBe('generate_taxonomy_map')
+  })
+
+  it('leaves the choice out of a session that mapped before it existed', () => {
+    const rows = steps({
+      session,
+      operations: [...BEFORE.map(done), done('generate_map_dimensions')],
+    })
+    expect(rows.some((row) => row.type === 'choose_map_style')).toBe(false)
+    // Without this it would try to start a step the session has already answered by doing.
+    expect(nextToStart(rows)).toBe('generate_map_subtopics')
+  })
+
+  it('summarises the choice by the map it picked', () => {
+    expect(summarise(chose('taxonomy'))).toBe("Use the taxonomy's own schemes")
   })
 })
 

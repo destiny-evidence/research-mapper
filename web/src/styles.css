@@ -107,11 +107,17 @@ input, textarea, select {
 .offscreen { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .scrim {
   position: fixed; inset: 0; z-index: 40;
-  display: grid; place-items: center; padding: 28px;
+  /* Flex, not grid: an auto-sized grid row gives the dialog nothing for its
+     max-height to resolve against, so on a short window it grew past the
+     bottom of the screen and took the Continue button with it. */
+  display: flex; padding: 28px; overflow-y: auto;
   background: rgba(43, 42, 39, 0.42);
 }
 .terms {
   display: flex; flex-direction: column;
+  /* auto margins centre it and, unlike align-items, keep the top reachable if
+     it ever does overflow. */
+  margin: auto;
   width: 100%; max-width: 620px; max-height: 100%;
   background: var(--panel); border: 1px solid var(--line);
   box-shadow: 0 18px 44px rgba(43, 42, 39, 0.22);
@@ -122,7 +128,17 @@ input, textarea, select {
   border-bottom: 1px solid var(--amber-line);
 }
 .terms-title { font-size: 13.5px; font-weight: 600; color: var(--amber-ink); }
-.terms-body { overflow-y: auto; padding: 4px 22px 18px; }
+.terms-body {
+  overflow-y: auto; padding: 4px 22px 18px;
+  /* An overlay scrollbar stays hidden until you already know to scroll, which
+     is no use to a reader who has to see every section. Force a standing one. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--dim) var(--hair);
+}
+.terms-body::-webkit-scrollbar { width: 11px; }
+.terms-body::-webkit-scrollbar-track { background: var(--hair); }
+.terms-body::-webkit-scrollbar-thumb { background: var(--dim); border: 3px solid var(--hair); }
+.terms-body::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 .terms-section { padding-top: 18px; }
 .terms-heading { margin: 0 0 8px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
 .terms-list { margin: 0; padding-left: 18px; }
@@ -137,7 +153,18 @@ input, textarea, select {
   display: flex; align-items: center; gap: 12px;
   padding: 14px 22px; border-top: 1px solid var(--line-2); background: var(--tint);
 }
-.terms-tick { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--ink); }
+.terms-tick {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 12.5px; color: var(--ink); cursor: pointer;
+  margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line-2);
+}
+@media (max-width: 480px) {
+  .scrim { padding: 14px; }
+  /* Two buttons have no room to share a row, and one is easier to hit full width. */
+  .terms-foot { flex-direction: column; align-items: stretch; }
+  .terms-foot .grow { display: none; }
+  .terms-foot .btn { width: 100%; }
+}
 
 .page { max-width: 1020px; margin: 0 auto; padding: 0 32px 60px; }
 

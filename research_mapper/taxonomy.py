@@ -15,11 +15,19 @@ logger = logging.getLogger(__name__)
 
 
 class RepoCommunity(StrEnum):
+    DESTINY_HIGH_RECALL = auto()
+    DESTINY_BALANCED = auto()
+    DESTINY_HIGH_PRECISION = auto()
     HPV = auto()
     ESEA = auto()
 
 
+_DESTINY_VOCAB_URL = "https://vocab.evidence-repository.org/published/019db9f2-6c04-7795-a242-3ab8e8e2120a/1.6/vocabulary.jsonld"
+
 _VOCAB_URLS: dict[RepoCommunity, str] = {
+    RepoCommunity.DESTINY_HIGH_RECALL: _DESTINY_VOCAB_URL,
+    RepoCommunity.DESTINY_BALANCED: _DESTINY_VOCAB_URL,
+    RepoCommunity.DESTINY_HIGH_PRECISION: _DESTINY_VOCAB_URL,
     RepoCommunity.HPV: "https://vocab.evidence-repository.org/published/019d3e6a-04d6-76e9-9f7a-b8b26c1e0976/2.3/vocabulary.jsonld",
     RepoCommunity.ESEA: "https://vocab.evidence-repository.org/published/019d9463-2780-7243-b4de-e547386f2a90/1.1/vocabulary.jsonld",
 }
@@ -27,6 +35,9 @@ _VOCAB_URLS: dict[RepoCommunity, str] = {
 # The label a community is tagged with under DESTINY's "domain-inclusion" annotation
 # scheme. Not always the same as the RepoCommunity name — ESEA's is "jacobs-education".
 COMMUNITY_ANNOTATION_LABELS: dict[RepoCommunity, str] = {
+    RepoCommunity.DESTINY_HIGH_RECALL: "destiny-high-recall",
+    RepoCommunity.DESTINY_BALANCED: "destiny-balanced",
+    RepoCommunity.DESTINY_HIGH_PRECISION: "destiny-high-precision",
     RepoCommunity.HPV: "hpv",
     RepoCommunity.ESEA: "jacobs-education",
 }

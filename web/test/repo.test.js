@@ -19,6 +19,13 @@ describe('referenceUrl', () => {
     )
   })
 
+  it('points every destiny threshold at the one community path', async () => {
+    const { referenceUrl } = await load('production')
+    expect(referenceUrl('destiny_high_precision', 'abc')).toBe(
+      'https://data.evidence-repository.org/destiny/references/abc',
+    )
+  })
+
   it('segments staging', async () => {
     const { referenceUrl } = await load('staging')
     expect(referenceUrl('esea', 'abc')).toBe(

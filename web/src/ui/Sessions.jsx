@@ -1,3 +1,4 @@
+import { communityLabel } from "../communities.js";
 import { family } from "../derive.js";
 import { Fork } from "./Icons.jsx";
 
@@ -37,7 +38,7 @@ export function Sessions({ sessions, waiting = new Set(), onOpen, onNew }) {
           {waiting.has(session.id) ? (
             <span style="font-size: 12px; color: var(--amber);">needs you</span>
           ) : null}
-          <span class="pill">{session.community.toUpperCase()}</span>
+          <span class="pill">{communityLabel(session.community)}</span>
           <span class="when">{day(session.created_at)}</span>
         </button>
       ))}

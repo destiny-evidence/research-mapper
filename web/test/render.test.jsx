@@ -13,8 +13,22 @@ import { Questions } from '../src/ui/Questions.jsx'
 import { Sessions } from '../src/ui/Sessions.jsx'
 import { References, stepReferences, Why } from '../src/ui/References.jsx'
 import { CopyLink } from '../src/ui/CopyLink.jsx'
+import { Scope } from '../src/ui/Scope.jsx'
 import { SLICES, UNPLACED, unplacedBecause } from '../src/derive.js'
 import { useAdapter } from '../src/auth.js'
+
+describe('Scope', () => {
+  it('states the inclusion threshold a destiny session was run at', () => {
+    const html = render(<Scope community="destiny_high_recall" />)
+    expect(html).toContain('DESTINY community at high recall inclusion')
+  })
+
+  it('leaves a community with only one threshold unqualified', () => {
+    const html = render(<Scope community="hpv" />)
+    expect(html).toContain('HPV community in the evidence repository')
+    expect(html).not.toContain('inclusion')
+  })
+})
 
 describe('Panel', () => {
   it('shows its summary and hides its body when collapsed', () => {
@@ -162,6 +176,13 @@ describe('Chrome', () => {
 describe('disclaimer', () => {
   it('has copy in every section', () => {
     expect(render(<Disclaimer mode="review" />)).not.toContain('terms-todo')
+  })
+
+  it('names no community, being shown before one has been chosen', () => {
+    // The per-session claim belongs to Scope, which knows which one was searched.
+    const html = render(<Disclaimer mode="review" />)
+    expect(html).toContain('One community within the broader evidence repository')
+    expect(html).toContain('evidence-repository.org/"')
   })
 
   it('sends the reader to the policy for anything it does not summarise', () => {

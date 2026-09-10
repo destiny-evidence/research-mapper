@@ -150,43 +150,42 @@ export function Disclaimer({ mode = "accept", onAccept, onClose }) {
           {SECTIONS.map((section) => (
             <Section key={section.id} {...section} />
           ))}
+          {/* The tick ends the text rather than sitting in the footer, so it
+              cannot be reached without scrolling past every section. */}
+          {reviewing ? null : (
+            <label class="terms-tick">
+              <input
+                type="checkbox"
+                class="offscreen"
+                checked={ticked}
+                onInput={(event) => setTicked(event.currentTarget.checked)}
+              />
+              <span class={`box ${ticked ? "on" : ""}`}>
+                {ticked ? <Tick colour="#fff" size={11} /> : null}
+              </span>
+              <span>
+                I have read and understood the above, including the privacy
+                policy.
+              </span>
+            </label>
+          )}
         </div>
 
         <div class="terms-foot">
+          <span class="grow" />
           {reviewing ? (
-            <>
-              <span class="grow" />
-              <button type="button" class="btn" onClick={onClose}>
-                Close
-              </button>
-            </>
+            <button type="button" class="btn" onClick={onClose}>
+              Close
+            </button>
           ) : (
-            <>
-              <label class="terms-tick">
-                <input
-                  type="checkbox"
-                  class="offscreen"
-                  checked={ticked}
-                  onInput={(event) => setTicked(event.currentTarget.checked)}
-                />
-                <span class={`box ${ticked ? "on" : ""}`}>
-                  {ticked ? <Tick colour="#fff" size={11} /> : null}
-                </span>
-                <span>
-                  I have read and understood the above, including the privacy
-                  policy.
-                </span>
-              </label>
-              <span class="grow" />
-              <button
-                type="button"
-                class="btn"
-                disabled={!ticked}
-                onClick={onAccept}
-              >
-                Continue
-              </button>
-            </>
+            <button
+              type="button"
+              class="btn"
+              disabled={!ticked}
+              onClick={onAccept}
+            >
+              Continue
+            </button>
           )}
         </div>
       </div>

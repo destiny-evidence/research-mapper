@@ -4,6 +4,12 @@ on:
   push:
     branches: main
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Which stack to deploy to
+        type: choice
+        options: [staging, production]
+        default: staging
 
 permissions:
   id-token: write
@@ -12,7 +18,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: staging
+    environment: ${{ inputs.environment || 'staging' }}
     env:
       IMAGE: ${{ vars.REGISTRY_NAME }}.azurecr.io/${{ vars.APP_NAME }}:${{ github.sha }}
     steps:
@@ -30,15 +36,6 @@ jobs:
           az acr login --name ${{ vars.REGISTRY_NAME }}
           docker build -t "$IMAGE" .
           docker push "$IMAGE"
-
-      - name: Deploy built image to the container app
-        uses: Azure/container-apps-deploy-action@v1
-        with:
-          acrName: ${{ vars.REGISTRY_NAME }}
-          containerAppName: ${{ vars.CONTAINER_APP_NAME }}
-          resourceGroup: ${{ vars.RESOURCE_GROUP }}
-          containerAppEnvironment: ${{ vars.CONTAINER_APP_ENV }}
-          imageToDeploy: ${{ env.IMAGE }}
 
       - name: Deploy built image to the API
         uses: Azure/cli@v2.0.0
@@ -62,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [deploy]
     if: ${{ always() && !failure() && !cancelled() }}
-    environment: staging
+    environment: ${{ inputs.environment || 'staging' }}
     steps:
       - name: "Az CLI login"
         uses: azure/login@v2.1.0
@@ -92,7 +89,7 @@ jobs:
   # Terraform-published endpoints, so it does not wait on the docker build.
   web:
     runs-on: ubuntu-latest
-    environment: staging
+    environment: ${{ inputs.environment || 'staging' }}
     defaults:
       run:
         working-directory: web

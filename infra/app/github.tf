@@ -25,12 +25,6 @@ resource "azurerm_role_assignment" "github_actions_acr_push" {
   role_definition_name = "AcrPush"
 }
 
-resource "azurerm_role_assignment" "github_actions_container_app" {
-  principal_id         = azuread_service_principal.github_actions.object_id
-  scope                = azurerm_container_app.this.id
-  role_definition_name = "Contributor"
-}
-
 resource "azurerm_role_assignment" "github_actions_api" {
   principal_id         = azuread_service_principal.github_actions.object_id
   scope                = azurerm_container_app.api.id
@@ -55,12 +49,6 @@ resource "azurerm_role_assignment" "github_actions_migration_job" {
   role_definition_name = "Contributor"
 }
 
-resource "azurerm_role_assignment" "github_actions_container_app_environment" {
-  principal_id         = azuread_service_principal.github_actions.object_id
-  scope                = azurerm_container_app_environment.this.id
-  role_definition_name = "Contributor"
-}
-
 resource "azurerm_role_assignment" "github_actions_resource_group_reader" {
   principal_id         = azuread_service_principal.github_actions.object_id
   scope                = azurerm_resource_group.this.id
@@ -81,13 +69,11 @@ locals {
     REGISTRY_SERVER       = data.azurerm_container_registry.this.login_server
     APP_NAME              = var.app_name
     RESOURCE_GROUP        = azurerm_resource_group.this.name
-    CONTAINER_APP_NAME    = azurerm_container_app.this.name
     API_APP_NAME          = azurerm_container_app.api.name
     WORKER_APP_NAME       = azurerm_container_app.worker.name
     # Also a Vite build input: see VITE_DESTINY_ENV in the deploy workflow.
-    ENVIRONMENT_NAME      = var.environment
-    CONTAINER_APP_ENV     = azurerm_container_app_environment.this.name
-    MIGRATE_JOB_NAME      = azurerm_container_app_job.migrate.name
+    ENVIRONMENT_NAME = var.environment
+    MIGRATE_JOB_NAME = azurerm_container_app_job.migrate.name
 
     # Vite bakes these into the web bundle at build time.
     WEB_STORAGE_ACCOUNT = azurerm_storage_account.web.name

@@ -21,8 +21,6 @@ terraform {
       version = "~> 3.8"
     }
 
-    # Container Apps EasyAuth (Microsoft.App/containerApps/authConfigs) has no
-    # azurerm resource, so it is provisioned through the raw ARM API.
     azapi = {
       source  = "Azure/azapi"
       version = "~> 2.9"

@@ -15,11 +15,13 @@ logger = logging.getLogger(__name__)
 
 
 class RepoCommunity(StrEnum):
+    DESTINY = auto()
     HPV = auto()
     ESEA = auto()
 
 
 _VOCAB_URLS: dict[RepoCommunity, str] = {
+    RepoCommunity.DESTINY: "https://vocab.evidence-repository.org/published/01a0899b-90a8-714e-87c0-7b00fff5a29f/1.0/vocabulary.jsonld",
     RepoCommunity.HPV: "https://vocab.evidence-repository.org/published/019d3e6a-04d6-76e9-9f7a-b8b26c1e0976/2.3/vocabulary.jsonld",
     RepoCommunity.ESEA: "https://vocab.evidence-repository.org/published/019d9463-2780-7243-b4de-e547386f2a90/1.1/vocabulary.jsonld",
 }
@@ -27,6 +29,7 @@ _VOCAB_URLS: dict[RepoCommunity, str] = {
 # The label a community is tagged with under DESTINY's "domain-inclusion" annotation
 # scheme. Not always the same as the RepoCommunity name — ESEA's is "jacobs-education".
 COMMUNITY_ANNOTATION_LABELS: dict[RepoCommunity, str] = {
+    RepoCommunity.DESTINY: "destiny-high-recall",
     RepoCommunity.HPV: "hpv",
     RepoCommunity.ESEA: "jacobs-education",
 }

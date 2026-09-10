@@ -9,7 +9,8 @@ import { Warning, Tick } from "./Icons.jsx";
  */
 
 const LINKS = {
-  repository: repoUrl("destiny"),
+  // No community is chosen from here either, so this goes to the front door.
+  repository: repoUrl(),
   // No session is open from here, so the form gets no context.
   report: feedbackUrl(),
 };
@@ -47,7 +48,8 @@ const SECTIONS = [
     body: [
       <>
         <Link to={LINKS.repository}>
-          The DESTINY community within the broader evidence repository.
+          One community within the broader evidence repository, chosen when you
+          ask the question.
         </Link>
       </>,
       <>It screens on titles and abstracts, not the full text.</>,

@@ -164,6 +164,13 @@ describe('disclaimer', () => {
     expect(render(<Disclaimer mode="review" />)).not.toContain('terms-todo')
   })
 
+  it('names no community, being shown before one has been chosen', () => {
+    // The per-session claim belongs to Scope, which knows which one was searched.
+    const html = render(<Disclaimer mode="review" />)
+    expect(html).toContain('One community within the broader evidence repository')
+    expect(html).toContain('evidence-repository.org/"')
+  })
+
   it('sends the reader to the policy for anything it does not summarise', () => {
     const html = render(<Disclaimer mode="review" />)
     expect(html).toContain('What we do with your data')

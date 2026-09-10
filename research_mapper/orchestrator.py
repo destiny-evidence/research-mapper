@@ -114,7 +114,7 @@ class ResearchMappingOrchestrator:
         self,
         user_query: UserQuery,
         search_modes: set[SearchMode] | None = None,
-        community: taxonomy.RepoCommunity = taxonomy.RepoCommunity.HPV,
+        community: taxonomy.RepoCommunity = taxonomy.RepoCommunity.DESTINY,
     ) -> EvidenceMap:
         """
         Gathers, screens, and maps evidence for relevance to the user's query.

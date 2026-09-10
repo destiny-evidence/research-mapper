@@ -6,12 +6,20 @@ import pytest
 from rdflib import Graph
 
 from research_mapper.taxonomy import (
+    COMMUNITY_ANNOTATION_LABELS,
+    _VOCAB_URLS,
     RepoCommunity,
     TaxonomyFetchError,
     build_concept_index,
     get_graph,
     get_taxonomy,
 )
+
+
+@pytest.mark.parametrize("community", list(RepoCommunity))
+def test_every_community_has_a_vocab_url_and_an_annotation_label(community):
+    assert community in _VOCAB_URLS
+    assert community in COMMUNITY_ANNOTATION_LABELS
 
 
 @pytest.fixture(autouse=True)

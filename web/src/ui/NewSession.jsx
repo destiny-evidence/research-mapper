@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 
-const COMMUNITIES = ["hpv", "esea"];
+const COMMUNITIES = ["destiny", "hpv", "esea"];
 
 /** Question, community, and which retrieval paths to run. */
 export function NewSession({ onCreate, onCancel, busy }) {

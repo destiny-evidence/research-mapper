@@ -25,6 +25,7 @@ _SEARCH_MODE_LABELS = {
 }
 
 _COMMUNITY_LABELS = {
+    RepoCommunity.DESTINY: "Climate and Health (DESTINY)",
     RepoCommunity.HPV: "HPV Vaccine Delivery",
     RepoCommunity.ESEA: "Education (ESEA)",
 }

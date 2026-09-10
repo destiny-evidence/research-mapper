@@ -1,5 +1,8 @@
 locals {
-  name       = "${var.app_name}-${var.environment}"
+  env_short = { production = "prod", development = "dev" }
+  env       = lookup(local.env_short, var.environment, var.environment)
+
+  name       = "${var.app_name}-${local.env}"
   name_short = "${replace(var.app_name, "-", "")}${substr(var.environment, 0, 4)}"
   minimum_resource_tags = {
     "Created by"  = var.created_by

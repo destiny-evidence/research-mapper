@@ -1,7 +1,5 @@
 /** Links into the evidence repository's web UI. */
 
-import { communitySlug } from "./communities.js";
-
 const ENV = import.meta.env?.VITE_DESTINY_ENV ?? "production";
 
 const SEGMENT = { production: null, staging: "staging", development: "dev" };
@@ -15,4 +13,4 @@ export const repoUrl = (...segments) => `https://${HOST}/${segments.join("/")}`;
 
 /** One reference, in the community that gathered it. */
 export const referenceUrl = (community, destinyId) =>
-  repoUrl(communitySlug(community), "references", destinyId);
+  repoUrl(String(community).toLowerCase(), "references", destinyId);

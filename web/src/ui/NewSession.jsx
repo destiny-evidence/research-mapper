@@ -1,5 +1,6 @@
 import { useState } from "preact/hooks";
-import { COMMUNITIES, communityLabel } from "../communities.js";
+
+const COMMUNITIES = ["destiny", "hpv", "esea"];
 
 /** Question, community, and which retrieval paths to run. */
 export function NewSession({ onCreate, onCancel, busy }) {
@@ -33,7 +34,7 @@ export function NewSession({ onCreate, onCancel, busy }) {
           >
             {COMMUNITIES.map((option) => (
               <option key={option} value={option}>
-                {communityLabel(option)}
+                {option.toUpperCase()}
               </option>
             ))}
           </select>

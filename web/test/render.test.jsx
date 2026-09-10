@@ -13,22 +13,8 @@ import { Questions } from '../src/ui/Questions.jsx'
 import { Sessions } from '../src/ui/Sessions.jsx'
 import { References, stepReferences, Why } from '../src/ui/References.jsx'
 import { CopyLink } from '../src/ui/CopyLink.jsx'
-import { Scope } from '../src/ui/Scope.jsx'
 import { SLICES, UNPLACED, unplacedBecause } from '../src/derive.js'
 import { useAdapter } from '../src/auth.js'
-
-describe('Scope', () => {
-  it('states the inclusion threshold a destiny session was run at', () => {
-    const html = render(<Scope community="destiny_high_recall" />)
-    expect(html).toContain('DESTINY community at high recall inclusion')
-  })
-
-  it('leaves a community with only one threshold unqualified', () => {
-    const html = render(<Scope community="hpv" />)
-    expect(html).toContain('HPV community in the evidence repository')
-    expect(html).not.toContain('inclusion')
-  })
-})
 
 describe('Panel', () => {
   it('shows its summary and hides its body when collapsed', () => {

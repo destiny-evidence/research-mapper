@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import * as api from "../api.js";
-import { communityLabel } from "../communities.js";
 import { MAP_TAILS, tailOf, titleOf } from "../plan.js";
 import {
   steps,
@@ -272,7 +271,7 @@ export function Session({ id }) {
         <div class="grow">
           <div class="question">{session.question}</div>
           <div class="meta">
-            {communityLabel(session.community)} ·{" "}
+            {session.community.toUpperCase()} ·{" "}
             {new Date(session.created_at).toLocaleString()}
           </div>
           {session.forked_from_id ? (

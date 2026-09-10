@@ -25,9 +25,7 @@ _SEARCH_MODE_LABELS = {
 }
 
 _COMMUNITY_LABELS = {
-    RepoCommunity.DESTINY_HIGH_RECALL: "DESTINY (high recall)",
-    RepoCommunity.DESTINY_BALANCED: "DESTINY (balanced)",
-    RepoCommunity.DESTINY_HIGH_PRECISION: "DESTINY (high precision)",
+    RepoCommunity.DESTINY: "Climate and Health (DESTINY)",
     RepoCommunity.HPV: "HPV Vaccine Delivery",
     RepoCommunity.ESEA: "Education (ESEA)",
 }

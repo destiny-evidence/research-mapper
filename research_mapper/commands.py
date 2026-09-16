@@ -29,6 +29,12 @@ HEARTBEAT_TIMEOUT = timedelta(minutes=5)
 DEQUEUE_TIMEOUT = timedelta(seconds=5)
 MAX_RETRIES = 1
 BUSY_RETRY_DELAY = timedelta(seconds=30)
+DEFAULT_CONCURRENCY = 5
+
+
+def _concurrency() -> int:
+    """How many operations may run at once."""
+    return int(os.environ.get("MAPPER_WORKER_CONCURRENCY", DEFAULT_CONCURRENCY))
 
 
 async def _worker() -> None:
@@ -37,7 +43,7 @@ async def _worker() -> None:
 
     @manager.entrypoint(
         queue.ENTRYPOINT,
-        concurrency_limit=1,
+        concurrency_limit=_concurrency(),
         on_failure="hold",
         executor_factory=lambda parameters: DatabaseRetryEntrypointExecutor(
             parameters, max_attempts=MAX_RETRIES

@@ -98,6 +98,14 @@ variable "llm_api_key" {
   sensitive   = true
 }
 
+# Worker
+
+variable "worker_concurrency" {
+  description = "Operations the worker fleet may run at once."
+  type        = number
+  default     = 5
+}
+
 # Keycloak
 
 variable "keycloak_url" {

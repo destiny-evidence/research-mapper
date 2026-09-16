@@ -160,6 +160,11 @@ resource "azurerm_container_app" "worker" {
       }
 
       env {
+        name  = "MAPPER_WORKER_CONCURRENCY"
+        value = var.worker_concurrency
+      }
+
+      env {
         name        = "MAPPER_LLM_API_KEY"
         secret_name = "llm-api-key"
       }

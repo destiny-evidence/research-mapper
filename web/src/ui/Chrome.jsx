@@ -18,8 +18,14 @@ function User() {
   );
 }
 
+/** Which LLM is answering, read-only. */
+function Model({ model }) {
+  if (!model) return null;
+  return <input type="text" class="field short" value={model} readOnly title="LLM model" />;
+}
+
 /** Navbar and disclaimer. */
-export function Chrome({ onHome, onTerms, onNewQuestion, children }) {
+export function Chrome({ onHome, onTerms, model, onNewQuestion, children }) {
   return (
     <div class="chrome">
       <div class="topbar">
@@ -27,6 +33,7 @@ export function Chrome({ onHome, onTerms, onNewQuestion, children }) {
           <span class="mark">RM</span>
           <span class="brand">Research Mapper</span>
         </button>
+        <Model model={model} />
         <span class="grow" />
         {onNewQuestion ? (
           <button type="button" class="ask-new" onClick={onNewQuestion}>

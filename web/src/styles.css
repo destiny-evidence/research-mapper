@@ -46,6 +46,8 @@ input, textarea, select {
 }
 .field { padding: 6px 9px; border: 1px solid var(--line); background: var(--panel); }
 .field.grow { flex-grow: 1; max-width: 320px; }
+.field.short { width: 110px; }
+.field[readonly] { background: var(--tint); color: var(--muted); cursor: default; }
 .field.block { display: block; width: 100%; max-width: 700px; margin-top: 20px; padding: 11px; font-size: 15px; resize: vertical; }
 .mono { font-family: var(--mono); }
 

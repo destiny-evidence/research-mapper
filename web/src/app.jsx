@@ -25,6 +25,7 @@ export function App() {
   const [sessions, setSessions] = useState([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [config, setConfig] = useState(null)
   // 'accept' until the terms have been agreed to, then null, then 'review'
   // whenever they are reopened from the banner.
   const [terms, setTerms] = useState(accepted() ? null : 'accept')
@@ -44,6 +45,10 @@ export function App() {
     api.listSessions().then(setSessions, setError)
   }, [route.view])
 
+  useEffect(() => {
+    api.getConfig().then(setConfig, () => {})
+  }, [])
+
   const create = async (body) => {
     setBusy(true)
     setError(null)
@@ -62,6 +67,7 @@ export function App() {
       <Chrome
         onHome={() => go('#/')}
         onTerms={() => setTerms('review')}
+        model={config?.llm_model}
         // The list view carries its own; the session view is otherwise a dead end.
         onNewQuestion={route.view === 'session' ? () => go('#/new') : null}
       />

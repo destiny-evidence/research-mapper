@@ -73,3 +73,5 @@ export const listReferences = (sessionId, { includeEvidence = false } = {}) =>
 
 export const getMap = (sessionId, { includeEvidence = true } = {}) =>
   request(`/sessions/${sessionId}/map/?include_evidence=${includeEvidence}`);
+
+export const getConfig = () => request("/config");

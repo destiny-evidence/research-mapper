@@ -58,3 +58,10 @@ for workflow_router in workflows.routers():
 def healthz() -> dict[str, str]:
     """Liveness. Deliberately touches nothing."""
     return {"status": "ok"}
+
+
+@app.get("/config", tags=["ops"])
+def config() -> dict[str, str]:
+    """Public, read-only bits of server config the UI wants to show."""
+    model = os.environ.get("MAPPER_LLM_MODEL", "")
+    return {"llm_model": model.split("/", 1)[-1]}

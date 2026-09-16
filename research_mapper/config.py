@@ -72,7 +72,7 @@ def configure_dspy() -> None:
         api_key=os.environ["MAPPER_LLM_API_KEY"],
     )
     logger.debug("Running LLM sanity check")
-    result = lm("Say: 'hello world'", temperature=0.0)
+    result = lm("Say: 'hello world'")
     if not result or not result[0]:
         logger.warning("LLM sanity check returned nothing: %s", result)
     dspy.configure(lm=lm)

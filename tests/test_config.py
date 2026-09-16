@@ -8,6 +8,7 @@ import pytest
 from research_mapper import local_destiny_auth
 from research_mapper.config import (
     HEALTHCHECK_TIMEOUT,
+    LLM_TIMEOUT_SECONDS,
     NoDestinyCredential,
     configure_dspy,
     get_destiny_client,
@@ -83,6 +84,26 @@ def test_configure_dspy_accepts_any_non_empty_response(response):
         configure_dspy()
 
         mock_dspy.configure.assert_called_once()
+
+
+def test_configure_dspy_bounds_the_request_timeout():
+    """An unbounded request parks a whole fan-out, so the LM must carry a timeout."""
+    with patch("research_mapper.config.dspy") as mock_dspy:
+        mock_dspy.LM.return_value = MagicMock(return_value=["hello world"])
+
+        configure_dspy()
+
+        assert mock_dspy.LM.call_args.kwargs["timeout"] == LLM_TIMEOUT_SECONDS
+
+
+def test_configure_dspy_takes_the_request_timeout_from_the_environment(monkeypatch):
+    monkeypatch.setenv("MAPPER_LLM_TIMEOUT", "30")
+    with patch("research_mapper.config.dspy") as mock_dspy:
+        mock_dspy.LM.return_value = MagicMock(return_value=["hello world"])
+
+        configure_dspy()
+
+        assert mock_dspy.LM.call_args.kwargs["timeout"] == 30.0
 
 
 @pytest.mark.parametrize("response", [[], [""], [None]])

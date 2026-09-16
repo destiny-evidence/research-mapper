@@ -43,6 +43,7 @@ The LLM and the database:
 | Variable                                                                   | For                                                            |
 | -------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | `MAPPER_LLM_MODEL`, `MAPPER_LLM_BASE_URL`, `MAPPER_LLM_API_KEY`            | the LLM                                                        |
+| `MAPPER_LLM_TIMEOUT`                                                       | seconds to wait on one LLM request. Defaults to 120            |
 | `MAPPER_DB_HOST`, `MAPPER_DB_NAME`, `MAPPER_DB_USER`, `MAPPER_DB_PASSWORD` | Postgres. Deployed, the password is replaced by an Entra token |
 
 There are two separate authentication paths, and they are unrelated to each other.

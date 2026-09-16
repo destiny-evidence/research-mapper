@@ -17,6 +17,7 @@ from research_mapper.db.session import db_manager
 logger = logging.getLogger(__name__)
 
 HEALTHCHECK_TIMEOUT = 30.0
+LLM_TIMEOUT_SECONDS = 120.0
 
 
 class NoDestinyCredential(RuntimeError):
@@ -58,6 +59,11 @@ def load_environment(env_file: str | None = None) -> None:
     load_dotenv(_global_env_path())
 
 
+def _llm_timeout() -> float:
+    """How long to wait on one LLM request before giving up."""
+    return float(os.environ.get("MAPPER_LLM_TIMEOUT") or LLM_TIMEOUT_SECONDS)
+
+
 def configure_dspy() -> None:
     """
     Configures the LLM provider for DSPy from environment variables.
@@ -70,6 +76,7 @@ def configure_dspy() -> None:
         model=model,
         api_base=api_base,
         api_key=os.environ["MAPPER_LLM_API_KEY"],
+        timeout=_llm_timeout(),
     )
     logger.debug("Running LLM sanity check")
     result = lm("Say: 'hello world'")

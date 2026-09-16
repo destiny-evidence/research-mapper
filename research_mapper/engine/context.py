@@ -1,5 +1,6 @@
 """Generic database context."""
 
+import threading
 import time
 from collections.abc import Callable, Collection
 from functools import cached_property
@@ -41,6 +42,7 @@ class StepContext:
         self._sf = session_factory
         self._pending: dict[str, AskSpec] = {}
         self._last_progress = 0.0
+        self._progress_lock = threading.Lock()
 
     @property
     def pending_decisions(self) -> dict[str, AskSpec]:
@@ -188,11 +190,12 @@ class StepContext:
         note: str = "",
     ) -> None:
         """Record how far this operation has got, at most once per interval."""
-        now = time.monotonic()
         final = total is not None and done >= total
-        if not final and now - self._last_progress < PROGRESS_MIN_INTERVAL_SECONDS:
-            return
-        self._last_progress = now
+        with self._progress_lock:
+            now = time.monotonic()
+            if not final and now - self._last_progress < PROGRESS_MIN_INTERVAL_SECONDS:
+                return
+            self._last_progress = now
         with self._sf() as db:
             db.execute(
                 update(Operation)

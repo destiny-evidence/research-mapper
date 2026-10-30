@@ -16,6 +16,6 @@
     "@preact/preset-vite": "^2.9.3",
     "preact-render-to-string": "^6.5.13",
     "vite": "^6.0.7",
-    "vitest": "^2.1.8"
+    "vitest": "^5.0.5"
   }
 }

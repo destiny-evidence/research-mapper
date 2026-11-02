@@ -3,7 +3,7 @@ name = "research-mapper"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.14.10"
 dependencies = [
     "azure-identity>=1.19.0",
     "destiny-sdk>=0.13.0",

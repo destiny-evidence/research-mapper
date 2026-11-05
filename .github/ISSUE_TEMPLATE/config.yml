@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: DESTINY repository issues
+    url: https://github.com/destiny-evidence/destiny-repository/issues
+    about: Problems with the DESTINY repository or its API belong there, not here.
+  - name: Taxonomy builder issues
+    url: https://github.com/destiny-evidence/taxonomy-builder/issues
+    about: Problems with creating or editing taxonomies themselves.

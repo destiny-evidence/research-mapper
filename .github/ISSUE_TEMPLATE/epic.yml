@@ -1,0 +1,81 @@
+name: Epic
+description: Plan a large feature that will be broken into smaller issues (for maintainers)
+title: "[Epic]: "
+labels: ["epic"]
+type: EPIC
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for work spanning several issues. Once created, add the individual tasks as sub-issues.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences describing the feature.
+    validations:
+      required: true
+
+  - type: textarea
+    id: goals
+    attributes:
+      label: Goals and success criteria
+      description: What does "done" look like? How will we measure success?
+      placeholder: |
+        - Users can...
+        - Reduce X by...
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What's in and what's explicitly out.
+      value: |
+        **In scope**
+        -
+
+        **Out of scope**
+        -
+    validations:
+      required: true
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Planned tasks
+      description: Rough breakdown. These can become sub-issues.
+      placeholder: |
+        - [ ] Design / spec
+        - [ ] Backend changes
+        - [ ] Frontend changes
+        - [ ] Docs
+        - [ ] Release notes
+    validations:
+      required: false
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and risks
+      description: Other work this relies on, open questions, or anything that could block it.
+    validations:
+      required: false
+
+  - type: input
+    id: target
+    attributes:
+      label: Target release or date
+      placeholder: "e.g. v2.3 or Q1 2027"
+    validations:
+      required: false
+
+  - type: textarea
+    id: links
+    attributes:
+      label: Related links
+      description: Designs, specs, discussions, related issues.
+    validations:
+      required: false

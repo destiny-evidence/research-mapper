@@ -1,0 +1,58 @@
+name: Improvement
+description: Suggest a change to an existing feature
+title: "[Improvement]: "
+labels: ["enhancement", "needs-triage"]
+type: Feature
+body:
+  - type: input
+    id: feature
+    attributes:
+      label: Which existing feature?
+      description: Name the feature, page or command you'd like changed.
+      placeholder: "e.g. Export to CSV"
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current behaviour
+      description: How does it work today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: desired
+    attributes:
+      label: Desired behaviour
+      description: How should it work instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why is this better?
+      description: Who benefits and how? Any data or user feedback helps.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: breaking
+    attributes:
+      label: Would this change existing behaviour for current users?
+      options:
+        - "No"
+        - "Yes, but it could be optional"
+        - "Yes"
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, examples or links.
+    validations:
+      required: false

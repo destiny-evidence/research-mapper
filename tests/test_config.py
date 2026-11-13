@@ -18,7 +18,7 @@ from research_mapper.config import (
 
 # ---------------------------------------------------------------------------
 # load_environment — .env discovery must search from the user's actual working
-# directory, not wherever config.py happens to be installed (e.g. site-packages
+# directory, not wherever environment.py happens to be installed (e.g. site-packages
 # for a `uv tool install`ed console script), otherwise a local ./.env is
 # silently never found. See find_dotenv's `usecwd` parameter.
 # ---------------------------------------------------------------------------
@@ -26,8 +26,8 @@ from research_mapper.config import (
 
 def test_load_environment_searches_dotenv_from_cwd():
     with (
-        patch("research_mapper.config.find_dotenv") as mock_find_dotenv,
-        patch("research_mapper.config.load_dotenv") as mock_load_dotenv,
+        patch("research_mapper.config.environment.find_dotenv") as mock_find_dotenv,
+        patch("research_mapper.config.environment.load_dotenv") as mock_load_dotenv,
     ):
         mock_find_dotenv.return_value = "/home/user/project/.env"
 
@@ -42,8 +42,8 @@ def test_load_environment_explicit_env_file_takes_precedence(tmp_path):
     env_file.write_text("MAPPER_LLM_MODEL=custom\n")
 
     with (
-        patch("research_mapper.config.find_dotenv") as mock_find_dotenv,
-        patch("research_mapper.config.load_dotenv") as mock_load_dotenv,
+        patch("research_mapper.config.environment.find_dotenv") as mock_find_dotenv,
+        patch("research_mapper.config.environment.load_dotenv") as mock_load_dotenv,
     ):
         mock_find_dotenv.return_value = ""
 
@@ -69,6 +69,16 @@ def _required_env(monkeypatch):
     monkeypatch.setenv("MAPPER_LLM_API_KEY", "test-key")
 
 
+@pytest.fixture(autouse=True)
+def _no_decision_model():
+    """These tests cover the chat model; keep configure_dspy off the decision model."""
+    with (
+        patch("research_mapper.config.llm.get_decision_model"),
+        patch("research_mapper.config.llm._check_decision_model"),
+    ):
+        yield
+
+
 @pytest.mark.parametrize(
     "response",
     [
@@ -78,7 +88,7 @@ def _required_env(monkeypatch):
     ],
 )
 def test_configure_dspy_accepts_any_non_empty_response(response):
-    with patch("research_mapper.config.dspy") as mock_dspy:
+    with patch("research_mapper.config.llm.dspy") as mock_dspy:
         mock_dspy.LM.return_value = MagicMock(return_value=response)
 
         configure_dspy()
@@ -88,7 +98,7 @@ def test_configure_dspy_accepts_any_non_empty_response(response):
 
 def test_configure_dspy_bounds_the_request_timeout():
     """An unbounded request parks a whole fan-out, so the LM must carry a timeout."""
-    with patch("research_mapper.config.dspy") as mock_dspy:
+    with patch("research_mapper.config.llm.dspy") as mock_dspy:
         mock_dspy.LM.return_value = MagicMock(return_value=["hello world"])
 
         configure_dspy()
@@ -98,7 +108,7 @@ def test_configure_dspy_bounds_the_request_timeout():
 
 def test_configure_dspy_takes_the_request_timeout_from_the_environment(monkeypatch):
     monkeypatch.setenv("MAPPER_LLM_TIMEOUT", "30")
-    with patch("research_mapper.config.dspy") as mock_dspy:
+    with patch("research_mapper.config.llm.dspy") as mock_dspy:
         mock_dspy.LM.return_value = MagicMock(return_value=["hello world"])
 
         configure_dspy()
@@ -110,8 +120,8 @@ def test_configure_dspy_takes_the_request_timeout_from_the_environment(monkeypat
 def test_configure_dspy_warns_on_an_empty_response_but_still_configures(response):
     """A useless reply is worth a warning, not a worker that will not boot."""
     with (
-        patch("research_mapper.config.dspy") as mock_dspy,
-        patch("research_mapper.config.logger") as mock_logger,
+        patch("research_mapper.config.llm.dspy") as mock_dspy,
+        patch("research_mapper.config.llm.logger") as mock_logger,
     ):
         mock_dspy.LM.return_value = MagicMock(return_value=response)
 
@@ -150,7 +160,7 @@ def test_get_destiny_client_triggers_auth_eagerly(monkeypatch, _no_credential):
     # terminal — so this is the interactive path.
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
 
-    with patch("research_mapper.config.OAuthClient") as mock_oauth_client:
+    with patch("research_mapper.config.destiny.OAuthClient") as mock_oauth_client:
         mock_instance = mock_oauth_client.return_value
 
         get_destiny_client()
@@ -166,8 +176,8 @@ def test_get_destiny_client_uses_managed_identity_when_configured(monkeypatch):
     monkeypatch.delenv("MAPPER_DESTINY_ENV", raising=False)
 
     with (
-        patch("research_mapper.config.OAuthClient") as mock_oauth_client,
-        patch("research_mapper.config.OAuthMiddleware") as mock_middleware,
+        patch("research_mapper.config.destiny.OAuthClient") as mock_oauth_client,
+        patch("research_mapper.config.destiny.OAuthMiddleware") as mock_middleware,
     ):
         get_destiny_client()
 
@@ -183,7 +193,7 @@ def test_get_destiny_client_uses_managed_identity_when_configured(monkeypatch):
 
 def test_get_destiny_client_is_cached(monkeypatch, _no_credential):
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
-    with patch("research_mapper.config.OAuthClient"):
+    with patch("research_mapper.config.destiny.OAuthClient"):
         first = get_destiny_client()
         second = get_destiny_client()
 
@@ -200,7 +210,7 @@ def test_no_credential_without_a_terminal_fails_instead_of_waiting(
 ):
     monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
 
-    with patch("research_mapper.config.OAuthClient") as mock_oauth_client:
+    with patch("research_mapper.config.destiny.OAuthClient") as mock_oauth_client:
         with pytest.raises(NoDestinyCredential, match="no terminal"):
             get_destiny_client()
 
@@ -211,7 +221,7 @@ def test_no_credential_without_a_terminal_fails_instead_of_waiting(
 def test_the_error_says_how_to_fix_it(monkeypatch, _no_credential):
     monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
 
-    with patch("research_mapper.config.OAuthClient"):
+    with patch("research_mapper.config.destiny.OAuthClient"):
         with pytest.raises(NoDestinyCredential) as raised:
             get_destiny_client()
 
@@ -227,7 +237,7 @@ def test_a_stored_token_needs_no_terminal_and_bounds_the_healthcheck(monkeypatch
     monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
 
     with (
-        patch("research_mapper.config.OAuthClient") as mock_oauth_client,
+        patch("research_mapper.config.destiny.OAuthClient") as mock_oauth_client,
         patch.object(local_destiny_auth, "RefreshTokenAuth"),
         patch.object(local_destiny_auth, "auth_code_flow"),
     ):

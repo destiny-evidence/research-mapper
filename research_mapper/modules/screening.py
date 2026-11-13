@@ -33,7 +33,7 @@ class EvidenceScreener(dspy.Module):
     """
 
     def __init__(self) -> None:
-        self.screen = dspy.ChainOfThought(ScreenEvidenceUsingCriteria)
+        self.screen = dspy.Predict(ScreenEvidenceUsingCriteria)
 
     def forward(
         self, evidence: Evidence, screening_criteria: list[ScreeningCriterion]
@@ -42,6 +42,25 @@ class EvidenceScreener(dspy.Module):
         Screens a piece of evidence against a set of screening criteria.
         :param evidence: the piece of evidence to screen
         :param screening_criteria: the screening criteria to screen it against
-        :return: a Prediction wrapping whether to include the evidence and its reasoning
+        :return: a Prediction of plain values: include (bool), probability (P(meets
+            criteria)), the threshold it was judged against, and reasoning
         """
-        return self.screen(evidence=evidence, screening_criteria=screening_criteria)
+        pred = self.screen(evidence=evidence, screening_criteria=screening_criteria)
+        decision = pred.meets_criteria  # a Noul; it stays inside this module
+        criteria = decision.criteria()
+        # DSPy applies 0.5 when no threshold has been configured.
+        threshold = self.screen.fields.get("meets_criteria", {}).get("threshold", 0.5)
+        include = decision.value
+        reasoning = (
+            f"{'Included' if include else 'Excluded'}: "
+            f"{criteria['true' if include else 'false']} "
+            f"Probability of meeting the criteria was {decision.probability:.0%} "
+            f"against a threshold of {threshold:.0%} "
+            f"(confidence {decision.confidence:.0%})."
+        )
+        return dspy.Prediction(
+            include=include,
+            probability=decision.probability,
+            threshold=threshold,
+            reasoning=reasoning,
+        )

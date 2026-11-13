@@ -5,7 +5,7 @@ import httpx
 import pytest
 from destiny_sdk.keycloak_auth import TokenResponse
 
-from research_mapper.config import _destiny_auth
+from research_mapper.config.destiny import _destiny_auth
 from research_mapper.local_destiny_auth import RefreshTokenAuth, auth_code_flow
 
 

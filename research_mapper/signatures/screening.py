@@ -1,7 +1,7 @@
 import dspy
 
 from research_mapper.models.common import Evidence, UserQuery
-from research_mapper.models.screening import ScreeningCriterion
+from research_mapper.models.screening import ScreeningCriterion, ScreeningDecision
 
 
 class UserQueryToScreeningCriteria(dspy.Signature):
@@ -28,6 +28,6 @@ class ScreenEvidenceUsingCriteria(dspy.Signature):
     screening_criteria: list[ScreeningCriterion] = dspy.InputField(
         desc="A list of inclusion and exclusion criteria to abide by."
     )
-    include: bool = dspy.OutputField(
-        desc="Whether the piece of evidence should be included or not."
+    meets_criteria: ScreeningDecision = dspy.OutputField(
+        desc="Whether the piece of evidence satisfies the screening criteria."
     )

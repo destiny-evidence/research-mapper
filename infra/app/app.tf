@@ -52,17 +52,29 @@ resource "azurerm_container_app_environment" "this" {
 
 # Every container runs the same image, so they need the same configuration. The
 # LLM key is a secret and stays a literal env block in each template.
+#
+# The decision model's settings are all-or-nothing (see variables.tf), and are
+# left out entirely when unset rather than set empty, so the app falls back to
+# the chat model.
 locals {
-  app_env = {
-    AZURE_CLIENT_ID               = azurerm_user_assigned_identity.app.client_id
-    MAPPER_DESTINY_APPLICATION_ID = var.destiny_repository_application_id
-    MAPPER_DESTINY_ENV            = var.environment
-    MAPPER_LLM_BASE_URL           = var.llm_base_url
-    MAPPER_LLM_MODEL              = var.llm_model
-    MAPPER_DB_HOST                = azurerm_postgresql_flexible_server.this.fqdn
-    MAPPER_DB_NAME                = azurerm_postgresql_flexible_server_database.this.name
-    MAPPER_DB_USER                = azurerm_user_assigned_identity.app.name
-  }
+  decision_model_enabled = var.decision_model != null
+
+  app_env = merge(
+    {
+      AZURE_CLIENT_ID               = azurerm_user_assigned_identity.app.client_id
+      MAPPER_DESTINY_APPLICATION_ID = var.destiny_repository_application_id
+      MAPPER_DESTINY_ENV            = var.environment
+      MAPPER_LLM_BASE_URL           = var.llm_base_url
+      MAPPER_LLM_MODEL              = var.llm_model
+      MAPPER_DB_HOST                = azurerm_postgresql_flexible_server.this.fqdn
+      MAPPER_DB_NAME                = azurerm_postgresql_flexible_server_database.this.name
+      MAPPER_DB_USER                = azurerm_user_assigned_identity.app.name
+    },
+    local.decision_model_enabled ? {
+      MAPPER_DECISION_MODEL    = var.decision_model
+      MAPPER_DECISION_BASE_URL = var.decision_base_url
+    } : {},
+  )
 }
 
 resource "azurerm_container_app_job" "migrate" {
@@ -137,6 +149,15 @@ resource "azurerm_container_app" "worker" {
     value = var.llm_api_key
   }
 
+  # Only the worker screens evidence, so only it gets the decision key.
+  dynamic "secret" {
+    for_each = local.decision_model_enabled ? [1] : []
+    content {
+      name  = "decision-api-key"
+      value = var.decision_api_key
+    }
+  }
+
   template {
     min_replicas = 1
     max_replicas = 1
@@ -167,6 +188,14 @@ resource "azurerm_container_app" "worker" {
       env {
         name        = "MAPPER_LLM_API_KEY"
         secret_name = "llm-api-key"
+      }
+
+      dynamic "env" {
+        for_each = local.decision_model_enabled ? [1] : []
+        content {
+          name        = "MAPPER_DECISION_API_KEY"
+          secret_name = "decision-api-key"
+        }
       }
     }
   }

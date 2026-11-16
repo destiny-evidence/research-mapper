@@ -26,6 +26,11 @@ class ScreeningRow:
     include: bool
     reasoning: str
     criteria_version: int
+    # What the verdict was read from, kept so it can be re-thresholded later.
+    # The model tells a decision model's probability from a chat model's own.
+    probability: float | None = None
+    threshold: float | None = None
+    model: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

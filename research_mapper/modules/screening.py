@@ -1,5 +1,6 @@
 import dspy
 
+from research_mapper.config import get_decision_model
 from research_mapper.models.common import Evidence, UserQuery
 from research_mapper.models.screening import ScreeningCriterion
 from research_mapper.signatures.screening import (
@@ -32,8 +33,10 @@ class EvidenceScreener(dspy.Module):
     to be driven over many pieces of evidence via `dspy.Module.batch`.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, lm: dspy.LM | None = None) -> None:
         self.screen = dspy.Predict(ScreenEvidenceUsingCriteria)
+        if lm is not None:
+            self.screen.set_lm(lm)
 
     def forward(
         self, evidence: Evidence, screening_criteria: list[ScreeningCriterion]
@@ -45,6 +48,9 @@ class EvidenceScreener(dspy.Module):
         :return: a Prediction of plain values: include (bool), probability (P(meets
             criteria)), the threshold it was judged against, and reasoning
         """
+        if self.screen.lm is None:
+            self.screen.set_lm(get_decision_model())
+
         pred = self.screen(evidence=evidence, screening_criteria=screening_criteria)
         decision = pred.meets_criteria  # a Noul; it stays inside this module
         criteria = decision.criteria()
@@ -55,12 +61,13 @@ class EvidenceScreener(dspy.Module):
             f"{'Included' if include else 'Excluded'}: "
             f"{criteria['true' if include else 'false']} "
             f"Probability of meeting the criteria was {decision.probability:.0%} "
-            f"against a threshold of {threshold:.0%} "
-            f"(confidence {decision.confidence:.0%})."
+            f"({decision.probability:.4f}) against a threshold of {threshold:.0%} "
+            f"(confidence {decision.confidence:.0%}), per {self.screen.lm.model}."
         )
         return dspy.Prediction(
             include=include,
             probability=decision.probability,
             threshold=threshold,
+            model=self.screen.lm.model,
             reasoning=reasoning,
         )

@@ -1,6 +1,7 @@
 import dspy
 
 from research_mapper.models.common import Evidence, UserQuery
+from research_mapper.config import get_decision_model
 from research_mapper.models.mapping import (
     MappingDimension,
     MappingDimensionWithSubTopics,
@@ -9,6 +10,13 @@ from research_mapper.signatures.mapping import (
     EvidenceMappingDimensionsFromQuery,
     SubtopicFromEvidenceMappingDimension,
     mapping_along_dimensions_signature_builder,
+)
+
+
+SUBTOPIC_FIELDS = (
+    "dimension1_subtopic",
+    "dimension2_subtopic",
+    "dimension3_subtopic",
 )
 
 
@@ -65,6 +73,11 @@ class EvidenceMapper(dspy.Module):
     `dspy.Module.batch`.
     """
 
+    def __init__(self, lm: dspy.LM | None = None) -> None:
+        # The signature depends on each call's dimensions, so the predictor is built per
+        # call and only the LM to give it is kept. None means the configured decision model.
+        self._lm = lm
+
     def forward(
         self,
         user_query: UserQuery,
@@ -80,9 +93,10 @@ class EvidenceMapper(dspy.Module):
         :param user_query: the user's original query, for context
         :param evidence: the piece of evidence to map
         :param dimensions: the finalised mapping dimensions, each with their finalised subtopics
-        :return: a Prediction wrapping the evidence's coordinate (as dimension1_subtopic,
-            dimension2_subtopic, dimension3_subtopic) and reasoning
-        :raises RuntimeError: if a mapping dimension somehow has no subtopics to map evidence against
+        :return: a Prediction of plain values: the evidence's coordinate as subtopic names
+            (dimension1_subtopic, dimension2_subtopic, dimension3_subtopic), probabilities
+            (each dimension's name to its subtopics' probabilities), model, and reasoning
+        :raises RuntimeError: if a mapping dimension's subtopics can't be chosen between
         """
         try:
             MapEvidenceAlongDimensions = mapping_along_dimensions_signature_builder(
@@ -90,9 +104,32 @@ class EvidenceMapper(dspy.Module):
             )
         except ValueError as exc:
             raise RuntimeError(
-                f"A mapping dimension happened to have no subtopics somehow: {exc}. Please restart and try again."
+                f"Can't map evidence across these dimensions: {exc}"
             ) from exc
-        map_evidence_along_dimensions = dspy.ChainOfThought(MapEvidenceAlongDimensions)
-        return map_evidence_along_dimensions(
+        # A local, not an attribute: batch shares this module across threads.
+        mapper = dspy.Predict(MapEvidenceAlongDimensions)
+        mapper.set_lm(self._lm or get_decision_model())
+        pred = mapper(
             original_query=user_query, evidence=evidence, dimensions=dimensions
+        )
+
+        subtopics: dict[str, str] = {}
+        probabilities: dict[str, dict[str, float]] = {}
+        lines = []
+        for dimension, field in zip(dimensions, SUBTOPIC_FIELDS, strict=True):
+            choice = pred[field]  # a Choice; it stays inside this module
+            subtopics[field] = choice.value
+            probabilities[dimension.name] = dict(choice.probabilities or {})
+            chosen = probabilities[dimension.name].get(choice.value)
+            likelihood = f"{chosen:.0%} ({chosen:.4f}), " if chosen is not None else ""
+            lines.append(
+                f"{dimension.name}: {choice.value} "
+                f"({likelihood}confidence {choice.confidence:.0%})"
+            )
+        reasoning = "Mapped as " + "; ".join(lines) + f", per {mapper.lm.model}."
+        return dspy.Prediction(
+            **subtopics,
+            probabilities=probabilities,
+            model=mapper.lm.model,
+            reasoning=reasoning,
         )

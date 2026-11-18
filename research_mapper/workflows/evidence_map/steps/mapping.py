@@ -290,6 +290,10 @@ class GenerateMap(Step[GenerateMapParams, EvidenceMapContext]):
                             },
                             reasoning=prediction.reasoning,
                             dimensions_version=dimensions_version or 1,
+                            # Read with a default: EvidenceMapper sets these, but
+                            # any module with the subtopics and reasoning will do.
+                            probabilities=getattr(prediction, "probabilities", None),
+                            model=getattr(prediction, "model", None),
                         )
                     )
                 ctx.set_coordinates(rows)

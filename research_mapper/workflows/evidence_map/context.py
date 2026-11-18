@@ -167,6 +167,8 @@ class EvidenceMapContext(StepContext):
                         mapping=_by_agent(
                             reasoning=row.reasoning,
                             dimensions_version=row.dimensions_version,
+                            probabilities=row.probabilities,
+                            model=row.model,
                         ),
                     )
                 )

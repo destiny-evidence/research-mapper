@@ -39,3 +39,8 @@ class CoordinateRow:
     coordinate: dict[str, list[str]]
     reasoning: str
     dimensions_version: int
+    # What each dimension's subtopic was chosen from: dimension name to its subtopics'
+    # probabilities, and the model that gave them. Kept apart from the coordinate,
+    # whose shape the API, UI and export rely on.
+    probabilities: dict[str, dict[str, float]] | None = None
+    model: str | None = None

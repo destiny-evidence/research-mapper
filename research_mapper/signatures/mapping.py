@@ -1,6 +1,6 @@
-from typing import Literal
-
 import dspy
+from dspy.experimental import Choice
+
 
 from research_mapper.models.common import Evidence, UserQuery
 from research_mapper.models.mapping import (
@@ -48,6 +48,18 @@ class SubtopicFromEvidenceMappingDimension(dspy.Signature):
     )
 
 
+# The Decisions API needs at least two options to choose between.
+MIN_SUBTOPICS = 2
+
+
+def _subtopic_choice(dimension: MappingDimensionWithSubTopics) -> type[Choice]:
+    """A Choice over a dimension's subtopics, each described for the model."""
+    try:
+        return Choice[tuple((sub.name, sub.description) for sub in dimension.subtopics)]
+    except ValueError as exc:
+        raise ValueError(f"Dimension '{dimension.name}': {exc}") from exc
+
+
 def mapping_along_dimensions_signature_builder(
     mapping_dimension1: MappingDimensionWithSubTopics,
     mapping_dimension2: MappingDimensionWithSubTopics,
@@ -55,29 +67,25 @@ def mapping_along_dimensions_signature_builder(
 ) -> type[dspy.Signature]:
     """
     Dynamically builds a dspy.Signature for mapping a piece of evidence to a subtopic of each of
-    the 3 provided dimensions, constraining each output field to that dimension's subtopic names
-    via a dynamically-built typing.Literal.
+    the 3 provided dimensions. Each output field is a Choice over that dimension's subtopics,
+    named and described, so a decision model answers all three in one request.
     :param mapping_dimension1: the first mapping dimension, with its finalised subtopics
     :param mapping_dimension2: the second mapping dimension, with its finalised subtopics
     :param mapping_dimension3: the third mapping dimension, with its finalised subtopics
     :return: a dynamically-built MapEvidenceAlongDimensions signature
-    :raises ValueError: if any of the provided dimensions has no subtopics
+    :raises ValueError: if a dimension has fewer than two subtopics, the fewest a decision
+        model will choose between, or two subtopics share a name
     """
     for dimension in (mapping_dimension1, mapping_dimension2, mapping_dimension3):
-        if not dimension.subtopics:
+        if len(dimension.subtopics) < MIN_SUBTOPICS:
             raise ValueError(
-                f"Dimension '{dimension.name}' has no subtopics to map evidence against."
+                f"Dimension '{dimension.name}' needs at least {MIN_SUBTOPICS} subtopics "
+                f"to map evidence against, but has {len(dimension.subtopics)}."
             )
 
-    Dim1SubTopicsLiteral = Literal[
-        tuple(sub.name for sub in mapping_dimension1.subtopics)
-    ]
-    Dim2SubTopicsLiteral = Literal[
-        tuple(sub.name for sub in mapping_dimension2.subtopics)
-    ]
-    Dim3SubTopicsLiteral = Literal[
-        tuple(sub.name for sub in mapping_dimension3.subtopics)
-    ]
+    Dim1SubTopicsChoice = _subtopic_choice(mapping_dimension1)
+    Dim2SubTopicsChoice = _subtopic_choice(mapping_dimension2)
+    Dim3SubTopicsChoice = _subtopic_choice(mapping_dimension3)
     docstring = (
         "Map a piece of evidence across the provided dimensions and their subtopics."
     )
@@ -109,9 +117,9 @@ def mapping_along_dimensions_signature_builder(
             MappingDimensionWithSubTopics,
             MappingDimensionWithSubTopics,
         ],
-        "dimension1_subtopic": Dim1SubTopicsLiteral,
-        "dimension2_subtopic": Dim2SubTopicsLiteral,
-        "dimension3_subtopic": Dim3SubTopicsLiteral,
+        "dimension1_subtopic": Dim1SubTopicsChoice,
+        "dimension2_subtopic": Dim2SubTopicsChoice,
+        "dimension3_subtopic": Dim3SubTopicsChoice,
     }
     return type(
         "MapEvidenceAlongDimensions",

@@ -194,6 +194,44 @@ def test_only_included_references_are_placed_on_the_map(db, ctx, session, monkey
     assert rows[TWO].coordinate is None
 
 
+def test_what_the_coordinate_was_chosen_from_is_stored(db, ctx, session, monkeypatch):
+    """Probabilities and model go in the mapping blob; the coordinate keeps its shape."""
+    ctx.write_artifact(
+        artifacts.DIMENSIONS,
+        artifacts.Dimensions.model_validate({"dimensions": with_subtopics()}),
+    )
+    make_reference(db, session, ONE, stage=SessionReferenceStage.INCLUDED)
+    hydrate(monkeypatch, ONE)
+    probabilities = {
+        "Setting": {"School": 0.9, "Clinic": 0.1},
+        "Population": {"Teens": 0.7, "Adults": 0.3},
+        "Outcome": {"Uptake": 0.55, "Adherence": 0.45},
+    }
+
+    def fake_call(self, **_):
+        return dspy.Prediction(
+            dimension1_subtopic="School",
+            dimension2_subtopic="Teens",
+            dimension3_subtopic="Uptake",
+            reasoning="why",
+            probabilities=probabilities,
+            model="gpt-6-luna",
+        )
+
+    monkeypatch.setattr(mapping.EvidenceMapper, "__call__", fake_call)
+
+    mapping.GenerateMap().run(ctx, mapping.GenerateMapParams())
+
+    row = db.query(SessionReference).filter_by(destiny_id=ONE).one()
+    assert row.mapping["probabilities"] == probabilities
+    assert row.mapping["model"] == "gpt-6-luna"
+    assert row.coordinate == {
+        "Setting": ["School"],
+        "Population": ["Teens"],
+        "Outcome": ["Uptake"],
+    }
+
+
 def test_mapping_fails_when_screening_included_nothing(db, ctx, session, monkeypatch):
     """Otherwise every step goes green and the session ends with an empty map."""
     ctx.write_artifact(

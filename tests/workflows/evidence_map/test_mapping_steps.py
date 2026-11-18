@@ -4,6 +4,7 @@ import dspy
 import pytest
 
 from factories import make_operation, make_reference, make_session, make_user
+from research_mapper.engine.answers import InvalidAnswer, validate_answer
 from research_mapper.engine.context import NeedsInput
 from research_mapper.engine.enums import DecisionType
 from research_mapper.engine.models import Decision
@@ -22,10 +23,20 @@ AXES = [
     {"name": "Population", "description": "who"},
     {"name": "Outcome", "description": "what"},
 ]
+# Two each: mapping chooses between a dimension's subtopics, so a map needs at least two.
 SUBTOPICS = {
-    "Setting": [{"name": "School", "description": "in schools"}],
-    "Population": [{"name": "Teens", "description": "13-19"}],
-    "Outcome": [{"name": "Uptake", "description": "vaccine uptake"}],
+    "Setting": [
+        {"name": "School", "description": "in schools"},
+        {"name": "Home", "description": "at home"},
+    ],
+    "Population": [
+        {"name": "Teens", "description": "13-19"},
+        {"name": "Adults", "description": "20 and over"},
+    ],
+    "Outcome": [
+        {"name": "Uptake", "description": "vaccine uptake"},
+        {"name": "Adherence", "description": "completing the course"},
+    ],
 }
 
 
@@ -125,10 +136,41 @@ def test_subtopics_are_generated_per_dimension_then_edited(
         ctx, mapping.GenerateMapSubtopicsParams()
     )
 
-    assert result == {"dimensions": 3, "subtopics": 4, "version": 1}
+    assert result == {"dimensions": 3, "subtopics": 7, "version": 1}
     stored = ctx.get_artifact(artifacts.DIMENSIONS)
     assert stored is not None
-    assert [s.name for s in stored.dimensions[0].subtopics] == ["School", "Clinic"]
+    assert [s.name for s in stored.dimensions[0].subtopics] == [
+        "School",
+        "Home",
+        "Clinic",
+    ]
+
+
+def test_each_dimension_must_keep_two_subtopics(db, ctx, operation, monkeypatch):
+    """Mapping can't choose from fewer, so the edit is refused rather than every
+    piece of evidence failing later at the map step."""
+    ctx.write_artifact(
+        artifacts.MAP_DIMENSIONS,
+        artifacts.MapDimensions.model_validate({"dimensions": AXES}),
+    )
+    monkeypatch.setattr(
+        mapping.SubtopicGenerator,
+        "__call__",
+        lambda self, dimension, **_: dspy.Prediction(
+            subtopics=SUBTOPICS[dimension.name], reasoning="why"
+        ),
+    )
+
+    with pytest.raises(NeedsInput):
+        mapping.GenerateMapSubtopics().run(ctx, mapping.GenerateMapSubtopicsParams())
+
+    spec = ctx.pending_decisions["edit_subtopics:Setting"]
+    assert spec.constraints == {"min": 2, "allow_new": True}
+
+    decision = Decision(constraints=spec.constraints, options=spec.options)
+    with pytest.raises(InvalidAnswer, match="at least 2"):
+        validate_answer(decision, SUBTOPICS["Setting"][:1])
+    validate_answer(decision, SUBTOPICS["Setting"])
 
 
 def test_a_dimension_without_subtopics_fails_the_operation(db, ctx, monkeypatch):

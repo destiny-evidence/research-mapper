@@ -13,6 +13,7 @@ from research_mapper.config import reroll
 from research_mapper.engine.registry import Step
 from research_mapper.engine.views import AskSpec
 from research_mapper.models.common import UserQuery
+from research_mapper.signatures.mapping import MIN_SUBTOPICS
 from research_mapper.models.mapping import (
     DimensionSubTopic,
     MappingDimension,
@@ -158,7 +159,9 @@ class GenerateMapSubtopics(Step[GenerateMapSubtopicsParams, StepContext]):
                         }
                         for i, subtopic in enumerate(dimension.subtopics)
                     ],
-                    constraints={"min": 1, "allow_new": True},
+                    # Mapping chooses between a dimension's subtopics, so fewer
+                    # than this would fail every piece of evidence at the map step.
+                    constraints={"min": MIN_SUBTOPICS, "allow_new": True},
                 )
                 for dimension in suggested.dimensions
             }

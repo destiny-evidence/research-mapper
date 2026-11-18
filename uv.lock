@@ -1782,7 +1782,7 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.18.4" },
     { name = "azure-identity", specifier = ">=1.19.0" },
     { name = "destiny-sdk", specifier = ">=0.13.0" },
-    { name = "dspy", extras = ["litellm"], specifier = ">=3.5.0" },
+    { name = "dspy", extras = ["litellm"], specifier = ">=3.5.0,<3.6" },
     { name = "fastapi", specifier = ">=0.135.1" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "luqum", specifier = ">=1.0.0" },

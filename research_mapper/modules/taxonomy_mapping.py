@@ -1,6 +1,5 @@
 import dspy
 
-from research_mapper.modules.common import plain_reasoning
 from research_mapper.models.common import UserQuery
 from research_mapper.models.mapping import (
     DimensionSubTopic,
@@ -43,7 +42,9 @@ class TaxonomySchemeDimensionGenerator(dspy.Module):
         except ValueError as exc:
             raise RuntimeError(str(exc)) from exc
 
-        select_schemes = dspy.ChainOfThought(TaxonomySchemeDimensions)
+        select_schemes = dspy.ChainOfThought(
+            TaxonomySchemeDimensions, rationale_field_type=str
+        )
         prediction = select_schemes(original_query=user_query)
         chosen = (prediction.scheme1, prediction.scheme2, prediction.scheme3)
         if len(set(chosen)) != len(chosen):
@@ -57,7 +58,7 @@ class TaxonomySchemeDimensionGenerator(dspy.Module):
             dimension1=dimensions[0],
             dimension2=dimensions[1],
             dimension3=dimensions[2],
-            reasoning=plain_reasoning(prediction).reasoning,
+            reasoning=prediction.reasoning,
         )
 
     @staticmethod

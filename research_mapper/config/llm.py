@@ -21,16 +21,30 @@ DECISION_VARS = (
 
 
 def _chat_lm(cache: bool = True) -> dspy.LM:
-    """The chat model, from the MAPPER_LLM_* settings every part of the app needs."""
+    """
+    The chat model, from the MAPPER_LLM_* settings every part of the app needs.
+
+    MAPPER_LLM_REASONING_EFFORT, when set, sets the model's native reasoning effort
+    for every call. Unset leaves the provider's default, and must stay unset for a
+    model without native reasoning, which would reject it.
+    """
     model = os.environ["MAPPER_LLM_MODEL"]
     api_base = os.environ["MAPPER_LLM_BASE_URL"]
-    logger.info("Configuring LLM: model=%s, api_base=%s", model, api_base)
+    effort = os.environ.get("MAPPER_LLM_REASONING_EFFORT")
+    reasoning = {"reasoning_effort": effort} if effort else {}
+    logger.info(
+        "Configuring LLM: model=%s, api_base=%s, reasoning_effort=%s",
+        model,
+        api_base,
+        effort or "provider default",
+    )
     return dspy.LM(
         model=model,
         api_base=api_base,
         api_key=os.environ["MAPPER_LLM_API_KEY"],
         timeout=float(os.environ.get("MAPPER_LLM_TIMEOUT") or LLM_TIMEOUT_SECONDS),
         cache=cache,
+        **reasoning,
     )
 
 

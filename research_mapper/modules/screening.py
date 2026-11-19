@@ -2,7 +2,6 @@ import dspy
 
 from research_mapper.config import get_decision_model
 from research_mapper.models.common import Evidence, UserQuery
-from research_mapper.modules.common import plain_reasoning
 from research_mapper.models.screening import ScreeningCriterion
 from research_mapper.signatures.screening import (
     ScreenEvidenceUsingCriteria,
@@ -17,7 +16,9 @@ class CriteriaGenerator(dspy.Module):
     """
 
     def __init__(self) -> None:
-        self.generate = dspy.ChainOfThought(UserQueryToScreeningCriteria)
+        self.generate = dspy.ChainOfThought(
+            UserQueryToScreeningCriteria, rationale_field_type=str
+        )
 
     def forward(self, user_query: UserQuery) -> dspy.Prediction:
         """
@@ -25,7 +26,7 @@ class CriteriaGenerator(dspy.Module):
         :param user_query: the user's original query to generate screening criteria for
         :return: a Prediction wrapping the suggested screening_criteria and their reasoning
         """
-        return plain_reasoning(self.generate(original_query=user_query))
+        return self.generate(original_query=user_query)
 
 
 class EvidenceScreener(dspy.Module):

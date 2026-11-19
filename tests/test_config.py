@@ -106,6 +106,27 @@ def test_configure_dspy_bounds_the_request_timeout():
         assert mock_dspy.LM.call_args.kwargs["timeout"] == LLM_TIMEOUT_SECONDS
 
 
+def test_the_reasoning_effort_is_left_to_the_provider_when_unset(monkeypatch):
+    """A model without native reasoning (the deployed azure/gpt-4.1) would reject one."""
+    monkeypatch.delenv("MAPPER_LLM_REASONING_EFFORT", raising=False)
+    with patch("research_mapper.config.llm.dspy") as mock_dspy:
+        mock_dspy.LM.return_value = MagicMock(return_value=["hello world"])
+
+        configure_dspy()
+
+        assert "reasoning_effort" not in mock_dspy.LM.call_args.kwargs
+
+
+def test_the_reasoning_effort_comes_from_the_environment(monkeypatch):
+    monkeypatch.setenv("MAPPER_LLM_REASONING_EFFORT", "medium")
+    with patch("research_mapper.config.llm.dspy") as mock_dspy:
+        mock_dspy.LM.return_value = MagicMock(return_value=["hello world"])
+
+        configure_dspy()
+
+        assert mock_dspy.LM.call_args.kwargs["reasoning_effort"] == "medium"
+
+
 def test_configure_dspy_takes_the_request_timeout_from_the_environment(monkeypatch):
     monkeypatch.setenv("MAPPER_LLM_TIMEOUT", "30")
     with patch("research_mapper.config.llm.dspy") as mock_dspy:

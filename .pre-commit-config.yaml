@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.2  # use latest stable tag
+    rev: v0.15.7  # keep in step with the ruff in uv.lock, which CI runs
     hooks:
       - id: ruff          # linter — catches style/logic issues
         args: [--fix]

@@ -4,6 +4,8 @@ import dspy
 
 from research_mapper.models.common import UserQuery
 from research_mapper.models.sparse_search import LuceneQuery
+from research_mapper.modules.common import plain_reasoning
+from research_mapper.modules.react import reasoning_from_history
 from research_mapper.signatures.sparse_search import (
     UserQueryToLuceneSearchQueries,
     GatherEvidenceFromSearchQuery,
@@ -31,7 +33,7 @@ class SparseQueryGenerator(dspy.Module):
         logger.info("Generating Lucene queries for: %s", user_query.query)
         prediction = self.generate(original_query=user_query)
         logger.debug("Generated queries: %s", prediction.search_queries)
-        return prediction
+        return plain_reasoning(prediction)
 
 
 class EvidenceRetriever(dspy.Module):
@@ -75,5 +77,5 @@ class EvidenceRetriever(dspy.Module):
             evidence=list(tool.retrieved.values()),
             search_summary=prediction.search_summary,
             stopping_reason=prediction.stopping_reason,
-            reasoning=prediction.reasoning,
+            reasoning=reasoning_from_history(prediction.history),
         )

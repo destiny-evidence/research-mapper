@@ -21,18 +21,31 @@ class Answer(dspy.Signature):
 
 
 def script() -> DummyLM:
-    """An LM that calls the clarify tool, then finishes."""
+    """An LM that calls the clarify tool, then submits."""
     return DummyLM(
         [
             {
                 "next_thought": "The scope is ambiguous.",
-                "next_tool_name": "clarify",
-                "next_tool_args": {"question": "global or regional?"},
+                "tool_calls": {
+                    "tool_calls": [
+                        {"name": "clarify", "args": {"question": "global or regional?"}}
+                    ]
+                },
             },
-            {"next_thought": "Done.", "next_tool_name": "finish", "next_tool_args": {}},
-            {"reasoning": "r", "answer": "FABRICATED"},
+            {
+                "next_thought": "Done.",
+                "tool_calls": {
+                    "tool_calls": [{"name": "submit", "args": {"answer": "FABRICATED"}}]
+                },
+            },
         ]
     )
+
+
+def first_observation(prediction: dspy.Prediction):
+    """What the clarify call returned, as the LM was shown it."""
+    event = prediction.history.messages[0]
+    return event["tool_calls"].tool_call_results.tool_call_results[0].value
 
 
 def test_needs_input_escapes_react():
@@ -57,7 +70,7 @@ def test_an_ordinary_exception_is_swallowed_into_the_next_prompt():
         prediction = dspy.ReAct(Answer, tools=[clarify])(question="q")
 
     assert prediction.answer == "FABRICATED", "the LM answered from the traceback"
-    assert "Execution error in clarify" in prediction.trajectory["observation_0"]
+    assert "Execution error in clarify" in first_observation(prediction)
 
 
 def test_the_tool_returns_the_answer_on_replay():
@@ -76,7 +89,7 @@ def test_the_tool_returns_the_answer_on_replay():
         prediction = dspy.ReAct(Answer, tools=[clarify])(question="q")
 
     assert calls == ["global or regional?"], "asked once, answered from the record"
-    assert prediction.trajectory["observation_0"] == "regional"
+    assert first_observation(prediction) == "regional"
 
 
 def test_pausing_inside_batch_discards_the_work_already_done():

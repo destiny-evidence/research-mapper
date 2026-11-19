@@ -1,8 +1,34 @@
+import copy
 from typing import Any, Protocol, runtime_checkable
 
 import dspy
 
 from research_mapper.models.react import Step
+
+
+def plain_reasoning(prediction: dspy.Prediction) -> dspy.Prediction:
+    """
+    A ChainOfThought prediction with its `reasoning` as a plain str. Since DSPy 3.5
+    it is a `dspy.Reasoning`, which pydantic `str` fields and JSON both reject, so
+    modules convert it here rather than every caller doing so.
+
+    With a model that reasons natively, DSPy fills `reasoning` from the provider's
+    reasoning summary, which is None when the provider returns none. That becomes
+    "", so callers can still store it.
+
+    Returns a copy: the original is the object DSPy records in optimiser traces,
+    which keep the `dspy.Reasoning` it actually produced. The copy keeps any other
+    completions, and gets its own field store so the original is left untouched.
+    """
+    if "reasoning" not in prediction:
+        return prediction
+    reasoning = prediction.reasoning
+    if isinstance(reasoning, str):
+        return prediction
+    plain = copy.copy(prediction)
+    plain._store = dict(prediction._store)
+    plain.reasoning = "" if reasoning is None else str(reasoning)
+    return plain
 
 
 @runtime_checkable

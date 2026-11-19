@@ -1,6 +1,7 @@
 import dspy
 
 from research_mapper.models.common import Evidence, UserQuery
+from research_mapper.modules.common import plain_reasoning
 from research_mapper.config import get_decision_model
 from research_mapper.models.mapping import (
     MappingDimension,
@@ -34,7 +35,7 @@ class DimensionGenerator(dspy.Module):
         :param user_query: the user's query to generate mapping dimensions for
         :return: a Prediction wrapping dimension1, dimension2, dimension3, and reasoning
         """
-        return self.generate(original_query=user_query)
+        return plain_reasoning(self.generate(original_query=user_query))
 
 
 class SubtopicGenerator(dspy.Module):
@@ -59,10 +60,12 @@ class SubtopicGenerator(dspy.Module):
         :param other_dimensions: the other top-level mapping dimensions, for context
         :return: a Prediction wrapping the suggested subtopics and reasoning
         """
-        return self.generate(
-            original_query=user_query,
-            dimension=dimension,
-            other_dimensions=other_dimensions,
+        return plain_reasoning(
+            self.generate(
+                original_query=user_query,
+                dimension=dimension,
+                other_dimensions=other_dimensions,
+            )
         )
 
 

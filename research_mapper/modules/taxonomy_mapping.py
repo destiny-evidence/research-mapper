@@ -1,5 +1,6 @@
 import dspy
 
+from research_mapper.modules.common import plain_reasoning
 from research_mapper.models.common import UserQuery
 from research_mapper.models.mapping import (
     DimensionSubTopic,
@@ -56,7 +57,7 @@ class TaxonomySchemeDimensionGenerator(dspy.Module):
             dimension1=dimensions[0],
             dimension2=dimensions[1],
             dimension3=dimensions[2],
-            reasoning=prediction.reasoning,
+            reasoning=plain_reasoning(prediction).reasoning,
         )
 
     @staticmethod

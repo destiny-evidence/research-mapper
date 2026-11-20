@@ -55,9 +55,14 @@ MIN_SUBTOPICS = 2
 def _subtopic_choice(dimension: MappingDimensionWithSubTopics) -> type[Choice]:
     """A Choice over a dimension's subtopics, each described for the model."""
     try:
-        return Choice[tuple({sub.name: sub.description for sub in dimension.subtopics}.items())]
+        return Choice[tuple((sub.name, sub.description) for sub in dimension.subtopics)]
     except ValueError as exc:
         raise ValueError(f"Dimension '{dimension.name}': {exc}") from exc
+
+
+def _repeated(names: list[str]) -> list[str]:
+    """The names that appear more than once, sorted."""
+    return sorted({name for name in names if names.count(name) > 1})
 
 
 def mapping_along_dimensions_signature_builder(
@@ -73,10 +78,19 @@ def mapping_along_dimensions_signature_builder(
     :param mapping_dimension2: the second mapping dimension, with its finalised subtopics
     :param mapping_dimension3: the third mapping dimension, with its finalised subtopics
     :return: a dynamically-built MapEvidenceAlongDimensions signature
-    :raises ValueError: if a dimension has fewer than two subtopics, the fewest a decision
-        model will choose between, or two subtopics share a name
+    :raises ValueError: if two dimensions share a name (they key each coordinate), a
+        dimension has two subtopics with one name, or fewer than two subtopics, the
+        fewest a decision model will choose between
     """
-    for dimension in (mapping_dimension1, mapping_dimension2, mapping_dimension3):
+    dimensions = (mapping_dimension1, mapping_dimension2, mapping_dimension3)
+    if repeated := _repeated([dimension.name for dimension in dimensions]):
+        raise ValueError(f"Duplicate dimension names: {', '.join(repeated)}")
+    for dimension in dimensions:
+        if repeated := _repeated([sub.name for sub in dimension.subtopics]):
+            raise ValueError(
+                f"Dimension '{dimension.name}' has duplicate subtopic names: "
+                f"{', '.join(repeated)}"
+            )
         if len(dimension.subtopics) < MIN_SUBTOPICS:
             raise ValueError(
                 f"Dimension '{dimension.name}' needs at least {MIN_SUBTOPICS} subtopics "

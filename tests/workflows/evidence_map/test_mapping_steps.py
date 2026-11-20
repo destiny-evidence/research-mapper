@@ -90,7 +90,12 @@ def test_dimensions_are_suggested_then_edited(db, ctx, operation, monkeypatch):
 
     spec = ctx.pending_decisions["edit_dimensions"]
     assert spec.type == "edit_list"
-    assert spec.constraints == {"min": 3, "max": 3, "allow_new": True}
+    assert spec.constraints == {
+        "min": 3,
+        "max": 3,
+        "allow_new": True,
+        "unique": "name",
+    }
     assert [option["value"] for option in spec.options] == AXES
 
     renamed = [{"name": "Site", "description": "where"}, AXES[1], AXES[2]]
@@ -146,7 +151,9 @@ def test_subtopics_are_generated_per_dimension_then_edited(
     ]
 
 
-def test_each_dimension_must_keep_two_subtopics(db, ctx, operation, monkeypatch):
+def test_each_dimension_must_keep_two_distinct_subtopics(
+    db, ctx, operation, monkeypatch
+):
     """Mapping can't choose from fewer, so the edit is refused rather than every
     piece of evidence failing later at the map step."""
     ctx.write_artifact(
@@ -165,12 +172,14 @@ def test_each_dimension_must_keep_two_subtopics(db, ctx, operation, monkeypatch)
         mapping.GenerateMapSubtopics().run(ctx, mapping.GenerateMapSubtopicsParams())
 
     spec = ctx.pending_decisions["edit_subtopics:Setting"]
-    assert spec.constraints == {"min": 2, "allow_new": True}
+    assert spec.constraints == {"min": 2, "allow_new": True, "unique": "name"}
 
     decision = Decision(constraints=spec.constraints, options=spec.options)
     with pytest.raises(InvalidAnswer, match="at least 2"):
         validate_answer(decision, SUBTOPICS["Setting"][:1])
     validate_answer(decision, SUBTOPICS["Setting"])
+    with pytest.raises(InvalidAnswer, match="names must be unique: School"):
+        validate_answer(decision, [*SUBTOPICS["Setting"], SUBTOPICS["Setting"][0]])
 
 
 def test_a_dimension_without_subtopics_fails_the_operation(db, ctx, monkeypatch):

@@ -133,7 +133,9 @@ def _input_text(request: Request) -> str:
     state = parts[0].value
     if not isinstance(state, dict):
         raise ValueError(f"Unexpected decision request input: {state!r}")
-    sections = [str(state.get(key) or "").strip() for key in ("instructions", "input_fields")]
+    sections = [
+        str(state.get(key) or "").strip() for key in ("instructions", "input_fields")
+    ]
     if state.get("demos"):
         sections.append("Examples:\n" + json.dumps(state["demos"], ensure_ascii=False))
     sections.append(

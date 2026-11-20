@@ -106,6 +106,8 @@ class GenerateMapDimensions(Step[GenerateMapDimensionsParams, StepContext]):
                     "min": artifacts.DIMENSION_COUNT,
                     "max": artifacts.DIMENSION_COUNT,
                     "allow_new": True,
+                    # Dimension names key every coordinate, so two alike would collide.
+                    "unique": "name",
                 },
             ),
         )
@@ -159,9 +161,14 @@ class GenerateMapSubtopics(Step[GenerateMapSubtopicsParams, StepContext]):
                         }
                         for i, subtopic in enumerate(dimension.subtopics)
                     ],
-                    # Mapping chooses between a dimension's subtopics, so fewer
-                    # than this would fail every piece of evidence at the map step.
-                    constraints={"min": MIN_SUBTOPICS, "allow_new": True},
+                    # Mapping chooses between a dimension's subtopics, so fewer, or
+                    # two with one name, would fail every piece of evidence at the
+                    # map step.
+                    constraints={
+                        "min": MIN_SUBTOPICS,
+                        "allow_new": True,
+                        "unique": "name",
+                    },
                 )
                 for dimension in suggested.dimensions
             }

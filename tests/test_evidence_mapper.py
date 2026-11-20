@@ -141,7 +141,18 @@ def test_a_dimension_needs_two_subtopics_to_choose_between(subtopics):
 
 
 def test_duplicate_subtopic_names_are_refused():
-    twins = dimension("Setting", "School", "School")
+    """Refused, never quietly merged: the user named two subtopics alike."""
+    twins = dimension("Setting", "School", "Clinic", "School")
 
-    with pytest.raises(ValueError, match="Setting"):
+    with pytest.raises(
+        ValueError, match="'Setting' has duplicate subtopic names: School"
+    ):
         mapping_along_dimensions_signature_builder(twins, *DIMENSIONS[1:])
+
+
+def test_duplicate_dimension_names_are_refused():
+    """Dimension names key every coordinate, so two alike would overwrite each other."""
+    again = dimension("Setting", "Home", "Ward")
+
+    with pytest.raises(ValueError, match="Duplicate dimension names: Setting"):
+        mapping_along_dimensions_signature_builder(DIMENSIONS[0], again, DIMENSIONS[2])

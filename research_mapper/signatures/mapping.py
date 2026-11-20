@@ -55,7 +55,7 @@ MIN_SUBTOPICS = 2
 def _subtopic_choice(dimension: MappingDimensionWithSubTopics) -> type[Choice]:
     """A Choice over a dimension's subtopics, each described for the model."""
     try:
-        return Choice[tuple((sub.name, sub.description) for sub in dimension.subtopics)]
+        return Choice[tuple({sub.name: sub.description for sub in dimension.subtopics}.items())]
     except ValueError as exc:
         raise ValueError(f"Dimension '{dimension.name}': {exc}") from exc
 

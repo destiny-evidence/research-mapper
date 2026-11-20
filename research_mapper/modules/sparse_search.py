@@ -4,6 +4,7 @@ import dspy
 
 from research_mapper.models.common import UserQuery
 from research_mapper.models.sparse_search import LuceneQuery
+from research_mapper.modules.react import reasoning_from_history
 from research_mapper.signatures.sparse_search import (
     UserQueryToLuceneSearchQueries,
     GatherEvidenceFromSearchQuery,
@@ -20,7 +21,9 @@ class SparseQueryGenerator(dspy.Module):
     """
 
     def __init__(self) -> None:
-        self.generate = dspy.ChainOfThought(UserQueryToLuceneSearchQueries)
+        self.generate = dspy.ChainOfThought(
+            UserQueryToLuceneSearchQueries, rationale_field_type=str
+        )
 
     def forward(self, user_query: UserQuery) -> dspy.Prediction:
         """
@@ -75,5 +78,5 @@ class EvidenceRetriever(dspy.Module):
             evidence=list(tool.retrieved.values()),
             search_summary=prediction.search_summary,
             stopping_reason=prediction.stopping_reason,
-            reasoning=prediction.reasoning,
+            reasoning=reasoning_from_history(prediction.history),
         )

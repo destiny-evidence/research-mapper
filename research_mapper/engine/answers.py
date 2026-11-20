@@ -24,6 +24,19 @@ def validate_answer(decision: Decision, answer: list[dict]) -> None:
         msg = f"pick at most {maximum}"
         raise InvalidAnswer(msg)
 
+    # `unique` names a field no two records may share, e.g. "name" for edited lists.
+    if unique := decision.constraints.get("unique"):
+        values = [item.get(unique) for item in answer]
+        if duplicates := sorted(
+            {
+                str(value)
+                for value in values
+                if value is not None and values.count(value) > 1
+            }
+        ):
+            msg = f"{unique}s must be unique: {', '.join(duplicates)}"
+            raise InvalidAnswer(msg)
+
     exclusive = decision.constraints.get("exclusive", [])
     if len(answer) > 1 and any(item in exclusive for item in answer):
         msg = "that option has to be chosen on its own"

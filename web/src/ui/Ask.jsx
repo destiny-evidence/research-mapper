@@ -2,6 +2,15 @@ import { useState } from "preact/hooks";
 import { Tick, Remove, Plus } from "./Icons.jsx";
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+// Values of `field` that more than one item shares, sorted. The API refuses an
+// answer with any (the `unique` constraint), so the form says so first.
+export const repeated = (items, field) => {
+  const values = items.map((item) => item?.[field]).filter((v) => v != null);
+  return [...new Set(values.filter((v, i) => values.indexOf(v) !== i))]
+    .map(String)
+    .sort();
+};
 const label = (option) =>
   option.label ?? option.value?.name ?? JSON.stringify(option.value);
 
@@ -110,12 +119,14 @@ const constraintHint = (min, max) => {
   return min > 1 ? `pick at least ${min}` : "pick one or more";
 };
 
-function EditList({ decision, onAnswer, saving }) {
+export function EditList({ decision, onAnswer, saving }) {
   const suggested = decision.options.map((option) => option.value);
   const [items, setItems] = useState(suggested);
   const [draft, setDraft] = useState({ name: "", description: "" });
   const allowNew = Boolean(decision.constraints?.allow_new);
   const min = decision.constraints?.min ?? 0;
+  const unique = decision.constraints?.unique;
+  const clashes = unique ? repeated(items, unique) : [];
 
   // New entries take their shape from what is already there, so this keeps
   // working if the item model gains a field.
@@ -179,14 +190,20 @@ function EditList({ decision, onAnswer, saving }) {
         {/* Taking the model's list untouched is a decision. */}
         <button
           class="btn"
-          disabled={items.length < min || saving}
+          disabled={items.length < min || clashes.length > 0 || saving}
           onClick={() => onAnswer(items)}
         >
           {same(items, suggested)
             ? `Accept all ${items.length}`
             : `Save ${items.length}`}
         </button>
-        <span class="hint">{items.length < min ? `at least ${min}` : ""}</span>
+        <span class="hint">
+          {items.length < min
+            ? `at least ${min}`
+            : clashes.length
+              ? `${unique}s must be unique: ${clashes.join(", ")}`
+              : ""}
+        </span>
       </div>
     </>
   );

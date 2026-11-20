@@ -98,7 +98,11 @@ class GenerateScreeningCriteria(
 
 
 class ScreeningResult(Protocol):
-    """What the screener put on a Prediction."""
+    """What the screener put on a Prediction.
+
+    EvidenceScreener also sets probability, threshold and model, which are read
+    with a default so any module with include and reasoning will do.
+    """
 
     include: bool
     reasoning: str
@@ -169,6 +173,9 @@ class ScreenEvidence(Step[ScreenEvidenceParams, EvidenceMapContext]):
                             include=prediction.include,
                             reasoning=prediction.reasoning,
                             criteria_version=criteria_version or 1,
+                            probability=getattr(prediction, "probability", None),
+                            threshold=getattr(prediction, "threshold", None),
+                            model=getattr(prediction, "model", None),
                         )
                     )
 

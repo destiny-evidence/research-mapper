@@ -4,6 +4,7 @@ import dspy
 import pytest
 
 from factories import make_operation, make_reference, make_session, make_user
+from research_mapper.engine.answers import InvalidAnswer, validate_answer
 from research_mapper.engine.context import NeedsInput
 from research_mapper.engine.enums import DecisionType
 from research_mapper.engine.models import Decision
@@ -22,10 +23,20 @@ AXES = [
     {"name": "Population", "description": "who"},
     {"name": "Outcome", "description": "what"},
 ]
+# Two each: mapping chooses between a dimension's subtopics, so a map needs at least two.
 SUBTOPICS = {
-    "Setting": [{"name": "School", "description": "in schools"}],
-    "Population": [{"name": "Teens", "description": "13-19"}],
-    "Outcome": [{"name": "Uptake", "description": "vaccine uptake"}],
+    "Setting": [
+        {"name": "School", "description": "in schools"},
+        {"name": "Home", "description": "at home"},
+    ],
+    "Population": [
+        {"name": "Teens", "description": "13-19"},
+        {"name": "Adults", "description": "20 and over"},
+    ],
+    "Outcome": [
+        {"name": "Uptake", "description": "vaccine uptake"},
+        {"name": "Adherence", "description": "completing the course"},
+    ],
 }
 
 
@@ -79,7 +90,12 @@ def test_dimensions_are_suggested_then_edited(db, ctx, operation, monkeypatch):
 
     spec = ctx.pending_decisions["edit_dimensions"]
     assert spec.type == "edit_list"
-    assert spec.constraints == {"min": 3, "max": 3, "allow_new": True}
+    assert spec.constraints == {
+        "min": 3,
+        "max": 3,
+        "allow_new": True,
+        "unique": "name",
+    }
     assert [option["value"] for option in spec.options] == AXES
 
     renamed = [{"name": "Site", "description": "where"}, AXES[1], AXES[2]]
@@ -125,10 +141,45 @@ def test_subtopics_are_generated_per_dimension_then_edited(
         ctx, mapping.GenerateMapSubtopicsParams()
     )
 
-    assert result == {"dimensions": 3, "subtopics": 4, "version": 1}
+    assert result == {"dimensions": 3, "subtopics": 7, "version": 1}
     stored = ctx.get_artifact(artifacts.DIMENSIONS)
     assert stored is not None
-    assert [s.name for s in stored.dimensions[0].subtopics] == ["School", "Clinic"]
+    assert [s.name for s in stored.dimensions[0].subtopics] == [
+        "School",
+        "Home",
+        "Clinic",
+    ]
+
+
+def test_each_dimension_must_keep_two_distinct_subtopics(
+    db, ctx, operation, monkeypatch
+):
+    """Mapping can't choose from fewer, so the edit is refused rather than every
+    piece of evidence failing later at the map step."""
+    ctx.write_artifact(
+        artifacts.MAP_DIMENSIONS,
+        artifacts.MapDimensions.model_validate({"dimensions": AXES}),
+    )
+    monkeypatch.setattr(
+        mapping.SubtopicGenerator,
+        "__call__",
+        lambda self, dimension, **_: dspy.Prediction(
+            subtopics=SUBTOPICS[dimension.name], reasoning="why"
+        ),
+    )
+
+    with pytest.raises(NeedsInput):
+        mapping.GenerateMapSubtopics().run(ctx, mapping.GenerateMapSubtopicsParams())
+
+    spec = ctx.pending_decisions["edit_subtopics:Setting"]
+    assert spec.constraints == {"min": 2, "allow_new": True, "unique": "name"}
+
+    decision = Decision(constraints=spec.constraints, options=spec.options)
+    with pytest.raises(InvalidAnswer, match="at least 2"):
+        validate_answer(decision, SUBTOPICS["Setting"][:1])
+    validate_answer(decision, SUBTOPICS["Setting"])
+    with pytest.raises(InvalidAnswer, match="names must be unique: School"):
+        validate_answer(decision, [*SUBTOPICS["Setting"], SUBTOPICS["Setting"][0]])
 
 
 def test_a_dimension_without_subtopics_fails_the_operation(db, ctx, monkeypatch):
@@ -192,6 +243,44 @@ def test_only_included_references_are_placed_on_the_map(db, ctx, session, monkey
         "Outcome": ["Uptake"],
     }
     assert rows[TWO].coordinate is None
+
+
+def test_what_the_coordinate_was_chosen_from_is_stored(db, ctx, session, monkeypatch):
+    """Probabilities and model go in the mapping blob; the coordinate keeps its shape."""
+    ctx.write_artifact(
+        artifacts.DIMENSIONS,
+        artifacts.Dimensions.model_validate({"dimensions": with_subtopics()}),
+    )
+    make_reference(db, session, ONE, stage=SessionReferenceStage.INCLUDED)
+    hydrate(monkeypatch, ONE)
+    probabilities = {
+        "Setting": {"School": 0.9, "Clinic": 0.1},
+        "Population": {"Teens": 0.7, "Adults": 0.3},
+        "Outcome": {"Uptake": 0.55, "Adherence": 0.45},
+    }
+
+    def fake_call(self, **_):
+        return dspy.Prediction(
+            dimension1_subtopic="School",
+            dimension2_subtopic="Teens",
+            dimension3_subtopic="Uptake",
+            reasoning="why",
+            probabilities=probabilities,
+            model="gpt-6-luna",
+        )
+
+    monkeypatch.setattr(mapping.EvidenceMapper, "__call__", fake_call)
+
+    mapping.GenerateMap().run(ctx, mapping.GenerateMapParams())
+
+    row = db.query(SessionReference).filter_by(destiny_id=ONE).one()
+    assert row.mapping["probabilities"] == probabilities
+    assert row.mapping["model"] == "gpt-6-luna"
+    assert row.coordinate == {
+        "Setting": ["School"],
+        "Population": ["Teens"],
+        "Outcome": ["Uptake"],
+    }
 
 
 def test_mapping_fails_when_screening_included_nothing(db, ctx, session, monkeypatch):

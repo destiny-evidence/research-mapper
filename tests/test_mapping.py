@@ -1,6 +1,7 @@
 import uuid
 from unittest.mock import MagicMock
 
+import dspy
 import pytest
 
 from research_mapper.models.common import Evidence, UserQuery
@@ -22,8 +23,8 @@ def _live(live_setup):
 
 
 def test_dimension_generator_returns_generator_prediction():
-    """DimensionGenerator.forward is a pure passthrough to its ChainOfThought."""
-    mock_prediction = MagicMock()
+    """DimensionGenerator.forward passes its ChainOfThought's prediction through when reasoning is already text."""
+    mock_prediction = dspy.Prediction(reasoning="already text")
     generator = DimensionGenerator()
     generator.generate = MagicMock(return_value=mock_prediction)
 
@@ -34,8 +35,8 @@ def test_dimension_generator_returns_generator_prediction():
 
 
 def test_subtopic_generator_returns_generator_prediction():
-    """SubtopicGenerator.forward is a pure passthrough to its ChainOfThought."""
-    mock_prediction = MagicMock()
+    """SubtopicGenerator.forward passes its ChainOfThought's prediction through when reasoning is already text."""
+    mock_prediction = dspy.Prediction(reasoning="already text")
     generator = SubtopicGenerator()
     generator.generate = MagicMock(return_value=mock_prediction)
 

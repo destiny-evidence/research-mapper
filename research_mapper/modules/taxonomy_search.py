@@ -12,7 +12,7 @@ from research_mapper.models.taxonomy_search import (
     ConceptFilterGroup,
     IndexedVocab,
 )
-from research_mapper.modules.react import ResumableReAct
+from research_mapper.modules.react import ResumableReAct, reasoning_from_history
 from research_mapper.signatures.taxonomy_search import (
     GatherEvidenceFromConceptFilters,
     TaxonomyConceptFiltersFromUserQuery,
@@ -316,5 +316,5 @@ class ConceptEvidenceRetriever(dspy.Module):
             evidence=list(tool.retrieved.values()),
             search_summary=prediction.search_summary,
             stopping_reason=prediction.stopping_reason,
-            reasoning=prediction.reasoning,
+            reasoning=reasoning_from_history(prediction.history),
         )

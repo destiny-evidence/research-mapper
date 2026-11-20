@@ -16,6 +16,10 @@ class Step(BaseModel):
     live suspended frame — the way a Python generator would hold one — so a
     `Step` can be persisted, handed to a different process, and resumed
     arbitrarily later.
+
+    A Step is one tool call, `idx` its index in the run. When the agent proposes
+    several calls in one turn, each is its own Step, in order, sharing the turn's
+    `thought`; the trajectory's `turn_{idx}` records which turn each came from.
     """
 
     model_config = {"arbitrary_types_allowed": True}

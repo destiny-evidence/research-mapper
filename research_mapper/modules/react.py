@@ -3,7 +3,11 @@ from itertools import groupby
 from typing import Any
 
 import dspy
-from dspy.adapters.types.tool import ToolCallResults, ToolCalls
+from dspy.adapters.types.tool import (
+    ToolCallResults,
+    ToolCalls,
+    _resolve_json_schema_reference,
+)
 from dspy.utils.exceptions import (
     AdapterParseError,
     ContextWindowExceededError,
@@ -39,9 +43,26 @@ class ResumableReAct(dspy.ReAct):
     it on every turn.
 
     Reuses `dspy.ReAct`'s tools, `submit` tool and predictor, plus two of its private
-    helpers: `_turn_budget_inputs` and `_forced_submit`. Those, and the predictor's
-    field names, are pinned by tests/test_react.py, so re-check them on a dspy upgrade.
+    helpers: `_turn_budget_inputs` and `_forced_submit`, and its schema resolver
+    `_resolve_json_schema_reference`. Those, and the predictor's field names, are
+    pinned by tests/test_react.py, so re-check them on a dspy upgrade.
     """
+
+    def __init__(
+        self,
+        signature: type[dspy.Signature] | str,
+        tools: list,
+        max_iters: int = 20,
+    ) -> None:
+        super().__init__(signature, tools, max_iters=max_iters)
+        # DSPy 3.5 builds `submit`'s arguments without inlining the `$defs` of a
+        # structured output (it does for every other tool), so the model is sent a
+        # `$ref` it can't follow and invents field names. Inline them like any tool.
+        submit = self.tools["submit"]
+        submit.args = {
+            name: _resolve_json_schema_reference(schema)
+            for name, schema in submit.args.items()
+        }
 
     def forward(self, **input_args) -> dspy.Prediction:
         result = self.resume(None, **input_args)

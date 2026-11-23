@@ -2,6 +2,7 @@ import json
 from unittest.mock import MagicMock
 
 import dspy
+from pydantic import BaseModel
 from dspy.adapters.types.tool import ToolCalls
 from dspy.utils.dummies import DummyLM
 
@@ -368,3 +369,29 @@ def test_reasoning_from_history_numbers_a_plain_react_runs_thoughts():
         "1. Search twice.\n2. Once more.\n3. Done."
     )
     assert reasoning_from_history(None) == ""
+
+
+def test_submit_spells_out_structured_outputs_for_the_model():
+    """DSPy 3.5 leaves a structured output's `$defs` inside `submit`'s arguments, and
+    the model, unable to follow the `$ref`, invented field names. ResumableReAct
+    inlines them, as DSPy does for every other tool."""
+
+    class Item(BaseModel):
+        scheme: str
+        concept_local_refs: list[str]
+
+    class Pick(dspy.Signature):
+        """Pick items."""
+
+        query: str = dspy.InputField()
+        items: list[Item] = dspy.OutputField()
+
+    agent = ResumableReAct(Pick, tools=[search], max_iters=3)
+
+    schema = agent.tools["submit"].args["items"]
+    assert "$ref" not in json.dumps(schema) and "$defs" not in schema
+    assert list(schema["items"]["properties"]) == ["scheme", "concept_local_refs"]
+    parsed = agent.tools["submit"](
+        items=[{"scheme": "S", "concept_local_refs": ["C1"]}]
+    )
+    assert isinstance(parsed["items"][0], Item)

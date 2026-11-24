@@ -414,6 +414,10 @@ input, textarea, select {
   background: var(--amber-bg); border: 1px solid var(--amber-line); padding: 4px 9px;
 }
 .refs-count { font-size: 12px; color: var(--muted); margin-top: 5px; }
+/* Which model screened or mapped the step's references. The chat model standing
+   in for a decision model is flagged, since its probabilities are self-reported. */
+.refs-decided { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.refs-decided.fallback { color: var(--amber-ink); }
 /* A step's own slice of the table: no section rule of its own, and a long list
    scrolls inside the step rather than pushing the rest of the workflow away. */
 .refs.inset { margin-top: 18px; padding-top: 0; border-top: 0; }

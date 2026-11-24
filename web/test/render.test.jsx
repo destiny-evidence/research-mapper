@@ -301,6 +301,25 @@ describe('References', () => {
       expect(mapping).not.toContain('reports uptake')
     })
 
+    it('names the model behind each reasoning, and its kind', () => {
+      const html = render(
+        <Why
+          reference={{
+            ...reference,
+            screening: { ...reference.screening, model: 'gpt-6-luna', dedicated: true },
+            mapping: { ...reference.mapping, model: 'gpt-chat', dedicated: false },
+          }}
+        />,
+      )
+      expect(html).toContain('Model reasoning: inclusion · gpt-6-luna (decision model)')
+      expect(html).toContain('Model reasoning: mapping · gpt-chat (chat model)')
+    })
+
+    it('names no model on a record that never stored one', () => {
+      const html = render(<Why reference={reference} shows={['screening']} />)
+      expect(html).toContain('Model reasoning: inclusion<')
+    })
+
     it('shows the lot where the whole pipeline is on display', () => {
       const html = render(<Why reference={reference} />)
       expect(html).toContain('reports uptake')
@@ -336,6 +355,31 @@ describe('References', () => {
       )
       expect(html).toContain('spinner')
       expect(html).not.toContain('ref-list')
+    })
+
+    it('says which model decided a step, and whether it was a dedicated one', () => {
+      const decided = rows.map((row) => ({
+        ...row,
+        screening: { ...row.screening, model: 'gpt-6-luna', dedicated: true },
+      }))
+      const html = render(stepReferences('screen_evidence', refs({ references: decided })))
+      expect(html).toContain('Decided by gpt-6-luna · dedicated decision model')
+      expect(html).not.toContain('fallback')
+    })
+
+    it('flags the chat model standing in for a decision model', () => {
+      const decided = rows.map((row) => ({
+        ...row,
+        screening: { ...row.screening, model: 'gpt-chat', dedicated: false },
+      }))
+      const html = render(stepReferences('screen_evidence', refs({ references: decided })))
+      expect(html).toContain('Decided by gpt-chat · chat model (no decision model configured')
+      expect(html).toContain('refs-decided fallback')
+    })
+
+    it('says nothing about models for a step that decides nothing', () => {
+      const html = render(stepReferences('screen_evidence', refs()))
+      expect(html).not.toContain('Decided by')
     })
 
     it('gives a step with no table, or no references, nothing', () => {

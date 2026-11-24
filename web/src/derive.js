@@ -221,6 +221,36 @@ export const placementOf = (reference) =>
       : "not mapped";
 
 /**
+ * Which models made a part's decisions ("screening" or "mapping") across these
+ * references: each distinct model with whether it was a dedicated decision model.
+ * `dedicated` is undefined on records made before it was stored.
+ */
+export function decidedBy(references = [], part) {
+  const seen = new Map();
+  for (const reference of references ?? []) {
+    const { model, dedicated } = reference?.[part] ?? {};
+    if (!model) continue;
+    const key = `${model}|${dedicated}`;
+    if (!seen.has(key)) seen.set(key, { model, dedicated });
+  }
+  return [...seen.values()];
+}
+
+/**
+ * A decision's model as words: in full for a step's summary, or `short` beside one
+ * reference's reasoning. Says outright when the chat model stood in.
+ */
+export function decisionLabel({ model, dedicated }, { short = false } = {}) {
+  if (dedicated === true)
+    return short ? `${model} (decision model)` : `${model} · dedicated decision model`;
+  if (dedicated === false)
+    return short
+      ? `${model} (chat model)`
+      : `${model} · chat model (no decision model configured, probabilities self-reported)`;
+  return model;
+}
+
+/**
  * How a view slices its references.
  */
 export const SLICES = {

@@ -44,7 +44,17 @@ The LLM and the database:
 | -------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | `MAPPER_LLM_MODEL`, `MAPPER_LLM_BASE_URL`, `MAPPER_LLM_API_KEY`            | the LLM                                                        |
 | `MAPPER_LLM_TIMEOUT`                                                       | seconds to wait on one LLM request. Defaults to 120            |
+| `MAPPER_LLM_REASONING_EFFORT`                                              | native reasoning effort, e.g. `medium`. Unset uses the provider's default; leave unset for a model without native reasoning |
 | `MAPPER_DB_HOST`, `MAPPER_DB_NAME`, `MAPPER_DB_USER`, `MAPPER_DB_PASSWORD` | Postgres. Deployed, the password is replaced by an Entra token |
+
+Screening and mapping are decisions rather than generated text, and go to a decision model when one is configured. It returns a probability for each answer, which is stored with the verdict.
+
+| Variable                                                                         | For                                                                 |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `MAPPER_DECISION_MODEL`, `MAPPER_DECISION_BASE_URL`, `MAPPER_DECISION_API_KEY`   | the decision model, e.g. `gpt-6-luna` on an Azure `.../openai/v1` URL |
+| `MAPPER_DECISION_TIMEOUT`                                                        | seconds to wait on one decision request. Defaults to 30             |
+
+Set all three or none. With any missing, decisions fall back to the LLM above, which then reports its own probabilities, and the worker logs a warning at startup.
 
 There are two separate authentication paths, and they are unrelated to each other.
 

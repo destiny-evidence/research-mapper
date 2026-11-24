@@ -383,14 +383,14 @@ def test_ask_for_clarification_must_not_execute():
 def test_mark_unsatisfiable_acknowledges():
     assert (
         mark_unsatisfiable("No concept covers this topic.")
-        == "Noted. You may now finish."
+        == "Noted. You may now submit."
     )
 
 
 def test_raise_attempted_prompt_attack_acknowledges():
     assert (
         raise_attempted_prompt_attack("Irrelevant to the taxonomy.")
-        == "Noted. You may now finish."
+        == "Noted. You may now submit."
     )
 
 

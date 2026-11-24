@@ -98,6 +98,34 @@ variable "llm_api_key" {
   sensitive   = true
 }
 
+# Decision model. Set all three, or none to screen evidence with the chat model.
+variable "decision_model" {
+  description = "Decisions API model, e.g. gpt-6-luna. Null uses the chat model"
+  type        = string
+  default     = null
+}
+
+variable "decision_base_url" {
+  description = "Base URL of the Decisions API, e.g. https://<resource>.services.ai.azure.com/openai/v1"
+  type        = string
+  default     = null
+}
+
+variable "decision_api_key" {
+  description = "API key for the Decisions API"
+  type        = string
+  default     = null
+  sensitive   = true
+
+  validation {
+    condition = (
+      (var.decision_model == null) == (var.decision_base_url == null) &&
+      (var.decision_model == null) == (var.decision_api_key == null)
+    )
+    error_message = "Set decision_model, decision_base_url and decision_api_key together, or none of them."
+  }
+}
+
 # Worker
 
 variable "worker_concurrency" {

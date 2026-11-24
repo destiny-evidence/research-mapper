@@ -13,6 +13,7 @@ from research_mapper.config import reroll
 from research_mapper.engine.registry import Step
 from research_mapper.engine.views import AskSpec
 from research_mapper.models.common import UserQuery
+from research_mapper.signatures.mapping import MIN_SUBTOPICS
 from research_mapper.models.mapping import (
     DimensionSubTopic,
     MappingDimension,
@@ -105,6 +106,8 @@ class GenerateMapDimensions(Step[GenerateMapDimensionsParams, StepContext]):
                     "min": artifacts.DIMENSION_COUNT,
                     "max": artifacts.DIMENSION_COUNT,
                     "allow_new": True,
+                    # Dimension names key every coordinate, so two alike would collide.
+                    "unique": "name",
                 },
             ),
         )
@@ -158,7 +161,14 @@ class GenerateMapSubtopics(Step[GenerateMapSubtopicsParams, StepContext]):
                         }
                         for i, subtopic in enumerate(dimension.subtopics)
                     ],
-                    constraints={"min": 1, "allow_new": True},
+                    # Mapping chooses between a dimension's subtopics, so fewer, or
+                    # two with one name, would fail every piece of evidence at the
+                    # map step.
+                    constraints={
+                        "min": MIN_SUBTOPICS,
+                        "allow_new": True,
+                        "unique": "name",
+                    },
                 )
                 for dimension in suggested.dimensions
             }
@@ -290,6 +300,10 @@ class GenerateMap(Step[GenerateMapParams, EvidenceMapContext]):
                             },
                             reasoning=prediction.reasoning,
                             dimensions_version=dimensions_version or 1,
+                            # Read with a default: EvidenceMapper sets these, but
+                            # any module with the subtopics and reasoning will do.
+                            probabilities=getattr(prediction, "probabilities", None),
+                            model=getattr(prediction, "model", None),
                         )
                     )
                 ctx.set_coordinates(rows)

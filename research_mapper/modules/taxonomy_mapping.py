@@ -42,7 +42,9 @@ class TaxonomySchemeDimensionGenerator(dspy.Module):
         except ValueError as exc:
             raise RuntimeError(str(exc)) from exc
 
-        select_schemes = dspy.ChainOfThought(TaxonomySchemeDimensions)
+        select_schemes = dspy.ChainOfThought(
+            TaxonomySchemeDimensions, rationale_field_type=str
+        )
         prediction = select_schemes(original_query=user_query)
         chosen = (prediction.scheme1, prediction.scheme2, prediction.scheme3)
         if len(set(chosen)) != len(chosen):

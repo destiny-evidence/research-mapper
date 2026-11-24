@@ -59,3 +59,18 @@ def test_an_exclusive_option_cannot_be_combined_with_another():
     validate_answer(exclusive, [ONE])
     with pytest.raises(InvalidAnswer, match="on its own"):
         validate_answer(exclusive, [ONE, TWO])
+
+
+def test_unique_accepts_records_whose_field_differs():
+    validate_answer(
+        decision(unique="name", allow_new=True), [{"name": "a"}, {"name": "b"}]
+    )
+
+
+def test_unique_refuses_a_repeated_value_and_names_it():
+    """A repeated subtopic or dimension name would break mapping, so it is
+    refused when the user saves, not when every item fails later."""
+    answer = [{"name": "School"}, {"name": "Clinic"}, {"name": "School"}]
+
+    with pytest.raises(InvalidAnswer, match="names must be unique: School"):
+        validate_answer(decision(unique="name", allow_new=True), answer)

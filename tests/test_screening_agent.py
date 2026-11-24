@@ -67,7 +67,7 @@ def test_evidence_screener_end_to_end_live():
 
     evidence = search_references(
         LuceneQuery(query="climate AND health"), community=RepoCommunity.HPV
-    )
+    ).evidence
     assert evidence, "Expected search to return at least one result"
 
     query = UserQuery(

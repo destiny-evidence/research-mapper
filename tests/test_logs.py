@@ -137,7 +137,9 @@ def root_level():
 def test_service_logging_sends_info_to_stderr(capsys, root_handlers_before, root_level):
     configure_service_logging()
 
-    logging.getLogger("research_mapper.config.llm").info(
+    # A logger of the test's own: alembic's fileConfig (run by the migration tests)
+    # disables every logger that already exists, the app's included.
+    logging.getLogger("tests.service_logging").info(
         "Configuring decision model: model=%s", "gpt-6-luna"
     )
 

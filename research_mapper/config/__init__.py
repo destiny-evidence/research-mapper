@@ -18,6 +18,7 @@ from research_mapper.config.llm import (
     LLM_TIMEOUT_SECONDS,
     configure_dspy,
     get_decision_model,
+    is_dedicated_decision_model,
     reroll,
 )
 
@@ -31,6 +32,7 @@ __all__ = [
     "get_destiny_client",
     "init_database",
     "init_destiny_client",
+    "is_dedicated_decision_model",
     "load_environment",
     "reroll",
 ]

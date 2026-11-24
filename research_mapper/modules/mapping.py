@@ -1,7 +1,7 @@
 import dspy
 
 from research_mapper.models.common import Evidence, UserQuery
-from research_mapper.config import get_decision_model
+from research_mapper.config import get_decision_model, is_dedicated_decision_model
 from research_mapper.models.mapping import (
     MappingDimension,
     MappingDimensionWithSubTopics,
@@ -99,7 +99,8 @@ class EvidenceMapper(dspy.Module):
         :param dimensions: the finalised mapping dimensions, each with their finalised subtopics
         :return: a Prediction of plain values: the evidence's coordinate as subtopic names
             (dimension1_subtopic, dimension2_subtopic, dimension3_subtopic), probabilities
-            (each dimension's name to its subtopics' probabilities), model, and reasoning
+            (each dimension's name to its subtopics' probabilities), model, whether it is a
+            dedicated decision model (dedicated), and reasoning
         :raises RuntimeError: if a mapping dimension's subtopics can't be chosen between
         """
         try:
@@ -135,5 +136,6 @@ class EvidenceMapper(dspy.Module):
             **subtopics,
             probabilities=probabilities,
             model=mapper.lm.model,
+            dedicated=is_dedicated_decision_model(mapper.lm),
             reasoning=reasoning,
         )

@@ -103,6 +103,7 @@ def test_the_coordinate_is_plain_subtopic_names():
     assert result.dimension3_subtopic == "Uptake"
     assert result.probabilities["Population"] == CHOSEN[1][1]
     assert result.model == "gpt-6-luna"
+    assert result.dedicated is True
     assert "Setting: School (90% (0.9000), confidence 80%)" in result.reasoning
 
 

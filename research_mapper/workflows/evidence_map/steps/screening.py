@@ -176,6 +176,7 @@ class ScreenEvidence(Step[ScreenEvidenceParams, EvidenceMapContext]):
                             probability=getattr(prediction, "probability", None),
                             threshold=getattr(prediction, "threshold", None),
                             model=getattr(prediction, "model", None),
+                            dedicated=getattr(prediction, "dedicated", None),
                         )
                     )
 

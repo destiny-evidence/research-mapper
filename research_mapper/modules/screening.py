@@ -1,6 +1,6 @@
 import dspy
 
-from research_mapper.config import get_decision_model
+from research_mapper.config import get_decision_model, is_dedicated_decision_model
 from research_mapper.models.common import Evidence, UserQuery
 from research_mapper.models.screening import ScreeningCriterion
 from research_mapper.signatures.screening import (
@@ -48,7 +48,8 @@ class EvidenceScreener(dspy.Module):
         :param evidence: the piece of evidence to screen
         :param screening_criteria: the screening criteria to screen it against
         :return: a Prediction of plain values: include (bool), probability (P(meets
-            criteria)), the threshold it was judged against, and reasoning
+            criteria)), the threshold it was judged against, the model, whether it is a
+            dedicated decision model (dedicated), and reasoning
         """
         if self.screen.lm is None:
             self.screen.set_lm(get_decision_model())
@@ -71,5 +72,6 @@ class EvidenceScreener(dspy.Module):
             probability=decision.probability,
             threshold=threshold,
             model=self.screen.lm.model,
+            dedicated=is_dedicated_decision_model(self.screen.lm),
             reasoning=reasoning,
         )

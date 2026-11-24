@@ -2,16 +2,19 @@ from unittest.mock import MagicMock, patch
 
 import sys
 
+import dspy
 import httpx
 import pytest
 
 from research_mapper import local_destiny_auth
+from research_mapper.decisions_engine import DecisionsEngine
 from research_mapper.config import (
     HEALTHCHECK_TIMEOUT,
     LLM_TIMEOUT_SECONDS,
     NoDestinyCredential,
     configure_dspy,
     get_destiny_client,
+    is_dedicated_decision_model,
     load_environment,
 )
 
@@ -269,3 +272,18 @@ def test_a_stored_token_needs_no_terminal_and_bounds_the_healthcheck(monkeypatch
         mock_oauth_client.return_value.get_client.return_value.get.assert_called_once_with(
             "/v1/system/healthcheck/", timeout=HEALTHCHECK_TIMEOUT
         )
+
+
+# ---------------------------------------------------------------------------
+# is_dedicated_decision_model: what a screening or mapping record reports.
+# ---------------------------------------------------------------------------
+
+
+def test_a_decisions_api_lm_is_a_dedicated_decision_model():
+    engine = DecisionsEngine("https://example.test/openai/v1", "key", timeout=5.0)
+    assert is_dedicated_decision_model(dspy.LM("gpt-6-luna", engine=engine))
+
+
+def test_the_chat_model_standing_in_is_not():
+    assert not is_dedicated_decision_model(dspy.LM("openai/gpt-6-luna", api_key="k"))
+    assert not is_dedicated_decision_model(None)

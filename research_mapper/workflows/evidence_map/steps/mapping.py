@@ -304,6 +304,7 @@ class GenerateMap(Step[GenerateMapParams, EvidenceMapContext]):
                             # any module with the subtopics and reasoning will do.
                             probabilities=getattr(prediction, "probabilities", None),
                             model=getattr(prediction, "model", None),
+                            dedicated=getattr(prediction, "dedicated", None),
                         )
                     )
                 ctx.set_coordinates(rows)

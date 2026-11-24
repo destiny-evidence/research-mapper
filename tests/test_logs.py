@@ -9,6 +9,7 @@ from research_mapper.logs import (
     _prune_old_logs,
     _state_dir_base,
     configure_file_logging,
+    configure_service_logging,
 )
 
 
@@ -118,3 +119,38 @@ def test_prune_old_logs_keeps_only_the_most_recent(tmp_path):
     assert len(remaining) == 20
     assert remaining[0] == f"research-mapper-{5:020d}.log"
     assert remaining[-1] == f"research-mapper-{24:020d}.log"
+
+
+# ---------------------------------------------------------------------------
+# configure_service_logging: the worker and API's INFO lines reach the container logs.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def root_level():
+    root = logging.getLogger()
+    before = root.level
+    yield
+    root.setLevel(before)
+
+
+def test_service_logging_sends_info_to_stderr(capsys, root_handlers_before, root_level):
+    configure_service_logging()
+
+    logging.getLogger("research_mapper.config.llm").info(
+        "Configuring decision model: model=%s", "gpt-6-luna"
+    )
+
+    err = capsys.readouterr().err
+    assert "INFO" in err
+    assert "Configuring decision model: model=gpt-6-luna" in err
+
+
+def test_service_logging_keeps_http_request_lines_out(
+    capsys, root_handlers_before, root_level
+):
+    configure_service_logging()
+
+    logging.getLogger("httpx").info("HTTP Request: POST https://example.test")
+
+    assert "HTTP Request" not in capsys.readouterr().err

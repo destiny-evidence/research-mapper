@@ -122,30 +122,30 @@ class ScreenEvidence(Step[ScreenEvidenceParams, EvidenceMapContext]):
         """Screen evidence against the selected screening criteria."""
         screening_criteria = ctx.require_artifact(artifacts.SCREENING_CRITERIA).criteria
         criteria_version = ctx.get_artifact_version(artifacts.SCREENING_CRITERIA)
-        references = ctx.references(SessionReferenceStage.GATHERED)
-        already_included_references = len(
-            ctx.references(SessionReferenceStage.INCLUDED)
+        already_included_references = ctx.count_references(
+            SessionReferenceStage.INCLUDED
         )
-        already_excluded_references = len(
-            ctx.references(SessionReferenceStage.EXCLUDED)
+        already_screened = already_included_references + ctx.count_references(
+            SessionReferenceStage.EXCLUDED
         )
-        total_references = (
-            len(references) + already_included_references + already_excluded_references
+        total_references = already_screened + ctx.count_references(
+            SessionReferenceStage.GATHERED
         )
         if not total_references:
             msg = "no evidence was retrieved, so there is nothing to screen"
             raise NothingToScreen(msg)
 
         tracker = ProgressTracker(
-            ctx,
-            total=total_references,
-            note=SCREENING,
-            done=already_included_references + already_excluded_references,
+            ctx, total=total_references, note=SCREENING, done=already_screened
         )
         tracker.start()
         included = already_included_references
-        for evidence_page in get_evidence(
-            [reference.destiny_id for reference in references]
+        # A batch of rows at a time, each looked up in DESTINY just before it's
+        # screened, so memory holds one batch whatever the session's size.
+        for evidence_page in (
+            page
+            for references in ctx.reference_batches(SessionReferenceStage.GATHERED)
+            for page in get_evidence([reference.destiny_id for reference in references])
         ):
             for evidence in batched(evidence_page.values(), MAX_CONCURRENCY):
                 examples = [

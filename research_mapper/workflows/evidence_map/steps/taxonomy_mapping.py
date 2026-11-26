@@ -1,6 +1,7 @@
 """Building the map from the taxonomy's own schemes."""
 
 import builtins
+from itertools import batched
 from typing import ClassVar
 
 from pydantic import BaseModel
@@ -12,7 +13,10 @@ from research_mapper.models.taxonomy_search import Concept
 from research_mapper.modules.taxonomy_mapping import TaxonomySchemeDimensionGenerator
 from research_mapper.taxonomy import RepoCommunity, build_concept_index, get_graph
 from research_mapper.workflows.evidence_map import artifacts
-from research_mapper.workflows.evidence_map.context import EvidenceMapContext
+from research_mapper.workflows.evidence_map.context import (
+    BATCH_SIZE,
+    EvidenceMapContext,
+)
 from research_mapper.workflows.evidence_map.hydrate import get_evidence
 from research_mapper.workflows.evidence_map.steps.mapping import NothingToMap
 from research_mapper.workflows.evidence_map.views import CoordinateRow
@@ -34,8 +38,7 @@ class GenerateTaxonomyMap(Step[GenerateTaxonomyMapParams, EvidenceMapContext]):
 
     def run(self, ctx: EvidenceMapContext, params: GenerateTaxonomyMapParams) -> dict:
         """Pick three schemes, then place each reference from its own annotations."""
-        references = ctx.screened_in()
-        if not references:
+        if not ctx.count_screened_in():
             msg = "screening included no evidence, so there is nothing to map"
             raise NothingToMap(msg)
 
@@ -46,8 +49,11 @@ class GenerateTaxonomyMap(Step[GenerateTaxonomyMapParams, EvidenceMapContext]):
             for concept in indexed.concepts
         }
 
+        # Only each reference's own concepts are kept, not its evidence: choosing the
+        # schemes needs every reference's, before any of them can be placed.
         annotations = {
             item.destiny_id: [iri for iri in item.known_concepts if iri in by_iri]
+            for references in ctx.screened_in_batches()
             for page in get_evidence([r.destiny_id for r in references])
             for item in page.values()
         }
@@ -79,23 +85,26 @@ class GenerateTaxonomyMap(Step[GenerateTaxonomyMapParams, EvidenceMapContext]):
             artifacts.Dimensions(dimensions=dimensions, reasoning=prediction.reasoning),
         )
 
-        rows = []
-        for destiny_id, iris in annotations.items():
-            coordinate = _coordinate(iris, by_iri, dimensions)
-            if coordinate is None:
-                continue
-            rows.append(
-                CoordinateRow(
-                    destiny_id=destiny_id,
-                    coordinate=coordinate,
-                    reasoning=prediction.reasoning,
-                    dimensions_version=version,
+        mapped = 0
+        for batch in batched(annotations.items(), BATCH_SIZE):
+            rows = []
+            for destiny_id, iris in batch:
+                coordinate = _coordinate(iris, by_iri, dimensions)
+                if coordinate is None:
+                    continue
+                rows.append(
+                    CoordinateRow(
+                        destiny_id=destiny_id,
+                        coordinate=coordinate,
+                        reasoning=prediction.reasoning,
+                        dimensions_version=version,
+                    )
                 )
-            )
-        ctx.set_coordinates(rows)
+            ctx.set_coordinates(rows)
+            mapped += len(rows)
         return {
-            "mapped": len(rows),
-            "dropped": len(annotations) - len(rows),
+            "mapped": mapped,
+            "dropped": len(annotations) - mapped,
             "version": version,
         }
 

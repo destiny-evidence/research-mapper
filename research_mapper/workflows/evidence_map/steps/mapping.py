@@ -260,21 +260,25 @@ class GenerateMap(Step[GenerateMapParams, EvidenceMapContext]):
         if not dimensions_version:
             msg = "dimensions artifact not found"
             raise RuntimeError(msg)
-        references = ctx.references_to_map(dimensions_version)
+        to_map = ctx.count_to_map(dimensions_version)
         already_mapped = ctx.count_mapped_at(dimensions_version)
-        if not references and not already_mapped:
+        if not to_map and not already_mapped:
             msg = "screening included no evidence, so there is nothing to map"
             raise NothingToMap(msg)
 
         user_query = UserQuery(query=ctx.research_session.question)
         axes = (dimensions[0], dimensions[1], dimensions[2])
         tracker = ProgressTracker(
-            ctx, len(references) + already_mapped, note=MAPPING, done=already_mapped
+            ctx, to_map + already_mapped, note=MAPPING, done=already_mapped
         )
         tracker.start()
 
         mapped = 0
-        for evidence_page in get_evidence([r.destiny_id for r in references]):
+        for evidence_page in (
+            page
+            for references in ctx.batches_to_map(dimensions_version)
+            for page in get_evidence([r.destiny_id for r in references])
+        ):
             for evidence in batched(evidence_page.values(), MAX_CONCURRENCY):
                 examples = [
                     dspy.Example(

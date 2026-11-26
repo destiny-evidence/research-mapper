@@ -198,8 +198,6 @@ export function diffChoice(suggested = [], chosen = [], key = JSON.stringify) {
 
 /* references ------------------------------------------------------------- */
 
-export const STAGES = ["gathered", "included", "excluded", "mapped", "failed"];
-
 /**
  * Screening's verdict on a reference.
  */
@@ -221,22 +219,6 @@ export const placementOf = (reference) =>
       : "not mapped";
 
 /**
- * Which models made a part's decisions ("screening" or "mapping") across these
- * references: each distinct model with whether it was a dedicated decision model.
- * `dedicated` is undefined on records made before it was stored.
- */
-export function decidedBy(references = [], part) {
-  const seen = new Map();
-  for (const reference of references ?? []) {
-    const { model, dedicated } = reference?.[part] ?? {};
-    if (!model) continue;
-    const key = `${model}|${dedicated}`;
-    if (!seen.has(key)) seen.set(key, { model, dedicated });
-  }
-  return [...seen.values()];
-}
-
-/**
  * A decision's model as words: in full for a step's summary, or `short` beside one
  * reference's reasoning. Says outright when the chat model stood in.
  */
@@ -251,20 +233,14 @@ export function decisionLabel({ model, dedicated }, { short = false } = {}) {
 }
 
 /**
- * How a view slices its references.
+ * How a view's buckets are named, and which one a single row sits in. The
+ * server counts and filters the buckets (the views live in
+ * research_mapper/workflows/evidence_map/references.py); a row only labels itself.
  */
-export const SLICES = {
-  stage: { label: "Stage", of: (reference) => reference.stage, order: STAGES },
-  verdict: {
-    label: "Screening",
-    of: verdictOf,
-    order: ["included", "excluded", "not screened", "failed"],
-  },
-  placement: {
-    label: "Mapping",
-    of: placementOf,
-    order: ["mapped", "not mapped", "failed"],
-  },
+export const VIEW_SLICES = {
+  all: { label: "Stage", of: (reference) => reference.stage },
+  screening: { label: "Screening", of: verdictOf },
+  mapping: { label: "Mapping", of: placementOf },
 };
 
 /** Why a screened-in reference has no place on the map. */
@@ -290,42 +266,21 @@ export function unplacedBecause(reference, tail = "suggested") {
     : UNPLACED.unannotated;
 }
 
-/** How many references sit in each of a slice's buckets. */
-export const bucketCounts = (references = [], slice = SLICES.stage) =>
-  slice.order
-    .map((bucket) => ({
-      bucket,
-      count: references.filter((reference) => slice.of(reference) === bucket)
-        .length,
-    }))
-    .filter((entry) => entry.count > 0);
-
-const foundInMode = (mode) => (reference) =>
-  (reference.provenance ?? []).some((entry) => entry.mode === mode);
-
-const screenedIn = (reference) => verdictOf(reference) === "included";
-
+/**
+ * The references table each step shows: the server view it reads, which parts
+ * of a reference's story it tells, and for a map, which tail placed it.
+ */
 export const REFERENCE_VIEWS = {
-  retrieve_sparse_evidence: {
-    subset: foundInMode("sparse"),
-    slice: null,
-    shows: ["found"],
-  },
-  retrieve_concept_evidence: {
-    subset: foundInMode("taxonomy"),
-    slice: null,
-    shows: ["found"],
-  },
-  screen_evidence: { slice: SLICES.verdict, shows: ["screening", "found"] },
+  retrieve_sparse_evidence: { view: "sparse", shows: ["found"] },
+  retrieve_concept_evidence: { view: "taxonomy", shows: ["found"] },
+  screen_evidence: { view: "screening", shows: ["screening", "found"] },
   generate_map: {
-    subset: screenedIn,
-    slice: SLICES.placement,
+    view: "mapping",
     shows: ["mapping", "coordinate"],
     tail: "suggested",
   },
   generate_taxonomy_map: {
-    subset: screenedIn,
-    slice: SLICES.placement,
+    view: "mapping",
     shows: ["mapping", "coordinate"],
     tail: "taxonomy",
   },
@@ -340,13 +295,6 @@ export const referenceStamp = (rows = []) =>
     )
     .join(",");
 
-/** The references a step's table shows, out of the session's, or null. */
-export function referencesFor(type, references = null) {
-  const view = REFERENCE_VIEWS[type];
-  if (!view || !references) return null;
-  return view.subset ? references.filter(view.subset) : references;
-}
-
 /**
  * A cell selection as dimension/subtopic pairs, all of which a reference's
  * coordinate has to satisfy.
@@ -356,27 +304,6 @@ export const cellKey = (terms = []) =>
     .map(([dimension, subtopic]) => `${dimension}=${subtopic}`)
     .sort()
     .join("&");
-
-export const inCell = (coordinate, terms = []) =>
-  terms.every(([dimension, subtopic]) =>
-    (coordinate?.[dimension] ?? []).includes(subtopic),
-  );
-
-export function filterReferences(
-  references = [],
-  filter = null,
-  slice = SLICES.stage,
-) {
-  if (filter?.bucket && slice)
-    return references.filter(
-      (reference) => slice.of(reference) === filter.bucket,
-    );
-  if (filter?.terms)
-    return references.filter((reference) =>
-      inCell(reference.coordinate, filter.terms),
-    );
-  return references;
-}
 
 export function authorLine(evidence) {
   const authors = evidence?.authors ?? [];
@@ -437,7 +364,8 @@ export function foundBy(reference, filterGroups = []) {
 
 /**
  * A map payload as a grid. Any two dimensions can be the axes; the third
- * becomes the facet.
+ * becomes the facet. The map arrives as coordinates with how many references
+ * share each, so every count here is a sum of those.
  */
 export function buildGrid(map, { row = 0, col = 1, facet = null } = {}) {
   if (map?.dimensions?.length !== 3 || row === col) return null;
@@ -448,10 +376,11 @@ export function buildGrid(map, { row = 0, col = 1, facet = null } = {}) {
 
   const within = (coordinate, dimension, name) =>
     (coordinate?.[dimension.name] ?? []).includes(name);
-  const all = map.mapped_evidence ?? [];
+  const all = map.cells ?? [];
   const evidence = all.filter(
-    (item) => !facet || within(item.coordinate, facetDim, facet),
+    (cell) => !facet || within(cell.coordinate, facetDim, facet),
   );
+  const sum = (cells) => cells.reduce((total, cell) => total + cell.count, 0);
 
   const names = (dimension) => [
     ...new Set(dimension.subtopics.map((s) => s.name)),
@@ -459,13 +388,14 @@ export function buildGrid(map, { row = 0, col = 1, facet = null } = {}) {
   const rows = names(rowDim);
   const cols = names(colDim);
   const cells = rows.map((name) =>
-    cols.map(
-      (other) =>
+    cols.map((other) =>
+      sum(
         evidence.filter(
-          (item) =>
-            within(item.coordinate, rowDim, name) &&
-            within(item.coordinate, colDim, other),
-        ).length,
+          (cell) =>
+            within(cell.coordinate, rowDim, name) &&
+            within(cell.coordinate, colDim, other),
+        ),
+      ),
     ),
   );
 
@@ -480,13 +410,13 @@ export function buildGrid(map, { row = 0, col = 1, facet = null } = {}) {
     cols,
     cells,
     maxCount: Math.max(0, ...cells.flat()),
-    placed: evidence.length,
-    total: all.length,
+    placed: sum(evidence),
+    total: sum(all),
     facets: facetDim.subtopics.map((subtopic) => ({
       name: subtopic.name,
-      count: all.filter((item) =>
-        within(item.coordinate, facetDim, subtopic.name),
-      ).length,
+      count: sum(
+        all.filter((cell) => within(cell.coordinate, facetDim, subtopic.name)),
+      ),
     })),
   };
 }

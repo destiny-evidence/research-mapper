@@ -1,17 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   authorLine,
-  bucketCounts,
   cellKey,
-  decidedBy,
   decisionLabel,
-  filterReferences,
   foundBy,
-  inCell,
   placementOf,
-  referencesFor,
   referenceStamp,
-  SLICES,
   UNPLACED,
   unplacedBecause,
   verdictOf,
@@ -31,28 +25,6 @@ const reference = (stage, extra = {}) => ({
 const MAPPED = reference('mapped', {
   coordinate: { Setting: ['Urban'], Outcome: ['Mortality'] },
   mapping: { dimensions_version: 2, reasoning: 'reports both' },
-})
-
-describe('bucketCounts', () => {
-  it('counts in pipeline order and leaves out the stages nothing reached', () => {
-    const counts = bucketCounts([
-      reference('excluded'),
-      reference('mapped'),
-      reference('excluded'),
-    ])
-    expect(counts).toEqual([
-      { bucket: 'excluded', count: 2 },
-      { bucket: 'mapped', count: 1 },
-    ])
-  })
-
-  it('counts a placed reference as included under screening', () => {
-    const counts = bucketCounts([MAPPED, reference('excluded')], SLICES.verdict)
-    expect(counts).toEqual([
-      { bucket: 'included', count: 1 },
-      { bucket: 'excluded', count: 1 },
-    ])
-  })
 })
 
 describe('verdictOf', () => {
@@ -104,34 +76,6 @@ describe('referenceStamp', () => {
   })
 })
 
-describe('referencesFor', () => {
-  const sparse = reference('gathered', {
-    provenance: [{ mode: 'sparse', query: 'hpv' }],
-  })
-  const taxonomy = reference('included', {
-    provenance: [{ mode: 'taxonomy', filters: [] }],
-  })
-  const all = [sparse, taxonomy, MAPPED]
-
-  it('narrows a retrieval step to what that retrieval found', () => {
-    expect(referencesFor('retrieve_sparse_evidence', all)).toEqual([sparse])
-    expect(referencesFor('retrieve_concept_evidence', all)).toEqual([taxonomy])
-  })
-
-  it('gives screening the whole list, since it is about all of it', () => {
-    expect(referencesFor('screen_evidence', all)).toHaveLength(3)
-  })
-
-  it('narrows mapping to what screening kept', () => {
-    expect(referencesFor('generate_map', all)).toEqual([taxonomy, MAPPED])
-  })
-
-  it('has nothing to show for a step with no table', () => {
-    expect(referencesFor('enhance_sparse_query', all)).toBeNull()
-    expect(referencesFor('screen_evidence', null)).toBeNull()
-  })
-})
-
 describe('cellKey', () => {
   it('is the same key however the terms are ordered', () => {
     const one = cellKey([['Setting', 'Urban'], ['Outcome', 'Mortality']])
@@ -147,44 +91,6 @@ describe('cellKey', () => {
       ['Design', 'Cohort'],
     ])
     expect(plain).not.toBe(facetted)
-  })
-})
-
-describe('inCell', () => {
-  it('needs every term, since a cell is the intersection', () => {
-    expect(inCell(MAPPED.coordinate, [['Setting', 'Urban']])).toBe(true)
-    expect(
-      inCell(MAPPED.coordinate, [['Setting', 'Urban'], ['Outcome', 'Other']]),
-    ).toBe(false)
-  })
-
-  it('holds for a reference in several subtopics of one dimension', () => {
-    const coordinate = { Setting: ['Urban', 'Rural'] }
-    expect(inCell(coordinate, [['Setting', 'Rural']])).toBe(true)
-  })
-
-  it('is false for a reference with no coordinate at all', () => {
-    expect(inCell(null, [['Setting', 'Urban']])).toBe(false)
-  })
-})
-
-describe('filterReferences', () => {
-  const all = [reference('gathered'), reference('excluded'), MAPPED]
-
-  it('returns everything with no filter', () => {
-    expect(filterReferences(all)).toHaveLength(3)
-  })
-
-  it('narrows to one bucket of the slice it is read through', () => {
-    expect(filterReferences(all, { bucket: 'excluded' })).toEqual([all[1]])
-    expect(filterReferences(all, { bucket: 'included' }, SLICES.verdict)).toEqual([
-      MAPPED,
-    ])
-  })
-
-  it('narrows to a cell, which only a mapped reference can match', () => {
-    const shown = filterReferences(all, { terms: [['Setting', 'Urban']] })
-    expect(shown).toEqual([MAPPED])
   })
 })
 
@@ -312,30 +218,6 @@ describe('unplacedBecause', () => {
 
   it('reports a reference the run could not process at all', () => {
     expect(unplacedBecause(reference('failed'))).toBe(UNPLACED.failed)
-  })
-})
-
-describe('decidedBy', () => {
-  it('lists each distinct model once, with whether it was dedicated', () => {
-    const rows = [
-      reference('included', { screening: { model: 'gpt-6-luna', dedicated: true } }),
-      reference('excluded', { screening: { model: 'gpt-6-luna', dedicated: true } }),
-      reference('included', { screening: { model: 'gpt-chat', dedicated: false } }),
-    ]
-    expect(decidedBy(rows, 'screening')).toEqual([
-      { model: 'gpt-6-luna', dedicated: true },
-      { model: 'gpt-chat', dedicated: false },
-    ])
-  })
-
-  it('skips references the part has not decided, or decided without a stored model', () => {
-    const rows = [
-      reference('gathered'),
-      reference('included', { screening: { include: true } }),
-      MAPPED,
-    ]
-    expect(decidedBy(rows, 'screening')).toEqual([])
-    expect(decidedBy(rows, 'mapping')).toEqual([])
   })
 })
 

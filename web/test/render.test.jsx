@@ -11,9 +11,9 @@ import { Body } from '../src/ui/Session.jsx'
 import { ForkButton, ForkConfirm } from '../src/ui/Fork.jsx'
 import { Questions } from '../src/ui/Questions.jsx'
 import { Sessions } from '../src/ui/Sessions.jsx'
-import { References, stepReferences, Why } from '../src/ui/References.jsx'
+import { pager, ReferenceTable, stepReferences, Why } from '../src/ui/References.jsx'
 import { CopyLink } from '../src/ui/CopyLink.jsx'
-import { SLICES, UNPLACED, unplacedBecause } from '../src/derive.js'
+import { UNPLACED, unplacedBecause } from '../src/derive.js'
 import { useAdapter } from '../src/auth.js'
 
 describe('Panel', () => {
@@ -214,21 +214,58 @@ describe('References', () => {
       evidence: null,
     },
   ]
+  const page = (extra = {}) => ({
+    items: rows,
+    next: null,
+    total: 2,
+    matched: 2,
+    buckets: [],
+    decided: [],
+    ...extra,
+  })
+  const table = (props = {}) =>
+    render(<ReferenceTable page={page()} community="hpv" {...props} />)
 
   it('waits on a spinner rather than an empty table', () => {
-    const html = render(<References references={null} community="hpv" loading />)
+    const html = render(<ReferenceTable page={null} community="hpv" loading />)
     expect(html).toContain('spinner')
     expect(html).not.toContain('ref-list')
   })
 
+  it('swaps the rows for a spinner while the next page is on its way', () => {
+    const html = table({
+      page: page({ matched: 120, total: 120 }),
+      pending: 'page',
+      start: 100,
+      hasPrevious: true,
+    })
+    expect(html).toContain('Fetching references')
+    expect(html).not.toContain('ref-row')
+    expect(html).toContain('101–120 of 120.')
+    expect(html).toContain('Previous')
+  })
+
+  it('leaves the count blank while a new filter is on its way', () => {
+    const html = table({ pending: 'filter' })
+    expect(html).toContain('spinner')
+    expect(html).not.toContain('ref-row')
+    expect(html).not.toContain('All 2.')
+  })
+
+  it('shows a failed page turn in place of the rows', () => {
+    const html = table({ pending: 'page', error: new Error('offline') })
+    expect(html).toContain('offline')
+    expect(html).not.toContain('ref-row')
+  })
+
   it('keeps the reasoning behind the row, not in the collapsed list', () => {
-    const html = render(<References references={rows} community="hpv" />)
+    const html = table()
     expect(html).toContain('ref-list')
     expect(html).not.toContain('high-income only')
   })
 
-  it('lists every stage, with the title, authors and year', () => {
-    const html = render(<References references={rows} community="hpv" />)
+  it('lists the page, with each title, authors and year', () => {
+    const html = table()
     expect(html).toContain('Barriers in Kenya')
     expect(html).toContain('Smith et al.')
     expect(html).toContain('2019')
@@ -237,42 +274,85 @@ describe('References', () => {
   })
 
   it('links each reference into the repository under its community', () => {
-    const html = render(<References references={rows} community="ESEA" />)
-    expect(html).toContain('/esea/references/aaa')
+    expect(table({ community: 'ESEA' })).toContain('/esea/references/aaa')
   })
 
   it('names a reference the repository dropped rather than printing its id', () => {
-    const html = render(<References references={rows} community="hpv" />)
+    const html = table()
     expect(html).toContain('Untitled reference')
     expect(html).not.toContain('>bbb<')
   })
 
-  it('reads a placed reference as included when the slice is screening', () => {
-    const html = render(
-      <References references={rows} community="hpv" slice={SLICES.verdict} />,
-    )
+  it('reads a placed reference as included when the view is screening', () => {
+    const html = table({
+      view: 'screening',
+      page: page({ buckets: [{ bucket: 'included', count: 1 }, { bucket: 'excluded', count: 1 }] }),
+    })
     expect(html).toContain('Screening')
     expect(html).toContain('included')
     expect(html).not.toContain('>mapped<')
   })
 
+  it('offers the server’s buckets with their counts', () => {
+    const html = table({
+      view: 'screening',
+      page: page({ total: 4210, buckets: [{ bucket: 'included', count: 1032 }] }),
+    })
+    expect(html).toContain('>All<')
+    expect(html).toContain('4210')
+    expect(html).toContain('1032')
+  })
+
   it('sits inside a step without a section rule of its own', () => {
-    const html = render(<References references={rows} community="hpv" inset />)
-    expect(html).toContain('refs inset')
-    expect(html).not.toContain('map-title')
+    expect(table({ inset: true })).toContain('refs inset')
   })
 
   it('says what a cell selection narrowed the list to', () => {
-    const html = render(
-      <References
-        references={rows}
-        community="hpv"
-        cell={{ key: 'k', label: 'Urban × Mortality', terms: [['Setting', 'Urban']] }}
-      />,
-    )
+    const html = table({
+      page: page({ items: [rows[1]], matched: 1 }),
+      cell: { key: 'k', label: 'Urban × Mortality', terms: [['Setting', 'Urban']] },
+    })
     expect(html).toContain('1 of 2')
     expect(html).toContain('Urban × Mortality')
-    expect(html).not.toContain('Barriers in Kenya')
+  })
+
+  it('says where in a long list the page is, and offers the way on', () => {
+    const html = table({
+      page: page({ total: 4210, matched: 4210, next: 'bbb' }),
+      start: 50,
+      hasPrevious: true,
+      hasNext: true,
+    })
+    expect(html).toContain('51–52 of 4,210.')
+    expect(html).toContain('Previous')
+    expect(html).toContain('Next')
+    expect(html).not.toMatch(/disabled[^>]*>‹ Previous/)
+  })
+
+  it('offers no way back from the first page', () => {
+    const html = table({ page: page({ total: 120, matched: 120, next: 'bbb' }), hasNext: true })
+    expect(html).toContain('1–2 of 120.')
+    expect(html).toMatch(/disabled[^>]*>‹ Previous/)
+  })
+
+  it('has no pager when everything fits on one page', () => {
+    const html = table()
+    expect(html).toContain('All 2.')
+    expect(html).not.toContain('pager')
+  })
+
+  it('says which model decided the view, and whether it was a dedicated one', () => {
+    const html = table({
+      page: page({ decided: [{ model: 'gpt-6-luna', dedicated: true }] }),
+    })
+    expect(html).toContain('Decided by gpt-6-luna · dedicated decision model')
+    expect(html).not.toContain('fallback')
+  })
+
+  it('flags the chat model standing in for a decision model', () => {
+    const html = table({ page: page({ decided: [{ model: 'gpt-chat', dedicated: false }] }) })
+    expect(html).toContain('Decided by gpt-chat · chat model (no decision model configured')
+    expect(html).toContain('refs-decided fallback')
   })
 
   describe('a row’s detail', () => {
@@ -328,76 +408,48 @@ describe('References', () => {
     })
   })
 
-  describe('a step’s own slice of it', () => {
-    const refs = (extra = {}) => ({ references: rows, community: 'hpv', loading: false, ...extra })
+  describe('a step’s own table', () => {
+    const refs = { sessionId: 's1', community: 'hpv', stamp: '', enabled: true }
 
-    it('reads screening through its verdicts, placed references included', () => {
-      const html = render(stepReferences('screen_evidence', refs()))
-      expect(html).toContain('Screening')
-      expect(html).toContain('All 2.')
-    })
-
-    it('shows mapping only what screening kept', () => {
-      const html = render(stepReferences('generate_map', refs()))
-      expect(html).toContain('Mapping')
-      expect(html).toContain('All 1.')
-      expect(html).not.toContain('Barriers in Kenya')
+    it('reads each step through its own server view', () => {
+      expect(stepReferences('screen_evidence', refs).props.view).toBe('screening')
+      expect(stepReferences('generate_map', refs).props.view).toBe('mapping')
+      expect(stepReferences('retrieve_concept_evidence', refs).props.view).toBe('taxonomy')
     })
 
     it('waits for the step to finish before offering a reason for a gap', () => {
-      expect(stepReferences('generate_map', refs(), 'running').props.reason).toBe(null)
-      expect(stepReferences('generate_map', refs(), 'done').props.reason).toBeTypeOf('function')
+      expect(stepReferences('generate_map', refs, 'running').props.reason).toBe(null)
+      expect(stepReferences('generate_map', refs, 'done').props.reason).toBeTypeOf('function')
     })
 
-    it('says the references are coming rather than showing untitled rows', () => {
-      const html = render(
-        stepReferences('screen_evidence', refs({ references: null, loading: true })),
-      )
+    it('gives a step with no table nothing, and hides an empty one once it loads', () => {
+      expect(stepReferences('enhance_sparse_query', refs)).toBeNull()
+      expect(stepReferences('screen_evidence', refs).props.hideEmpty).toBe(true)
+    })
+
+    it('says the references are coming before the first page arrives', () => {
+      const html = render(stepReferences('screen_evidence', refs))
       expect(html).toContain('spinner')
-      expect(html).not.toContain('ref-list')
     })
+  })
+})
 
-    it('says which model decided a step, and whether it was a dedicated one', () => {
-      const decided = rows.map((row) => ({
-        ...row,
-        screening: { ...row.screening, model: 'gpt-6-luna', dedicated: true },
-      }))
-      const html = render(stepReferences('screen_evidence', refs({ references: decided })))
-      expect(html).toContain('Decided by gpt-6-luna · dedicated decision model')
-      expect(html).not.toContain('fallback')
-    })
+describe('paging', () => {
+  it('pushes the page’s next on the way forward, and pops it on the way back', () => {
+    const first = pager([null], { next: 'id-50' }, 50)
+    expect(first).toMatchObject({ start: 0, hasPrevious: false, hasNext: true })
+    const stack = first.forward()
+    expect(stack).toEqual([null, 'id-50'])
 
-    it('flags the chat model standing in for a decision model', () => {
-      const decided = rows.map((row) => ({
-        ...row,
-        screening: { ...row.screening, model: 'gpt-chat', dedicated: false },
-      }))
-      const html = render(stepReferences('screen_evidence', refs({ references: decided })))
-      expect(html).toContain('Decided by gpt-chat · chat model (no decision model configured')
-      expect(html).toContain('refs-decided fallback')
-    })
+    const second = pager(stack, { next: null }, 50)
+    expect(second).toMatchObject({ start: 50, hasPrevious: true, hasNext: false })
+    expect(second.forward()).toEqual(stack)
+    expect(second.back()).toEqual([null])
+  })
 
-    it('says nothing about models for a step that decides nothing', () => {
-      const html = render(stepReferences('screen_evidence', refs()))
-      expect(html).not.toContain('Decided by')
-    })
-
-    it('gives a step with no table, or no references, nothing', () => {
-      expect(stepReferences('enhance_sparse_query', refs())).toBeNull()
-      expect(stepReferences('screen_evidence', refs({ references: [] }))).toBeNull()
-    })
-
-    it('keeps a retrieval step to what it found, with no downstream state on it', () => {
-      const found = [
-        { ...rows[0], stage: 'excluded', provenance: [{ mode: 'taxonomy', filters: [] }] },
-      ]
-      const html = render(
-        stepReferences('retrieve_concept_evidence', refs({ references: found })),
-      )
-      expect(html).toContain('Barriers in Kenya')
-      expect(html).not.toContain('ref-stage')
-      expect(html).not.toContain('facet')
-    })
+  it('cannot move on from a page that has not arrived', () => {
+    expect(pager([null], null).hasNext).toBe(false)
+    expect(pager([null], null).forward()).toEqual([null])
   })
 })
 

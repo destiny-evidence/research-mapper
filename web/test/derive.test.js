@@ -118,11 +118,11 @@ const MAP = {
     dimension('Setting', ['School', 'Facility']),
     dimension('Design', ['Trial', 'Qualitative']),
   ],
-  mapped_evidence: [
-    { coordinate: { Barrier: ['Cost'], Setting: ['School'], Design: ['Trial'] } },
-    { coordinate: { Barrier: ['Cost'], Setting: ['School'], Design: ['Qualitative'] } },
+  cells: [
+    { coordinate: { Barrier: ['Cost'], Setting: ['School'], Design: ['Trial'] }, count: 1 },
+    { coordinate: { Barrier: ['Cost'], Setting: ['School'], Design: ['Qualitative'] }, count: 1 },
     // Annotated with two subtopics in one dimension, which the model allows.
-    { coordinate: { Barrier: ['Cost', 'Hesitancy'], Setting: ['Facility'], Design: ['Trial'] } },
+    { coordinate: { Barrier: ['Cost', 'Hesitancy'], Setting: ['Facility'], Design: ['Trial'] }, count: 1 },
   ],
 }
 
@@ -135,6 +135,28 @@ describe('buildGrid', () => {
       [0, 1],
     ])
     expect(grid.placed).toBe(3)
+  })
+
+  it('adds up the references that share a coordinate', () => {
+    const map = {
+      ...MAP,
+      cells: [
+        { coordinate: { Barrier: ['Cost'], Setting: ['School'], Design: ['Trial'] }, count: 40 },
+        { coordinate: { Barrier: ['Cost'], Setting: ['Facility'], Design: ['Qualitative'] }, count: 2 },
+      ],
+    }
+    const grid = buildGrid(map)
+    expect(grid.cells).toEqual([
+      [40, 2],
+      [0, 0],
+    ])
+    expect(grid.placed).toBe(42)
+    expect(grid.total).toBe(42)
+    expect(buildGrid(map, { facet: 'Trial' }).placed).toBe(40)
+    expect(buildGrid(map).facets).toEqual([
+      { name: 'Trial', count: 40 },
+      { name: 'Qualitative', count: 2 },
+    ])
   })
 
   it('filters by the third dimension without changing the facet counts', () => {

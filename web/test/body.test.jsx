@@ -250,11 +250,7 @@ describe('step body', () => {
     expect(html).not.toContain('taxonomy')
   })
 
-  it('lists the references a step is moving while it is still moving them', () => {
-    const references = [
-      { destiny_id: 'aaa', stage: 'excluded', provenance: [], screening: { include: false }, evidence: { title: 'Barriers in Kenya' } },
-      { destiny_id: 'bbb', stage: 'included', provenance: [], screening: { include: true }, evidence: { title: 'Uptake in Nairobi' } },
-    ]
+  it('gives a step that moves references its table while it is still moving them', () => {
     const html = render(
       <Body
         row={row({
@@ -262,13 +258,12 @@ describe('step body', () => {
           operation: { id: 'o12', status: 'running', progress: { done: 1, total: 2 } },
         })}
         artifact={() => null}
-        refs={{ references, community: 'hpv', loading: false }}
+        refs={{ sessionId: 's1', community: 'hpv', stamp: 'screen_evidence:running:1', enabled: true }}
         onAnswer={noop}
       />,
     )
-    expect(html).toContain('Barriers in Kenya')
-    expect(html).toContain('Uptake in Nairobi')
-    expect(html).toContain('Screening')
+    // Its first page is fetched once it mounts; until then it says it's coming.
+    expect(html).toContain('Fetching references')
   })
 
   it('says so plainly when a completed step has nothing to show', () => {

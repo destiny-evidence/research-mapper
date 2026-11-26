@@ -17,7 +17,7 @@ import { usePoll } from "../poll.js";
 import { Panel, Toggle, Pip } from "./Panel.jsx";
 import { Question } from "./Ask.jsx";
 import { EvidenceMap } from "./EvidenceMap.jsx";
-import { References, stepReferences, useReferences } from "./References.jsx";
+import { References, stepReferences } from "./References.jsx";
 import {
   Artifact,
   RENDERERS,
@@ -103,23 +103,16 @@ export function Session({ id }) {
   const rows = data ? steps(data) : [];
   const mapped = mapIsReady(rows);
   const tabled = rows.filter((row) => REFERENCE_VIEWS[row.type]);
-  const {
-    references,
-    error: refsError,
-    loading: refsLoading,
-  } = useReferences(id, {
-    enabled: tabled.some((row) =>
-      ["running", "done", "failed"].includes(row.state),
-    ),
-    stamp: referenceStamp(rows),
-  });
+  // Each table fetches its own page; these say when there is one to fetch,
+  // and when it has to be fetched again because a step moved references.
+  const refsEnabled = tabled.some((row) =>
+    ["running", "done", "failed"].includes(row.state),
+  );
+  const refsStamp = referenceStamp(rows);
 
   useEffect(() => {
-    // The view needs coordinates, not the references themselves.
-    if (mapped)
-      api
-        .getMap(id, { includeEvidence: false })
-        .then(setMap, () => setMap(null));
+    // Counts per coordinate: which references those are is the table's business.
+    if (mapped) api.getMap(id).then(setMap, () => setMap(null));
   }, [id, mapped]);
 
   // Keep the session moving: see nextToStart.
@@ -205,11 +198,11 @@ export function Session({ id }) {
     ?.result?.included;
 
   const refs = {
-    references,
+    sessionId: id,
     community: session.community,
     filterGroups: artifact("concept_filters")?.groups,
-    loading: refsLoading,
-    error: refsError,
+    stamp: refsStamp,
+    enabled: refsEnabled,
   };
 
   // Only an answered question can be answered differently.
@@ -327,7 +320,8 @@ export function Session({ id }) {
             onSelectCell={setCell}
           />
           <References
-            references={references}
+            sessionId={id}
+            view="all"
             community={session.community}
             filterGroups={artifact("concept_filters")?.groups}
             reason={(reference) =>
@@ -335,8 +329,8 @@ export function Session({ id }) {
             }
             cell={cell}
             onClearCell={() => setCell(null)}
-            loading={refsLoading}
-            error={refsError}
+            stamp={refsStamp}
+            enabled={refsEnabled}
           />
         </>
       ) : (

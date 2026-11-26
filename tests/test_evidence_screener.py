@@ -10,6 +10,7 @@ import uuid
 import dspy
 import httpx
 import pytest
+from dspy.utils.dummies import DummyLM
 
 from research_mapper.decisions_engine import DecisionsEngine
 from research_mapper.models.common import Evidence
@@ -73,7 +74,18 @@ def test_outputs_are_plain_values(probability, include):
     assert result.probability == probability
     assert result.threshold == 0.5
     assert result.model == "gpt-6-luna"
+    assert result.dedicated is True
     assert result.reasoning.startswith("Included" if include else "Excluded")
+
+
+def test_a_chat_model_standing_in_is_reported_as_not_dedicated():
+    """The chat model's probability is self-reported, so the result says so."""
+    chat = DummyLM([{"meets_criteria": '{"noul": 0.83}'}])
+
+    result = EvidenceScreener(lm=chat)(evidence=EVIDENCE, screening_criteria=CRITERIA)
+
+    assert result.include is True
+    assert result.dedicated is False
 
 
 def test_a_configured_threshold_decides_and_is_reported():

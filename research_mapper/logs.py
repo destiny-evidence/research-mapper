@@ -7,6 +7,13 @@ logger = logging.getLogger(__name__)
 
 _LOG_RETENTION = 20
 
+LOG_FORMAT = "%(asctime)s %(levelname)-8s %(name)s: %(message)s"
+
+# These libraries' own DEBUG/INFO output is wire-level noise (TCP/TLS framing, every
+# HTTP request, full LLM request/response dumps) that dwarfs our own logging without
+# helping trace app bugs, so they are capped at WARNING.
+NOISY_LOGGERS = ("dspy", "httpcore", "httpx", "openai", "asyncio", "LiteLLM")
+
 _ANSI = {
     logging.DEBUG: "\033[36m",  # cyan
     logging.INFO: "\033[32m",  # green
@@ -61,6 +68,22 @@ def _prune_old_logs(log_dir: Path, keep: int = _LOG_RETENTION) -> None:
         stale.unlink(missing_ok=True)
 
 
+def configure_service_logging() -> None:
+    """
+    Logs INFO and above to stderr, uncoloured, for the commands that run as services
+    (worker and api; migrate's logging comes from alembic.ini). Without this Python
+    prints only warnings, so startup lines such as "Configuring decision model: ..."
+    never reach the container logs.
+    """
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(LOG_FORMAT))
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    root.addHandler(handler)
+    for name in NOISY_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)
+
+
 def configure_file_logging() -> Path | None:
     """
     Attaches a DEBUG-level file handler to the root logger, writing to a fresh
@@ -77,9 +100,7 @@ def configure_file_logging() -> Path | None:
         log_path = log_dir / f"research-mapper-{timestamp}.log"
         handler = logging.FileHandler(log_path, encoding="utf-8")
         handler.setLevel(logging.DEBUG)
-        handler.setFormatter(
-            logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s")
-        )
+        handler.setFormatter(logging.Formatter(LOG_FORMAT))
         logging.getLogger().addHandler(handler)
     except OSError as exc:
         logger.warning("Could not set up file logging: %s", exc)

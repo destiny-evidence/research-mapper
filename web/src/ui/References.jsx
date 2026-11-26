@@ -3,6 +3,8 @@ import * as api from "../api.js";
 import {
   authorLine,
   bucketCounts,
+  decidedBy,
+  decisionLabel,
   filterReferences,
   foundBy,
   REFERENCE_VIEWS,
@@ -92,19 +94,21 @@ export function Why({ reference, filterGroups, shows = null, reason = null }) {
   const coordinate = has("coordinate")
     ? Object.entries(reference.coordinate ?? {})
     : [];
+  const by = (decision) =>
+    decision?.model ? ` · ${decisionLabel(decision, { short: true })}` : "";
   return (
     <div class="ref-why">
       {has("screening") ? (
         <Reasoning
           label={`Model reasoning: ${
             reference.screening?.include ? "inclusion" : "exclusion"
-          }`}
+          }${by(reference.screening)}`}
           text={reference.screening?.reasoning}
         />
       ) : null}
       {has("mapping") ? (
         <Reasoning
-          label="Model reasoning: mapping"
+          label={`Model reasoning: mapping${by(reference.mapping)}`}
           text={reference.mapping?.reasoning}
         />
       ) : null}
@@ -228,6 +232,7 @@ export function References({
   shows = null,
   reason = null,
   inset = false,
+  decided = [],
 }) {
   const [bucket, setBucket] = useState(null);
   const anchor = useRef(null);
@@ -294,6 +299,14 @@ export function References({
             ? `All ${references.length}.`
             : `${shown.length} of ${references.length}.`}
         </div>
+        {decided.map((decision) => (
+          <div
+            class={`refs-decided ${decision.dedicated === false ? "fallback" : ""}`}
+            key={`${decision.model}|${decision.dedicated}`}
+          >
+            Decided by {decisionLabel(decision)}
+          </div>
+        ))}
       </div>
 
       {slice || cell ? (
@@ -357,6 +370,8 @@ export function stepReferences(type, refs, state = "done") {
   const view = REFERENCE_VIEWS[type];
   if (!view || !refs) return null;
   const shown = referencesFor(type, refs.references);
+  // The part of each reference this step decided, if it decides one.
+  const part = ["screening", "mapping"].find((p) => view.shows?.includes(p));
   // Loading says the table is coming; nothing in it once loaded says the step
   // has none, which is the step's own business to report.
   if (!refs.loading && !refs.error && !shown?.length) return null;
@@ -371,6 +386,7 @@ export function stepReferences(type, refs, state = "done") {
           : null
       }
       references={shown}
+      decided={part ? decidedBy(shown, part) : []}
       community={refs.community}
       filterGroups={refs.filterGroups}
       loading={refs.loading}

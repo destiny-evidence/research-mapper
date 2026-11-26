@@ -3,6 +3,8 @@ import {
   authorLine,
   bucketCounts,
   cellKey,
+  decidedBy,
+  decisionLabel,
   filterReferences,
   foundBy,
   inCell,
@@ -310,5 +312,50 @@ describe('unplacedBecause', () => {
 
   it('reports a reference the run could not process at all', () => {
     expect(unplacedBecause(reference('failed'))).toBe(UNPLACED.failed)
+  })
+})
+
+describe('decidedBy', () => {
+  it('lists each distinct model once, with whether it was dedicated', () => {
+    const rows = [
+      reference('included', { screening: { model: 'gpt-6-luna', dedicated: true } }),
+      reference('excluded', { screening: { model: 'gpt-6-luna', dedicated: true } }),
+      reference('included', { screening: { model: 'gpt-chat', dedicated: false } }),
+    ]
+    expect(decidedBy(rows, 'screening')).toEqual([
+      { model: 'gpt-6-luna', dedicated: true },
+      { model: 'gpt-chat', dedicated: false },
+    ])
+  })
+
+  it('skips references the part has not decided, or decided without a stored model', () => {
+    const rows = [
+      reference('gathered'),
+      reference('included', { screening: { include: true } }),
+      MAPPED,
+    ]
+    expect(decidedBy(rows, 'screening')).toEqual([])
+    expect(decidedBy(rows, 'mapping')).toEqual([])
+  })
+})
+
+describe('decisionLabel', () => {
+  it('says a dedicated decision model is one', () => {
+    const decision = { model: 'gpt-6-luna', dedicated: true }
+    expect(decisionLabel(decision)).toBe('gpt-6-luna · dedicated decision model')
+    expect(decisionLabel(decision, { short: true })).toBe('gpt-6-luna (decision model)')
+  })
+
+  it('says outright when the chat model stood in', () => {
+    const decision = { model: 'gpt-chat', dedicated: false }
+    expect(decisionLabel(decision)).toBe(
+      'gpt-chat · chat model (no decision model configured, probabilities self-reported)',
+    )
+    expect(decisionLabel(decision, { short: true })).toBe('gpt-chat (chat model)')
+  })
+
+  it('names just the model on records made before the kind was stored', () => {
+    expect(decisionLabel({ model: 'gpt-6-luna' })).toBe('gpt-6-luna')
+    expect(decisionLabel({ model: 'gpt-6-luna' }, { short: true })).toBe('gpt-6-luna')
   })
 })

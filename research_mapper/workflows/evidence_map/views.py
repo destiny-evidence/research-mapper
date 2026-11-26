@@ -27,10 +27,12 @@ class ScreeningRow:
     reasoning: str
     criteria_version: int
     # What the verdict was read from, kept so it can be re-thresholded later.
-    # The model tells a decision model's probability from a chat model's own.
+    # The model, and whether it was a dedicated decision model (the Decisions API)
+    # rather than the chat model reporting its own probability.
     probability: float | None = None
     threshold: float | None = None
     model: str | None = None
+    dedicated: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,3 +46,4 @@ class CoordinateRow:
     # whose shape the API, UI and export rely on.
     probabilities: dict[str, dict[str, float]] | None = None
     model: str | None = None
+    dedicated: bool | None = None

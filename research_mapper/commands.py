@@ -22,6 +22,7 @@ from research_mapper.config import (
     load_environment,
 )
 from research_mapper.db.session import db_manager
+from research_mapper.logs import configure_service_logging
 from research_mapper.engine import queue, runner
 from research_mapper import workflows
 
@@ -68,6 +69,7 @@ async def _worker() -> None:
 
 def worker() -> None:
     """Run the operation worker."""
+    configure_service_logging()
     init_database()
     configure_dspy()
     init_destiny_client()
@@ -76,7 +78,7 @@ def worker() -> None:
 
 def api() -> None:
     """Serve the HTTP API."""
-
+    configure_service_logging()
     uvicorn.run("research_mapper.api.app:app", host="0.0.0.0", port=8080)
 
 

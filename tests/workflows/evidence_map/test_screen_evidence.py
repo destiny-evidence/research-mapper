@@ -127,7 +127,8 @@ def test_the_criteria_version_is_stamped_on_each_verdict(db, ctx, session, monke
 
 
 def test_what_the_verdict_was_read_from_is_stored(db, ctx, session, monkeypatch):
-    """Probability, threshold and model are kept so a verdict can be re-thresholded."""
+    """Probability, threshold and model are kept so a verdict can be re-thresholded,
+    with whether that model was a dedicated decision model."""
     make_reference(db, session, IDS[0])
     pages(monkeypatch, 1)
 
@@ -138,6 +139,7 @@ def test_what_the_verdict_was_read_from_is_stored(db, ctx, session, monkeypatch)
             probability=0.8312,
             threshold=0.5,
             model="gpt-6-luna",
+            dedicated=True,
         )
 
     monkeypatch.setattr(screening.EvidenceScreener, "__call__", fake_call)
@@ -148,6 +150,7 @@ def test_what_the_verdict_was_read_from_is_stored(db, ctx, session, monkeypatch)
     assert row.screening["probability"] == 0.8312
     assert row.screening["threshold"] == 0.5
     assert row.screening["model"] == "gpt-6-luna"
+    assert row.screening["dedicated"] is True
 
 
 def test_a_failed_item_stays_gathered_so_a_rerun_retries_it(

@@ -267,6 +267,7 @@ def test_what_the_coordinate_was_chosen_from_is_stored(db, ctx, session, monkeyp
             reasoning="why",
             probabilities=probabilities,
             model="gpt-6-luna",
+            dedicated=True,
         )
 
     monkeypatch.setattr(mapping.EvidenceMapper, "__call__", fake_call)
@@ -276,6 +277,7 @@ def test_what_the_coordinate_was_chosen_from_is_stored(db, ctx, session, monkeyp
     row = db.query(SessionReference).filter_by(destiny_id=ONE).one()
     assert row.mapping["probabilities"] == probabilities
     assert row.mapping["model"] == "gpt-6-luna"
+    assert row.mapping["dedicated"] is True
     assert row.coordinate == {
         "Setting": ["School"],
         "Population": ["Teens"],

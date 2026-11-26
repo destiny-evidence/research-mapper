@@ -104,6 +104,12 @@ def get_decision_model(cache: bool = True) -> dspy.LM:
     return dspy.LM(model, engine=engine, cache=cache)
 
 
+def is_dedicated_decision_model(lm: dspy.LM | None) -> bool:
+    """Whether `lm` answers through the Decisions API, rather than being the chat model
+    standing in for one."""
+    return isinstance(getattr(lm, "engine", None), DecisionsEngine)
+
+
 class _DecisionCheck(dspy.Signature):
     """Answer the question about the text."""
 

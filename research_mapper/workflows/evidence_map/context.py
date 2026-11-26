@@ -150,6 +150,7 @@ class EvidenceMapContext(StepContext):
                             probability=row.probability,
                             threshold=row.threshold,
                             model=row.model,
+                            dedicated=row.dedicated,
                         ),
                     )
                 )
@@ -169,6 +170,7 @@ class EvidenceMapContext(StepContext):
                             dimensions_version=row.dimensions_version,
                             probabilities=row.probabilities,
                             model=row.model,
+                            dedicated=row.dedicated,
                         ),
                     )
                 )

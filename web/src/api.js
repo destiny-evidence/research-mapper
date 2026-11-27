@@ -66,12 +66,32 @@ export const retry = (operationId) =>
 export const getArtifact = (sessionId, type) =>
   request(`/sessions/${sessionId}/artifacts/${type}/`);
 
-export const listReferences = (sessionId, { includeEvidence = false } = {}) =>
-  request(
-    `/sessions/${sessionId}/references/?include_evidence=${includeEvidence}`,
-  );
+/**
+ * One page of a session's references, as a view sees them. `cell` is a list of
+ * [dimension, subtopic] pairs; `after` is the previous page's `next`.
+ */
+export function listReferences(
+  sessionId,
+  {
+    view = "all",
+    bucket = null,
+    cell = null,
+    after = null,
+    limit = 50,
+    includeEvidence = false,
+  } = {},
+) {
+  const params = new URLSearchParams({
+    view,
+    limit: String(limit),
+    include_evidence: String(includeEvidence),
+  });
+  if (bucket) params.set("bucket", bucket);
+  if (cell?.length) params.set("cell", JSON.stringify(cell));
+  if (after) params.set("after", after);
+  return request(`/sessions/${sessionId}/references/?${params}`);
+}
 
-export const getMap = (sessionId, { includeEvidence = true } = {}) =>
-  request(`/sessions/${sessionId}/map/?include_evidence=${includeEvidence}`);
+export const getMap = (sessionId) => request(`/sessions/${sessionId}/map/`);
 
 export const getConfig = () => request("/config");

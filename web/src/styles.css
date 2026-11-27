@@ -424,6 +424,8 @@ input, textarea, select {
 .refs.inset .refs-head { margin-bottom: 11px; }
 .refs.inset .ref-list { max-height: 420px; overflow-y: auto; }
 .ref-list { margin-top: 14px; border-top: 1px solid var(--line); }
+.pager { display: flex; justify-content: space-between; margin-top: 12px; }
+.pager .btn:disabled { opacity: 0.4; cursor: default; }
 .ref-row { display: flex; align-items: center; gap: 2px; border-bottom: 1px solid var(--line-2); }
 .ref-row:hover { background: #faf9f6; }
 /* Open, the row stays on the page ground. A full-bleed white block behind

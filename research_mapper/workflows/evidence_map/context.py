@@ -1,5 +1,6 @@
 """Evidence map database context."""
 
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -7,6 +8,7 @@ from sqlalchemy import Select, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
+from research_mapper.workflows.evidence_map.hydrate import DESTINY_LOOKUP_CHUNK_SIZE
 from research_mapper.workflows.evidence_map.models import SessionReference
 from research_mapper.workflows.evidence_map.views import (
     CoordinateRow,
@@ -17,9 +19,22 @@ from research_mapper.workflows.evidence_map.views import (
 from research_mapper.engine.context import StepContext
 
 
+# A batch is one DESTINY lookup's worth, so a step reads, looks up and decides in step.
+BATCH_SIZE = DESTINY_LOOKUP_CHUNK_SIZE
+
+
 def _by_agent(**fields: object) -> dict:
     """Stamp a decision blob as the agent's, made now."""
     return {**fields, "by": "agent", "at": datetime.now(UTC).isoformat()}
+
+
+def _view(row: SessionReference) -> ReferenceView:
+    return ReferenceView(
+        destiny_id=row.destiny_id,
+        stage=row.stage,
+        screening=row.screening,
+        coordinate=row.coordinate,
+    )
 
 
 class EvidenceMapContext(StepContext):
@@ -55,68 +70,98 @@ class EvidenceMapContext(StepContext):
                 )
             db.commit()
 
-    def references(
-        self, stage: SessionReferenceStage | None = None
-    ) -> list[ReferenceView]:
-        """Return this session's references, optionally only those at one stage."""
-        statement = select(
-            SessionReference.destiny_id,
-            SessionReference.stage,
-            SessionReference.screening,
-            SessionReference.coordinate,
-        ).where(SessionReference.research_session_id == self.research_session_id)
-        if stage is not None:
-            statement = statement.where(SessionReference.stage == stage)
-        with self._sf() as db:
-            rows = db.execute(statement).all()
-        return [
-            ReferenceView(
-                destiny_id=row.destiny_id,
-                stage=row.stage,
-                screening=row.screening,
-                coordinate=row.coordinate,
-            )
-            for row in rows
-        ]
+    def _in_session(self) -> Select[tuple[SessionReference]]:
+        """Select this session's references."""
+        return select(SessionReference).where(
+            SessionReference.research_session_id == self.research_session_id
+        )
 
     def _screened_in(self) -> Select[tuple[SessionReference]]:
         """Select every reference screening kept, placed or not."""
-        return (
-            select(SessionReference)
-            .where(SessionReference.research_session_id == self.research_session_id)
-            .where(
-                SessionReference.stage.in_(
-                    [SessionReferenceStage.INCLUDED, SessionReferenceStage.MAPPED]
-                )
+        return self._in_session().where(
+            SessionReference.stage.in_(
+                [SessionReferenceStage.INCLUDED, SessionReferenceStage.MAPPED]
             )
         )
 
-    def _views(self, statement: Select[tuple[SessionReference]]) -> list[ReferenceView]:
+    def _to_map(self, dimensions_version: int) -> Select[tuple[SessionReference]]:
+        """Select the references a run against these dimensions has yet to place."""
+        return self._screened_in().where(
+            SessionReference.mapping["dimensions_version"].astext.is_distinct_from(
+                str(dimensions_version)
+            )
+        )
+
+    def _batches(
+        self, statement: Select[tuple[SessionReference]], size: int | None = None
+    ) -> Iterator[list[ReferenceView]]:
+        """
+        The rows `statement` selects, a batch at a time in id order, each read in its
+        own short session so a long step holds neither a connection nor every row.
+
+        Paged by id (keyset), not by "the first N still matching": a step moves rows
+        out of what it selected as it goes, but one it fails on stays, and must not
+        come round again in the same run.
+        """
+        size = size or BATCH_SIZE
+        after: UUID | None = None
+        while True:
+            page = (
+                statement
+                if after is None
+                else statement.where(SessionReference.id > after)
+            )
+            with self._sf() as db:
+                rows = (
+                    db.execute(page.order_by(SessionReference.id).limit(size))
+                    .scalars()
+                    .all()
+                )
+                batch = [_view(row) for row in rows]
+                after = rows[-1].id if rows else None
+            if batch:
+                yield batch
+            if len(batch) < size:
+                return
+
+    def reference_batches(
+        self, stage: SessionReferenceStage | None = None, size: int | None = None
+    ) -> Iterator[list[ReferenceView]]:
+        """This session's references in batches, optionally only those at one stage."""
+        statement = self._in_session()
+        if stage is not None:
+            statement = statement.where(SessionReference.stage == stage)
+        return self._batches(statement, size)
+
+    def screened_in_batches(
+        self, size: int | None = None
+    ) -> Iterator[list[ReferenceView]]:
+        """Every reference screening kept, in batches."""
+        return self._batches(self._screened_in(), size)
+
+    def batches_to_map(
+        self, dimensions_version: int, size: int | None = None
+    ) -> Iterator[list[ReferenceView]]:
+        """The references a run against these dimensions has yet to place, in batches."""
+        return self._batches(self._to_map(dimensions_version), size)
+
+    def _count(self, statement: Select[tuple[SessionReference]]) -> int:
         with self._sf() as db:
-            rows = db.execute(statement.order_by(SessionReference.id)).scalars().all()
-        return [
-            ReferenceView(
-                destiny_id=row.destiny_id,
-                stage=row.stage,
-                screening=row.screening,
-                coordinate=row.coordinate,
-            )
-            for row in rows
-        ]
+            return db.execute(
+                select(func.count()).select_from(statement.subquery())
+            ).scalar_one()
 
-    def screened_in(self) -> list[ReferenceView]:
-        """Every reference screening kept."""
-        return self._views(self._screened_in())
+    def count_references(self, *stages: SessionReferenceStage) -> int:
+        """How many of this session's references are at any of these stages."""
+        return self._count(self._in_session().where(SessionReference.stage.in_(stages)))
 
-    def references_to_map(self, dimensions_version: int) -> list[ReferenceView]:
-        """References a run against these dimensions has yet to place."""
-        return self._views(
-            self._screened_in().where(
-                SessionReference.mapping["dimensions_version"].astext.is_distinct_from(
-                    str(dimensions_version)
-                )
-            )
-        )
+    def count_screened_in(self) -> int:
+        """How many references screening kept."""
+        return self._count(self._screened_in())
+
+    def count_to_map(self, dimensions_version: int) -> int:
+        """How many references a run against these dimensions has yet to place."""
+        return self._count(self._to_map(dimensions_version))
 
     def count_mapped_at(self, dimensions_version: int) -> int:
         """How many references are already placed against these dimensions."""

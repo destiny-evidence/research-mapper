@@ -8,16 +8,20 @@ const client = (overrides = {}) => ({
   getArtifact: vi.fn(async (_id, type) => ({ type, version: 1, payload: { type } })),
   getMap: vi.fn(async () => ({
     dimensions: [],
-    mapped_evidence: [{ evidence: { destiny_id: 'r1' }, coordinate: { Setting: ['Urban'] } }],
+    cells: [{ coordinate: { Setting: ['Urban'] }, count: 1 }],
+    total: 1,
   })),
-  listReferences: vi.fn(async (_id, options) => [
-    {
-      destiny_id: 'r1',
-      stage: 'excluded',
-      screening: { include: false, reasoning: 'high-income only' },
-      evidence: options?.includeEvidence ? { title: 'Barriers in Kenya' } : null,
-    },
-  ]),
+  listReferences: vi.fn(async () => ({
+    items: [
+      {
+        destiny_id: 'r1',
+        stage: 'excluded',
+        screening: { include: false, reasoning: 'high-income only' },
+        evidence: null,
+      },
+    ],
+    next: null,
+  })),
   ...overrides,
 })
 
@@ -40,28 +44,37 @@ describe('buildRecord', () => {
     expect(record.references[0].screening.reasoning).toBe('high-income only')
   })
 
-  it('names each reference, so the record reads without the repository', async () => {
-    const record = await buildRecord('s1', client())
-    expect(record.references[0].evidence.title).toBe('Barriers in Kenya')
-  })
-
-  it('joins the map to the references rather than hydrating it twice', async () => {
-    const stub = client()
+  it('pages through every reference, without looking any of them up', async () => {
+    const pages = {
+      null: { items: [{ destiny_id: 'r1' }, { destiny_id: 'r2' }], next: 'r2' },
+      r2: { items: [{ destiny_id: 'r3' }], next: null },
+    }
+    const stub = client({
+      listReferences: vi.fn(async (_id, { after }) => pages[after]),
+    })
     const record = await buildRecord('s1', stub)
 
-    expect(stub.getMap).toHaveBeenCalledWith('s1', { includeEvidence: false })
-    expect(record.map.mapped_evidence[0].evidence.title).toBe('Barriers in Kenya')
-    expect(record.map.mapped_evidence[0].coordinate).toEqual({ Setting: ['Urban'] })
+    expect(record.references.map((r) => r.destiny_id)).toEqual(['r1', 'r2', 'r3'])
+    for (const [, options] of stub.listReferences.mock.calls)
+      expect(options.includeEvidence).toBeFalsy()
   })
 
-  it('leaves the map’s ids alone when the references could not be fetched', async () => {
+  it('still builds when the references could not be fetched', async () => {
     const stub = client({
       listReferences: vi.fn(async () => {
-        throw new Error('repository down')
+        throw new Error('database down')
       }),
     })
     const record = await buildRecord('s1', stub)
-    expect(record.map.mapped_evidence[0].evidence).toEqual({ destiny_id: 'r1' })
+    expect(record.references).toEqual([])
+  })
+
+  it('carries the map as its counts per coordinate', async () => {
+    const stub = client()
+    const record = await buildRecord('s1', stub)
+
+    expect(stub.getMap).toHaveBeenCalledWith('s1')
+    expect(record.map.cells).toEqual([{ coordinate: { Setting: ['Urban'] }, count: 1 }])
   })
 
   it('is fine with a session that has no map yet, which is most of its life', async () => {

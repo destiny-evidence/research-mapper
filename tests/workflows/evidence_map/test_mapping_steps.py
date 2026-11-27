@@ -9,7 +9,7 @@ from research_mapper.engine.context import NeedsInput
 from research_mapper.engine.enums import DecisionType
 from research_mapper.engine.models import Decision
 from research_mapper.models.common import Evidence
-from research_mapper.workflows.evidence_map import artifacts
+from research_mapper.workflows.evidence_map import artifacts, context
 from research_mapper.workflows.evidence_map.context import EvidenceMapContext
 from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
 from research_mapper.workflows.evidence_map.models import SessionReference
@@ -245,6 +245,42 @@ def test_only_included_references_are_placed_on_the_map(db, ctx, session, monkey
     assert rows[TWO].coordinate is None
 
 
+def test_references_are_mapped_a_batch_at_a_time(db, ctx, session, monkeypatch):
+    ctx.write_artifact(
+        artifacts.DIMENSIONS,
+        artifacts.Dimensions.model_validate({"dimensions": with_subtopics()}),
+    )
+    ids = [uuid.uuid4() for _ in range(5)]
+    for destiny_id in ids:
+        make_reference(db, session, destiny_id, stage=SessionReferenceStage.INCLUDED)
+    monkeypatch.setattr(context, "BATCH_SIZE", 2)
+    looked_up = []
+
+    def fake_get_evidence(reference_ids):
+        looked_up.append(len(reference_ids))
+        yield {i: Evidence(destiny_id=i, title=f"paper {i}") for i in reference_ids}
+
+    monkeypatch.setattr(mapping, "get_evidence", fake_get_evidence)
+    monkeypatch.setattr(
+        mapping.EvidenceMapper,
+        "__call__",
+        lambda self, **_: dspy.Prediction(
+            dimension1_subtopic="School",
+            dimension2_subtopic="Teens",
+            dimension3_subtopic="Uptake",
+            reasoning="why",
+        ),
+    )
+
+    assert mapping.GenerateMap().run(ctx, mapping.GenerateMapParams()) == {
+        "mapped": 5,
+        "failed": 0,
+    }
+    assert looked_up == [2, 2, 1]
+    stages = {r.stage for r in db.query(SessionReference).all()}
+    assert stages == {SessionReferenceStage.MAPPED}
+
+
 def test_what_the_coordinate_was_chosen_from_is_stored(db, ctx, session, monkeypatch):
     """Probabilities and model go in the mapping blob; the coordinate keeps its shape."""
     ctx.write_artifact(
@@ -383,13 +419,6 @@ def test_the_map_route_reads_what_generate_map_wrote(db, ctx, session, monkeypat
     )
     mapping.GenerateMap().run(ctx, mapping.GenerateMapParams())
 
-    from research_mapper.workflows.evidence_map import routes
-
-    monkeypatch.setattr(
-        routes,
-        "get_evidence",
-        lambda ids: [{ONE: Evidence(destiny_id=ONE, title="paper one")}],
-    )
     app.dependency_overrides[get_session_factory] = lambda: ctx._sf
     try:
         with TestClient(app) as client:
@@ -403,64 +432,16 @@ def test_the_map_route_reads_what_generate_map_wrote(db, ctx, session, monkeypat
         "Population",
         "Outcome",
     ]
-    assert body["mapped_evidence"][0]["coordinate"] == {
-        "Setting": ["School"],
-        "Population": ["Teens"],
-        "Outcome": ["Uptake"],
-    }
-
-
-def test_the_map_can_skip_hydration_entirely(db, ctx, session, monkeypatch):
-    """Looking every reference up in DESTINY is most of what /map costs, and a
-    caller that only wants the shape of the map should not pay it."""
-    from fastapi.testclient import TestClient
-
-    from research_mapper.api.app import app
-    from research_mapper.api.deps import get_session_factory
-    from research_mapper.config import init_database
-
-    ctx.write_artifact(
-        artifacts.DIMENSIONS,
-        artifacts.Dimensions.model_validate({"dimensions": with_subtopics()}),
-    )
-    make_reference(db, session, ONE, stage=SessionReferenceStage.INCLUDED)
-    hydrate(monkeypatch, ONE)
-    monkeypatch.setattr(
-        mapping.EvidenceMapper,
-        "__call__",
-        lambda self, **_: dspy.Prediction(
-            dimension1_subtopic="School",
-            dimension2_subtopic="Teens",
-            dimension3_subtopic="Uptake",
-            reasoning="why",
-        ),
-    )
-    mapping.GenerateMap().run(ctx, mapping.GenerateMapParams())
-
-    from research_mapper.workflows.evidence_map import routes
-
-    def explode(_ids):
-        raise AssertionError("DESTINY should not be called")
-
-    monkeypatch.setattr(routes, "get_evidence", explode)
-    app.dependency_overrides[get_session_factory] = lambda: ctx._sf
-    try:
-        with TestClient(app) as client:
-            body = client.get(
-                f"/sessions/{session.id}/map/?include_evidence=false"
-            ).json()
-    finally:
-        app.dependency_overrides.clear()
-        init_database()
-
-    # Same shape, same coordinates — the evidence is just an id.
-    assert body["mapped_evidence"][0]["coordinate"] == {
-        "Setting": ["School"],
-        "Population": ["Teens"],
-        "Outcome": ["Uptake"],
-    }
-    assert body["mapped_evidence"][0]["evidence"]["destiny_id"] == str(ONE)
-    assert body["mapped_evidence"][0]["evidence"]["title"] is None
+    assert body["cells"] == [
+        {
+            "coordinate": {
+                "Setting": ["School"],
+                "Population": ["Teens"],
+                "Outcome": ["Uptake"],
+            },
+            "count": 1,
+        }
+    ]
 
 
 def test_subtopic_reasoning_is_kept_per_dimension(db, ctx, operation, monkeypatch):

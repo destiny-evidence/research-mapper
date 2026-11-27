@@ -8,6 +8,7 @@ from research_mapper.engine.models import Operation
 from research_mapper.engine.views import Progress
 from research_mapper.models.common import Evidence
 from research_mapper.workflows.evidence_map import artifacts
+from research_mapper.workflows.evidence_map import context
 from research_mapper.workflows.evidence_map.context import EvidenceMapContext
 from research_mapper.workflows.evidence_map.enums import SessionReferenceStage
 from research_mapper.workflows.evidence_map.models import SessionReference
@@ -106,6 +107,28 @@ def test_screens_every_gathered_reference_across_pages(db, ctx, session, monkeyp
     assert current_progress(db, ctx) == Progress(
         done=5, total=5, note="screening evidence"
     )
+
+
+def test_rows_are_read_and_screened_a_batch_at_a_time(db, ctx, session, monkeypatch):
+    """However big the session, only a batch of rows is held at once, and each batch is
+    looked up just before it's screened."""
+    for destiny_id in IDS:
+        make_reference(db, session, destiny_id)
+    monkeypatch.setattr(context, "BATCH_SIZE", 2)
+    looked_up = []
+
+    def fake_get_evidence(reference_ids):
+        looked_up.append(len(reference_ids))
+        yield {i: Evidence(destiny_id=i, title=f"paper {i}") for i in reference_ids}
+
+    monkeypatch.setattr(screening, "get_evidence", fake_get_evidence)
+    screen(monkeypatch, fail={IDS[1]})
+
+    assert run(ctx) == {"screened": 5, "included": 4, "failed": 1}
+    assert looked_up == [2, 2, 1]
+    by_id = stages(db, session)
+    assert by_id[IDS[1]] == SessionReferenceStage.GATHERED
+    assert all(by_id[i] == SessionReferenceStage.INCLUDED for i in IDS if i != IDS[1])
 
 
 def test_the_criteria_version_is_stamped_on_each_verdict(db, ctx, session, monkeypatch):
